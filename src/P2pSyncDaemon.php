@@ -38,11 +38,7 @@ class P2pSyncDaemon
      */
     private $chainParams;
 
-    // begin chain state
-    /**
-     * @var BlockHeaderInterface
-     */
-    private $bestHeader;
+    private $isDownloading = false;
 
     public function __construct(string $host, int $port, string $database)
     {
@@ -92,10 +88,16 @@ class P2pSyncDaemon
     }
 
     public function downloadBlocks(Peer $peer) {
+        if ($this->isDownloading) {
+            echo "ignoring extra block download request, already doing that\n";
+            return;
+        }
+        $this->isDownloading = true;
         $peer->once(Message::BLOCK, function(Peer $peer, Block $blockMsg) use (&$queued) {
             $block = $blockMsg->getBlock();
             $hash = $block->getHeader()->getHash();
             $this->chain->addNextBlock($this->chain->getBestBlockHeight() + 1, $hash, $block);
+            $this->isDownloading = false;
             if ($this->chain->getBestBlockHeight() < $this->chain->getBestHeaderHeight()) {
                 $this->downloadBlocks($peer);
             }
