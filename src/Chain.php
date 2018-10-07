@@ -102,7 +102,6 @@ class Chain
         $this->bestHeaderHash = $hash;
         $this->hashMapToHeight[$hash->getBinary()] = $height;
         $this->heightMapToHash[$height] = $hash->getBinary();
-        echo "new header: $height {$hash->getHex()}\n";
     }
     public function addNextBlock(int $height, BufferInterface $hash, $block) {
         if ($height !== 1 + $this->bestBlockHeight) {
@@ -114,7 +113,6 @@ class Chain
         if ($this->hashMapToHeight[$hash->getBinary()] !== $height) {
             throw new \RuntimeException("height for hash {$this->hashMapToHeight[$hash->getBinary()]} != input $height");
         }
-        //echo "new block: $height {$hash->getHex()}\n";
         $this->bestBlockHeight = $height;
     }
 }

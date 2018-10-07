@@ -135,23 +135,22 @@ class BlockDownloader extends EventEmitter
         }
     }
 
-
     public function download(Peer $peer)
     {
         if ($this->downloading) {
-            echo "ignore duplicate download request\n";
-            return;
+            throw new \RuntimeException("already downloading");
         }
-
         $this->downloading = true;
         $peer->on(Message::BLOCK, [$this, 'receiveBlock']);
+
         $deferred = new Deferred();
         $this->requestBlocks($peer, $deferred);
-        return $deferred->promise()
-            ->then(function () {
+
+        return $deferred
+            ->promise()
+            ->then(function () use ($peer) {
                 $this->downloading = false;
-                echo "finished syncing\n";
-                echo $this->chain->getBestBlockHeight().PHP_EOL;
+                $peer->removeListener(Message::BLOCK, [$this, 'receiveBlock']);
             });
     }
 }

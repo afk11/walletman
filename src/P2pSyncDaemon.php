@@ -38,13 +38,18 @@ class P2pSyncDaemon
      */
     private $downloader;
 
+    /**
+     * @var
+     */
+    private $downloading = false;
+
     public function __construct(string $host, int $port, string $database)
     {
         $this->host = $host;
         $this->port = $port;
         $this->chain = new Chain(new \BitWasp\Bitcoin\Chain\Params(new Math()));
         // would normally come from wallet birthday
-        $this->chain->setStartBlock(new BlockRef(544000, Buffer::hex("0000000000000000000b4842f41ab2f65826a45102def71e43b1d8233a28d9f6")));
+        $this->chain->setStartBlock(new BlockRef(544500, Buffer::hex("0000000000000000000d8cc90c4a596a7137bc900ffc9ddeb97400f3bf5a89b9")));
         $this->downloader = new BlockDownloader(16, $this->chain);
     }
 
@@ -57,7 +62,6 @@ class P2pSyncDaemon
         $connector
             ->connect($netFactory->getAddress(new Ipv4($this->host), $this->port))
             ->then(function(Peer $peer) {
-                echo "connected!\n";
                 $peer->on(Message::PING, function (Peer $peer, Ping $ping) {
                     $peer->pong($ping);
                 });
@@ -76,6 +80,7 @@ class P2pSyncDaemon
                 $last = $header->getHash();
                 $this->chain->addNextHeader($startHeight + $i + 1, $last, $header);
             }
+            echo "new header tip {$this->chain->getBestHeaderHeight()} {$last->getHex()}\n";
             if (count($headers->getHeaders()) != 2000) {
                 $this->downloadBlocks($peer);
             } else {
@@ -85,10 +90,15 @@ class P2pSyncDaemon
 
         $hash = $this->chain->getBestHeaderHash();
         $peer->getheaders(new BlockLocator([$hash], new Buffer('', 32)));
+        $peer->sendheaders();
     }
 
     public function downloadBlocks(Peer $peer)
     {
-        $this->downloader->download($peer);
+        if (!$this->downloading) {
+            echo "downloadBlocks\n";
+            $this->downloader->download($peer);
+            $this->downloading = true;
+        }
     }
 }
