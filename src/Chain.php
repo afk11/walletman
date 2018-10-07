@@ -99,7 +99,7 @@ class Chain
         if ($this->hashMapToHeight[$hash->getBinary()] !== $height) {
             throw new \RuntimeException("height for hash {$this->hashMapToHeight[$hash->getBinary()]} != input $height");
         }
-        echo "new block: $height {$hash->getHex()}\n";
+        //echo "new block: $height {$hash->getHex()}\n";
         $this->bestBlockHeight = $height;
     }
 }

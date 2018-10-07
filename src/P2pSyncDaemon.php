@@ -87,23 +87,15 @@ class P2pSyncDaemon
         $peer->getheaders(new BlockLocator([$hash], new Buffer('', 32)));
     }
 
-    public function downloadBlocks(Peer $peer) {
+    public function downloadBlocks(Peer $peer)
+    {
         if ($this->isDownloading) {
             echo "ignoring extra block download request, already doing that\n";
             return;
         }
-        $this->isDownloading = true;
-        $peer->once(Message::BLOCK, function(Peer $peer, Block $blockMsg) use (&$queued) {
-            $block = $blockMsg->getBlock();
-            $hash = $block->getHeader()->getHash();
-            $this->chain->addNextBlock($this->chain->getBestBlockHeight() + 1, $hash, $block);
-            $this->isDownloading = false;
-            if ($this->chain->getBestBlockHeight() < $this->chain->getBestHeaderHeight()) {
-                $this->downloadBlocks($peer);
-            }
-        });
 
-        $hash = $this->chain->getBlockHash($this->chain->getBestBlockHeight() + 1);
-        $peer->getdata([Inventory::block($hash)]);
+        $this->isDownloading = true;
+        $downloader = new BlockDownloader(16, $this->chain);
+        $downloader->download($peer);
     }
 }
