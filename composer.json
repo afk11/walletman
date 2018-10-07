@@ -1,0 +1,10 @@
+{
+    "autoload": {
+        "psr-4": {
+            "BitWasp\\Wallet\\": "src/"
+        }
+    },
+    "require": {
+        "bitwasp/bitcoin-p2p": "^0.0.17"
+    }
+}
