@@ -3,18 +3,11 @@
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
-use BitWasp\Bitcoin\Chain\Params;
-use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 
 class Chain
 {
-    /**
-     * @var Params
-     */
-    private $chainParams;
-
     // Blocks
 
     /**
@@ -47,19 +40,23 @@ class Chain
     private $hashMapToHeight = [];
     private $heightMapToHash = [];
 
-    public function __construct(Params $params)
+    public function __construct(array $hashes, BlockHeaderInterface $bestHeader, int $bestBlockHeight)
     {
-        $this->chainParams = new \BitWasp\Bitcoin\Chain\Params(new Math());
-        $genesis = $this->chainParams->getGenesisBlock();
+//        $this->bestBlockHeight = 0;
+        $this->bestBlockHeight = $bestBlockHeight;
 
-        $this->bestBlockHeight = 0;
+//        $this->bestHeader = $genesis->getHeader();
+//        $this->bestHeaderHash = $this->bestHeader->getHash();
+//        $this->bestHeaderHeight = 0;
+        $this->bestHeader = $bestHeader;
+        $this->bestHeaderHash = $bestHeader->getHash();
+        $this->bestHeaderHeight = count($hashes);
 
-        $this->bestHeader = $genesis->getHeader();
-        $this->bestHeaderHash = $this->bestHeader->getHash();
-        $this->bestHeaderHeight = 0;
-
-        $this->hashMapToHeight[$this->bestHeaderHash->getBinary()] = 0;
-        $this->heightMapToHash[0] = $this->bestHeaderHash->getBinary();
+        foreach ($hashes as $i => $hash) {
+            // todo: what happens if i=0?
+            $this->hashMapToHeight[$hash->getBinary()] = $i;
+            $this->heightMapToHash[$i] = $hash->getBinary();
+        }
     }
 
     public function setStartBlock(BlockRef $blockRef) {
