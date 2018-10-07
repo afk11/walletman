@@ -1,25 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace BitWasp\Wallet;
 
-use BitWasp\Bitcoin\Block\BlockHeaderInterface;
-use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Chain\BlockLocator;
-use BitWasp\Bitcoin\Crypto\Random\Random;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Networking\Factory;
 use BitWasp\Bitcoin\Networking\Ip\Ipv4;
 use BitWasp\Bitcoin\Networking\Message;
-use BitWasp\Bitcoin\Networking\Messages\Block;
 use BitWasp\Bitcoin\Networking\Messages\Headers;
 use BitWasp\Bitcoin\Networking\Messages\Ping;
-use BitWasp\Bitcoin\Networking\NetworkMessage;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
-use BitWasp\Bitcoin\Networking\Structure\Inventory;
 use BitWasp\Buffertools\Buffer;
 use React\EventLoop\LoopInterface;
-use React\Promise\Deferred;
 
 class P2pSyncDaemon
 {
@@ -34,18 +29,22 @@ class P2pSyncDaemon
     private $port;
 
     /**
-     * @var \BitWasp\Bitcoin\Chain\Params
+     * @var Chain
      */
-    private $chainParams;
+    private $chain;
+
+    /**
+     * @var BlockDownloader
+     */
+    private $downloader;
 
     public function __construct(string $host, int $port, string $database)
     {
         $this->host = $host;
         $this->port = $port;
-        $this->chainParams = new \BitWasp\Bitcoin\Chain\Params(new Math());
-        $this->chain = new Chain($this->chainParams);
+        $this->chain = new Chain(new \BitWasp\Bitcoin\Chain\Params(new Math()));
         // would normally come from wallet birthday
-        $this->chain->setStartBlock(new BlockRef(544699, Buffer::hex("0000000000000000001e663c0cd9cd7524ca0c1f3d2af4ccea3909653315d7b0")));
+        $this->chain->setStartBlock(new BlockRef(544000, Buffer::hex("0000000000000000000b4842f41ab2f65826a45102def71e43b1d8233a28d9f6")));
         $this->downloader = new BlockDownloader(16, $this->chain);
     }
 
