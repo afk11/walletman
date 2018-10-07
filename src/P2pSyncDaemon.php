@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Chain\BlockLocator;
-use BitWasp\Bitcoin\Math\Math;
+use BitWasp\Bitcoin\Chain\Params;
+use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Networking\Factory;
 use BitWasp\Bitcoin\Networking\Ip\Ipv4;
 use BitWasp\Bitcoin\Networking\Message;
@@ -15,6 +16,7 @@ use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
 use BitWasp\Buffertools\Buffer;
 use React\EventLoop\LoopInterface;
+
 
 class P2pSyncDaemon
 {
@@ -34,32 +36,61 @@ class P2pSyncDaemon
     private $chain;
 
     /**
+     * @var NetworkInterface
+     */
+    private $network;
+
+    /**
+     * @var DB
+     */
+    private $db;
+
+    /**
      * @var BlockDownloader
      */
     private $downloader;
 
     /**
-     * @var
+     * @var bool
      */
     private $downloading = false;
 
-    public function __construct(string $host, int $port, string $database)
+    public function __construct(string $host, int $port, NetworkInterface $network, Params $params, DB $db)
     {
         $this->host = $host;
         $this->port = $port;
+        $this->db = $db;
+        $this->network = $network;
 
-        $params = new \BitWasp\Bitcoin\Chain\Params(new Math());
-        $genesis = $params->getGenesisBlock();
+        $blockCount = $db->getBlockCount();
+        if ($blockCount === 0) {
+            throw new \RuntimeException("need genesis block");
+        }
+
+        $genesis = $db->getBestHeader();
         $this->chain = new Chain([], $genesis->getHeader(), 0);
+
         // would normally come from wallet birthday
         $this->chain->setStartBlock(new BlockRef(544500, Buffer::hex("0000000000000000000d8cc90c4a596a7137bc900ffc9ddeb97400f3bf5a89b9")));
         $this->downloader = new BlockDownloader(16, $this->chain);
     }
 
     public function sync(LoopInterface $loop) {
-        $netFactory = new Factory($loop);
+        $netFactory = new Factory($loop, $this->network);
         $connParams = new ConnectionParams();
         $connParams->setBestBlockHeight($this->chain->getBestHeaderHeight());
+
+//        $server = new Server('unix:///tmp/server.sock', $loop);
+//        $server->on('connection', function (ConnectionInterface $connection) {
+//            echo 'Plaintext connection from ' . $connection->getRemoteAddress() . PHP_EOL;
+//            $req = new Deferred();
+//            $connection->on('data', function ($data) use ($req) {
+//                $req->resolve($data);
+//            });
+//            $req->promise()->then(function () use ($connection) {
+//                $connection->write('hello there!' . PHP_EOL);
+//            });
+//        });
 
         $connector = $netFactory->getConnector($connParams);
         $connector
@@ -82,11 +113,20 @@ class P2pSyncDaemon
                 return;
             }
 
-            $last = null;
-            $startHeight = $this->chain->getBestHeaderHeight();
-            foreach ($headers->getHeaders() as $i => $header) {
-                $last = $header->getHash();
-                $this->chain->addNextHeader($startHeight + $i + 1, $last, $header);
+            $this->db->getPdo()->beginTransaction();
+            try {
+                $last = null;
+                $startHeight = $this->chain->getBestHeaderHeight();
+                foreach ($headers->getHeaders() as $i => $header) {
+                    $last = $header->getHash();
+                    $this->chain->addNextHeader($this->db, $startHeight + $i + 1, $last, $header);
+                }
+                $this->db->getPdo()->commit();
+            } catch (\Exception $e) {
+                echo "error: {$e->getMessage()}\n";
+                echo "error: {$e->getTraceAsString()}\n";
+                $this->db->getPdo()->rollBack();
+                throw $e;
             }
 
             echo "new header tip {$this->chain->getBestHeaderHeight()} {$last->getHex()}\n";

@@ -50,8 +50,8 @@ class Chain
 //        $this->bestHeaderHeight = 0;
         $this->bestHeader = $bestHeader;
         $this->bestHeaderHash = $bestHeader->getHash();
+        print_r($this->bestHeader);
         $this->bestHeaderHeight = count($hashes);
-
         foreach ($hashes as $i => $hash) {
             // todo: what happens if i=0?
             $this->hashMapToHeight[$hash->getBinary()] = $i;
@@ -82,7 +82,7 @@ class Chain
         }
         return new Buffer($this->heightMapToHash[$headerHeight]);
     }
-    public function addNextHeader(int $height, BufferInterface $hash, BlockHeaderInterface $header) {
+    public function addNextHeader(DB $db, int $height, BufferInterface $hash, BlockHeaderInterface $header) {
         if ($height !== 1 + $this->bestHeaderHeight) {
             throw new \RuntimeException();
         }
@@ -94,6 +94,7 @@ class Chain
                 throw new \RuntimeException("header doesn't match start block");
             }
         }
+        $db->addHeader($height, $hash, $header);
         $this->bestHeaderHeight = $height;
         $this->bestHeader = $header;
         $this->bestHeaderHash = $hash;

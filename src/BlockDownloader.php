@@ -149,6 +149,7 @@ class BlockDownloader extends EventEmitter
         return $deferred
             ->promise()
             ->then(function () use ($peer) {
+                echo "done syncing\n";
                 $this->downloading = false;
                 $peer->removeListener(Message::BLOCK, [$this, 'receiveBlock']);
             });
