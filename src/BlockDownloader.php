@@ -3,13 +3,14 @@
 namespace BitWasp\Wallet;
 
 
+use BitWasp\Bitcoin\Block\Block;
 use BitWasp\Bitcoin\Networking\Message;
-use BitWasp\Bitcoin\Networking\Messages\Block;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
 use BitWasp\Bitcoin\Networking\Structure\Inventory;
 use BitWasp\Buffertools\BufferInterface;
 use Evenement\EventEmitter;
 use React\Promise\Deferred;
+use React\Promise\PromiseInterface;
 
 class BlockDownloader extends EventEmitter
 {
@@ -18,17 +19,20 @@ class BlockDownloader extends EventEmitter
      */
     private $chain;
 
+    private $downloading = false;
+
     /**
      * @var Deferred[]
      */
     private $deferred = [];
 
+    private $toDownload = [];
     /**
      * @var int
      */
     private $batchSize;
 
-    private $blockStatsWindow = 1000;
+    private $blockStatsWindow = 16;
     private $blockStatsCount;
     private $blockStatsBegin;
 
@@ -38,36 +42,65 @@ class BlockDownloader extends EventEmitter
         $this->chain = $chain;
     }
 
-    public function receiveBlock(Peer $peer, Block $blockMsg) {
+    /**
+     * receiveBlock processes a block we requested. it will
+     * resolve the promise returned by the corresponding
+     * requestBlock call.
+     *
+     * @todo: error if unrequested
+     *
+     * @param Peer $peer
+     * @param Block $blockMsg
+     */
+    public function receiveBlock(Peer $peer, \BitWasp\Bitcoin\Networking\Messages\Block $blockMsg)
+    {
         $block = $blockMsg->getBlock();
         $hash = $block->getHeader()->getHash();
+        //echo "receiveBlock {$hash->getHex()}\n";
 
-        $promise = $this->deferred[$hash->getBinary()];
+        if (!array_key_exists($hash->getBinary(), $this->deferred)) {
+            throw new \RuntimeException("missing block request {$hash->getHex()}");
+        }
+        $deferred = $this->deferred[$hash->getBinary()];
         unset($this->deferred[$hash->getBinary()]);
-        $promise->resolve([$hash, $block]);
+        $deferred->resolve($block);
     }
 
-    public function requestBlock(Peer $peer, int $height, BufferInterface $hash) {
-        $peer->getdata([Inventory::block($hash)]);
+    /**
+     * Requests block using $hash from the peer, returning a
+     * promise, which will resolve with the Block Message
+     *
+     * This function queues hashes, to be sent as getdata messages
+     * later
+     *
+     * @param Peer $peer
+     * @param BufferInterface $hash
+     * @return PromiseInterface
+     */
+    public function requestBlock(Peer $peer, BufferInterface $hash): PromiseInterface
+    {
+        //echo "requestBlock {$hash->getHex()}\n";
+        $this->toDownload[] = Inventory::block($hash);
 
-        $d = new Deferred();
-        $this->deferred[$hash->getBinary()] = $d;
-        return $d->promise();
+        $deferred = new Deferred();
+        $this->deferred[$hash->getBinary()] = $deferred;
+        return $deferred->promise();
     }
 
-    public function requestBlocks(Peer $peer) {
+    public function requestBlocks(Peer $peer)
+    {
         if (null === $this->blockStatsCount) {
             $this->blockStatsCount = 0;
             $this->blockStatsBegin = \microtime(true);
         }
-        $queued = 0;
-        while(count($this->deferred) < $this->batchSize) {
-            $height = $this->chain->getBestBlockHeight() + count($this->deferred) + 1;
+
+        $startBlock = $this->chain->getBestBlockHeight() + 1;
+        while(count($this->deferred) < $this->batchSize && $startBlock + count($this->deferred) <= $this->chain->getBestHeaderHeight()) {
+            $height = $startBlock + count($this->deferred);
             $hash = $this->chain->getBlockHash($height);
-            $queued++;
-            $this->requestBlock($peer, $height, $hash)
-                ->then(function(array $blockRow) use ($peer, $height) {
-                    list ($hash, $block) = $blockRow;
+            $this->requestBlock($peer, $hash)
+                ->then(function(Block $block) use ($peer, $height, $hash) {
+                    //echo "processBlock $height, {$hash->getHex()}\n";
                     $this->chain->addNextBlock($height, $hash, $block);
 
                     $this->blockStatsCount++;
@@ -86,8 +119,27 @@ class BlockDownloader extends EventEmitter
                     echo "finalizeBlockError: {$e->getMessage()}\n";
                 });
         }
+
+        if (count($this->toDownload) > 0) {
+            // if nearTip don't bother sending a batch request, submit immediately
+            // otherwise, send when we have batch/2 or batch items
+            $nearTip = count($this->deferred) < $this->batchSize;
+            if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
+                $peer->getdata($this->toDownload);
+                $this->toDownload = [];
+            }
+        }
     }
-    public function download(Peer $peer) {
+
+
+    public function download(Peer $peer)
+    {
+        if ($this->downloading) {
+            echo "ignore duplicate download request\n";
+            return;
+        }
+
+        $this->downloading = true;
         $peer->on(Message::BLOCK, [$this, 'receiveBlock']);
         $this->requestBlocks($peer);
     }

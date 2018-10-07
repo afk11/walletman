@@ -22,6 +22,11 @@ class Chain
      */
     private $bestBlockHeight;
 
+    /**
+     * @var BlockRef
+     */
+    private $startBlockRef;
+
     // Headers
 
     /**
@@ -57,7 +62,12 @@ class Chain
         $this->heightMapToHash[0] = $this->bestHeaderHash->getBinary();
     }
 
+    public function setStartBlock(BlockRef $blockRef) {
+        $this->startBlockRef = $blockRef;
+        $this->bestBlockHeight = $blockRef->getHeight();
+    }
     public function getBestBlockHeight() {
+
         return $this->bestBlockHeight;
     }
     public function getBestHeaderHeight() {
@@ -71,7 +81,7 @@ class Chain
     }
     public function getBlockHash(int $headerHeight) {
         if (!array_key_exists($headerHeight, $this->heightMapToHash)) {
-            throw new \RuntimeException();
+            throw new \RuntimeException("Failed to find block height {$headerHeight}");
         }
         return new Buffer($this->heightMapToHash[$headerHeight]);
     }
@@ -81,6 +91,11 @@ class Chain
         }
         if (!$this->bestHeaderHash->equals($header->getPrevBlock())) {
             throw new \RuntimeException();
+        }
+        if ($this->startBlockRef && $this->startBlockRef->getHeight() === $height) {
+            if (!$hash->equals($this->startBlockRef->getHash())) {
+                throw new \RuntimeException("header doesn't match start block");
+            }
         }
         $this->bestHeaderHeight = $height;
         $this->bestHeader = $header;

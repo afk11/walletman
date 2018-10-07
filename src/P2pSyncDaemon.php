@@ -38,14 +38,15 @@ class P2pSyncDaemon
      */
     private $chainParams;
 
-    private $isDownloading = false;
-
     public function __construct(string $host, int $port, string $database)
     {
         $this->host = $host;
         $this->port = $port;
         $this->chainParams = new \BitWasp\Bitcoin\Chain\Params(new Math());
         $this->chain = new Chain($this->chainParams);
+        // would normally come from wallet birthday
+        $this->chain->setStartBlock(new BlockRef(544699, Buffer::hex("0000000000000000001e663c0cd9cd7524ca0c1f3d2af4ccea3909653315d7b0")));
+        $this->downloader = new BlockDownloader(16, $this->chain);
     }
 
     public function sync(LoopInterface $loop) {
@@ -89,13 +90,6 @@ class P2pSyncDaemon
 
     public function downloadBlocks(Peer $peer)
     {
-        if ($this->isDownloading) {
-            echo "ignoring extra block download request, already doing that\n";
-            return;
-        }
-
-        $this->isDownloading = true;
-        $downloader = new BlockDownloader(16, $this->chain);
-        $downloader->download($peer);
+        $this->downloader->download($peer);
     }
 }
