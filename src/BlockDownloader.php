@@ -87,7 +87,7 @@ class BlockDownloader extends EventEmitter
         return $deferred->promise();
     }
 
-    public function requestBlocks(Peer $peer)
+    public function requestBlocks(Peer $peer, Deferred $deferredFinished)
     {
         if (null === $this->blockStatsCount) {
             $this->blockStatsCount = 0;
@@ -99,7 +99,7 @@ class BlockDownloader extends EventEmitter
             $height = $startBlock + count($this->deferred);
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
-                ->then(function(Block $block) use ($peer, $height, $hash) {
+                ->then(function(Block $block) use ($peer, $height, $hash, $deferredFinished) {
                     //echo "processBlock $height, {$hash->getHex()}\n";
                     $this->chain->addNextBlock($height, $hash, $block);
 
@@ -111,7 +111,7 @@ class BlockDownloader extends EventEmitter
                         $this->blockStatsBegin = microtime(true);
                     }
 
-                    $this->requestBlocks($peer);
+                    $this->requestBlocks($peer, $deferredFinished);
                 }, function (\Exception $e) {
                     echo "requestBlockError: {$e->getMessage()}\n";
                 })
@@ -129,6 +129,10 @@ class BlockDownloader extends EventEmitter
                 $this->toDownload = [];
             }
         }
+
+        if (count($this->deferred) === 0) {
+            $deferredFinished->resolve();
+        }
     }
 
 
@@ -141,6 +145,13 @@ class BlockDownloader extends EventEmitter
 
         $this->downloading = true;
         $peer->on(Message::BLOCK, [$this, 'receiveBlock']);
-        $this->requestBlocks($peer);
+        $deferred = new Deferred();
+        $this->requestBlocks($peer, $deferred);
+        return $deferred->promise()
+            ->then(function () {
+                $this->downloading = false;
+                echo "finished syncing\n";
+                echo $this->chain->getBestBlockHeight().PHP_EOL;
+            });
     }
 }
