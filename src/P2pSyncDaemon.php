@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet;
 
-use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Chain\BlockLocator;
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Network\NetworkInterface;
@@ -16,7 +15,6 @@ use BitWasp\Bitcoin\Networking\Messages\Ping;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
 use BitWasp\Buffertools\Buffer;
-use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DB;
 use React\EventLoop\LoopInterface;
 

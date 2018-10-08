@@ -1,5 +1,5 @@
 <?php
-
+declare(strict_types=1);
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkFactory;

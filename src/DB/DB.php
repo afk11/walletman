@@ -7,9 +7,6 @@ namespace BitWasp\Wallet\DB;
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
-use BitWasp\Wallet\DB\DbHeader;
-use BitWasp\Wallet\DB\DbScript;
-use BitWasp\Wallet\DB\DbWallet;
 
 class DB
 {
@@ -34,7 +31,8 @@ class DB
         return $this->pdo;
     }
 
-    public function getBlockHash(int $height): BufferInterface {
+    public function getBlockHash(int $height): BufferInterface
+    {
         if (null === $this->getBlockHashStmt) {
             $this->getBlockHashStmt = $this->pdo->prepare("SELECT hash from header where height = ?");
         }
@@ -45,6 +43,7 @@ class DB
         }
         return Buffer::hex($this->getBestHeaderStmt->fetch()['hash']);
     }
+
     public function getTailHashes(int $height): array
     {
         if (null === $this->getHashesStmt) {
@@ -60,6 +59,7 @@ class DB
         }
         return $hashes;
     }
+
     public function getBestHeader(): DbHeader
     {
         if (null === $this->getBestHeaderStmt) {
@@ -68,6 +68,7 @@ class DB
         $this->getBestHeaderStmt->execute();
         return $this->getBestHeaderStmt->fetchObject(DbHeader::class);
     }
+
     public function getBlockCount(): int
     {
         if (null === $this->getBlockCountStmt) {
@@ -77,7 +78,8 @@ class DB
         return (int) $this->getBlockCountStmt->fetch()['count'];
     }
 
-    public function createWalletTable() {
+    public function createWalletTable()
+    {
         if (!$this->pdo->exec("CREATE TABLE `wallet` (
 	`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
 	`type`         INTEGER,
@@ -90,7 +92,9 @@ class DB
             throw new \RuntimeException("failed add index on wallet table");
         }
     }
-    public function createKeyTable() {
+
+    public function createKeyTable()
+    {
         return $this->pdo->exec("CREATE TABLE `key` (
 	`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
 	`walletId`	INTEGER,
@@ -99,7 +103,9 @@ class DB
 	`publicKey`	TEXT
 );");
     }
-    public function createScriptTable() {
+
+    public function createScriptTable()
+    {
         if (!$this->pdo->exec("CREATE TABLE `script` (
 	`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
 	`walletId`	INTEGER,
@@ -118,7 +124,9 @@ class DB
             throw new \RuntimeException("failed to add spk index on script table");
         }
     }
-    public function createHeaderTable() {
+
+    public function createHeaderTable()
+    {
         $this->pdo->exec("CREATE TABLE `header` (
 	`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
 	`height`	INTEGER,
@@ -131,6 +139,7 @@ class DB
 	`nonce`	INTEGER
 );");
     }
+
     public function addHeader(int $height, BufferInterface $hash, BlockHeaderInterface $header): bool
     {
         if (null === $this->addHeaderStmt) {
@@ -142,6 +151,7 @@ class DB
             $header->getTimestamp(), $header->getBits(), $header->getNonce(),
         ]);
     }
+
     public function createWallet(string $identifier, int $type): int
     {
         if (null === $this->addWalletStmt) {
@@ -166,6 +176,7 @@ class DB
         ]);
         return (int) $this->pdo->lastInsertId();
     }
+
     public function loadScript(int $walletId, string $keyIdentifier): DbScript
     {
         if (null === $this->loadScriptStmt) {

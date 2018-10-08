@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
@@ -34,52 +36,66 @@ class Chain
     private $bestHeaderHash;
 
     /**
-     * @var int
+     * @var array - maps hashes to height
      */
-    private $bestHeaderHeight;
-
     private $hashMapToHeight = [];
+
+    /**
+     * @var array - maps height to hash
+     */
     private $heightMapToHash = [];
 
     public function __construct(array $tailHashes, BlockHeaderInterface $bestHeader, int $bestBlockHeight)
     {
-        $this->bestBlockHeight = $bestBlockHeight;
-
         $this->bestHeader = $bestHeader;
         $this->bestHeaderHash = $bestHeader->getHash();
-        $this->bestHeaderHeight = count($tailHashes);
+        $this->bestBlockHeight = $bestBlockHeight;
 
+        $numHashes = count($tailHashes);
         $this->heightMapToHash = $tailHashes;
-        $this->heightMapToHash[$this->bestHeaderHeight] = $this->bestHeaderHash->getBinary();
-        for ($height = 0; $height <= $this->bestHeaderHeight; $height++) {
+        $this->heightMapToHash[] = $this->bestHeaderHash->getBinary();
+        for ($height = 0; $height <= $numHashes; $height++) {
             $this->hashMapToHeight[$this->heightMapToHash[$height]] = $height;
         }
     }
 
-    public function setStartBlock(BlockRef $blockRef) {
+    public function setStartBlock(BlockRef $blockRef)
+    {
         $this->startBlockRef = $blockRef;
         $this->bestBlockHeight = $blockRef->getHeight();
     }
-    public function getBestBlockHeight() {
+
+    public function getBestBlockHeight(): int
+    {
         return $this->bestBlockHeight;
     }
-    public function getBestHeaderHeight() {
-        return $this->bestHeaderHeight;
+
+    public function getBestHeaderHeight(): int
+    {
+        return $this->hashMapToHeight[$this->bestHeaderHash->getBinary()];
     }
-    public function getBestHeader() {
+
+    public function getBestHeader(): BlockHeaderInterface
+    {
         return $this->bestHeader;
     }
-    public function getBestHeaderHash() {
+
+    public function getBestHeaderHash(): BufferInterface
+    {
         return $this->bestHeaderHash;
     }
-    public function getBlockHash(int $headerHeight) {
+
+    public function getBlockHash(int $headerHeight)
+    {
         if (!array_key_exists($headerHeight, $this->heightMapToHash)) {
             throw new \RuntimeException("Failed to find block height {$headerHeight}");
         }
         return new Buffer($this->heightMapToHash[$headerHeight]);
     }
-    public function addNextHeader(DB $db, int $height, BufferInterface $hash, BlockHeaderInterface $header) {
-        if ($height !== 1 + $this->bestHeaderHeight) {
+
+    public function addNextHeader(DB $db, int $height, BufferInterface $hash, BlockHeaderInterface $header)
+    {
+        if ($height !== 1 + $this->getBestHeaderHeight()) {
             throw new \RuntimeException();
         }
         if (!$this->bestHeaderHash->equals($header->getPrevBlock())) {
@@ -90,15 +106,17 @@ class Chain
                 throw new \RuntimeException("header {$hash->getHex()}) doesn't match start block {$this->startBlockRef->getHash()->getHex()}");
             }
         }
-       // echo "add header {$height} {$hash->getHex()}\n";
+
         $db->addHeader($height, $hash, $header);
-        $this->bestHeaderHeight = $height;
+
         $this->bestHeader = $header;
         $this->bestHeaderHash = $hash;
         $this->hashMapToHeight[$hash->getBinary()] = $height;
         $this->heightMapToHash[$height] = $hash->getBinary();
     }
-    public function addNextBlock(int $height, BufferInterface $hash, $block) {
+
+    public function addNextBlock(int $height, BufferInterface $hash, $block)
+    {
         if ($height !== 1 + $this->bestBlockHeight) {
             throw new \RuntimeException("height $height != 1 + {$this->bestBlockHeight}");
         }

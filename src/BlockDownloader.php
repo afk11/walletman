@@ -1,7 +1,8 @@
 <?php
 
-namespace BitWasp\Wallet;
+declare(strict_types=1);
 
+namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\Block;
 use BitWasp\Bitcoin\Networking\Message;

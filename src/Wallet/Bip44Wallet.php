@@ -1,10 +1,6 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: tk
- * Date: 10/8/18
- * Time: 1:27 AM
- */
+
+declare(strict_types=1);
 
 namespace BitWasp\Wallet\Wallet;
 

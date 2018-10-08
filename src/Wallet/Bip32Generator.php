@@ -1,11 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace BitWasp\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeySequence;
 use BitWasp\Bitcoin\Script\ScriptFactory;
-use BitWasp\Bitcoin\Transaction\Factory\SignData;
 use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DbScript;
 
@@ -15,9 +16,22 @@ class Bip32Generator implements AddressGenerator
      * @var HierarchicalKey
      */
     private $key;
+
+    /**
+     * @var DB
+     */
     private $db;
+
+    /**
+     * @var int[]
+     */
     private $path;
+
+    /**
+     * @var int
+     */
     private $walletId;
+
     /**
      * @var int
      */
@@ -33,9 +47,11 @@ class Bip32Generator implements AddressGenerator
     }
 
     /**
-     *
+     * @return DbScript
+     * @throws \Exception
      */
-    public function generate(): DbScript {
+    public function generate(): DbScript
+    {
         $child = $this->key->deriveChild($this->idx);
         $path = array_merge($this->path, [$this->idx]);
         $this->idx++;
