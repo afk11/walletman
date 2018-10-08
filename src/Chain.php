@@ -41,18 +41,18 @@ class Chain
     private $hashMapToHeight = [];
     private $heightMapToHash = [];
 
-    public function __construct(array $hashes, BlockHeaderInterface $bestHeader, int $bestBlockHeight)
+    public function __construct(array $tailHashes, BlockHeaderInterface $bestHeader, int $bestBlockHeight)
     {
         $this->bestBlockHeight = $bestBlockHeight;
 
         $this->bestHeader = $bestHeader;
         $this->bestHeaderHash = $bestHeader->getHash();
-        $this->bestHeaderHeight = count($hashes);
+        $this->bestHeaderHeight = count($tailHashes);
 
-        foreach ($hashes as $i => $hash) {
-            // todo: what happens if i=0? silent error somewhere
-            $this->hashMapToHeight[$hash->getBinary()] = $i;
-            $this->heightMapToHash[$i] = $hash->getBinary();
+        $this->heightMapToHash = $tailHashes;
+        $this->heightMapToHash[$this->bestHeaderHeight] = $this->bestHeaderHash->getBinary();
+        for ($height = 0; $height <= $this->bestHeaderHeight; $height++) {
+            $this->hashMapToHeight[$this->heightMapToHash[$height]] = $height;
         }
     }
 
@@ -87,9 +87,10 @@ class Chain
         }
         if ($this->startBlockRef && $this->startBlockRef->getHeight() === $height) {
             if (!$hash->equals($this->startBlockRef->getHash())) {
-                throw new \RuntimeException("header doesn't match start block");
+                throw new \RuntimeException("header {$hash->getHex()}) doesn't match start block {$this->startBlockRef->getHash()->getHex()}");
             }
         }
+       // echo "add header {$height} {$hash->getHex()}\n";
         $db->addHeader($height, $hash, $header);
         $this->bestHeaderHeight = $height;
         $this->bestHeader = $header;
@@ -102,7 +103,7 @@ class Chain
             throw new \RuntimeException("height $height != 1 + {$this->bestBlockHeight}");
         }
         if (!array_key_exists($hash->getBinary(), $this->hashMapToHeight)) {
-            throw new \RuntimeException("block hash doesn't exist in map");
+            throw new \RuntimeException("block hash doesn't exist in map: {$hash->getHex()}");
         }
         if ($this->hashMapToHeight[$hash->getBinary()] !== $height) {
             throw new \RuntimeException("height for hash {$this->hashMapToHeight[$hash->getBinary()]} != input $height");

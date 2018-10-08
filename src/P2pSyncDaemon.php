@@ -77,7 +77,7 @@ class P2pSyncDaemon
         }
 
         // would normally come from wallet birthday
-        $this->chain->setStartBlock(new BlockRef(544500, Buffer::hex("0000000000000000000d8cc90c4a596a7137bc900ffc9ddeb97400f3bf5a89b9")));
+        $this->chain->setStartBlock(new BlockRef(544600, Buffer::hex("0000000000000000000fded8e152db5d901e698d26768978d42c23ce97a55036")));
         $this->downloader = new BlockDownloader(16, $this->chain);
     }
 
@@ -114,32 +114,37 @@ class P2pSyncDaemon
 
     public function downloadHeaders(Peer $peer) {
         $peer->on(Message::HEADERS, function (Peer $peer, Headers $headers) {
-            if (count($headers->getHeaders()) === 0) {
+            if (count($headers->getHeaders()) > 0) {
                 // misbehaving..
-                return;
-            }
-
-            $this->db->getPdo()->beginTransaction();
-            try {
-                $last = null;
-                $startHeight = $this->chain->getBestHeaderHeight();
-                foreach ($headers->getHeaders() as $i => $header) {
-                    $last = $header->getHash();
-                    $this->chain->addNextHeader($this->db, $startHeight + $i + 1, $last, $header);
+                $this->db->getPdo()->beginTransaction();
+                try {
+                    $last = null;
+                    $startHeight = $this->chain->getBestHeaderHeight();
+                    foreach ($headers->getHeaders() as $i => $header) {
+                        $last = $header->getHash();
+                        $this->chain->addNextHeader($this->db, $startHeight + $i + 1, $last, $header);
+                    }
+                    $this->db->getPdo()->commit();
+                } catch (\Exception $e) {
+                    echo "error: {$e->getMessage()}\n";
+                    echo "error: {$e->getTraceAsString()}\n";
+                    $this->db->getPdo()->rollBack();
+                    throw $e;
                 }
-                $this->db->getPdo()->commit();
-            } catch (\Exception $e) {
-                echo "error: {$e->getMessage()}\n";
-                echo "error: {$e->getTraceAsString()}\n";
-                $this->db->getPdo()->rollBack();
-                throw $e;
+
+                if (count($headers->getHeaders()) === 2000) {
+                    $peer->getheaders(new BlockLocator([$last], new Buffer('', 32)));
+                }
+
+                echo "new header tip {$this->chain->getBestHeaderHeight()} {$last->getHex()}\n";
             }
 
-            echo "new header tip {$this->chain->getBestHeaderHeight()} {$last->getHex()}\n";
-            if (count($headers->getHeaders()) != 2000) {
-                $this->downloadBlocks($peer);
-            } else {
-                $peer->getheaders(new BlockLocator([$last], new Buffer('', 32)));
+            if (count($headers->getHeaders()) < 2000) {
+                try {
+                    $this->downloadBlocks($peer);
+                } catch (\Exception $e) {
+                    echo $e->getMessage().PHP_EOL;
+                }
             }
         });
 

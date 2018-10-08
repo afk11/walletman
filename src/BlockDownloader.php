@@ -102,6 +102,18 @@ class BlockDownloader extends EventEmitter
                 ->then(function(Block $block) use ($peer, $height, $hash, $deferredFinished) {
                     //echo "processBlock $height, {$hash->getHex()}\n";
                     $this->chain->addNextBlock($height, $hash, $block);
+//                    $nTx = count($block->getTransactions());
+//                    for ($iTx = 0; $iTx < $nTx; $iTx++) {
+//                        $tx = $block->getTransaction($iTx);
+//                        $nIn = count($tx->getInputs());
+//                        for ($iIn = 0; $iIn < $nIn; $iIn++) {
+//
+//                        }
+//                        $nOut = count($tx->getOutputs());
+//                        for ($iOut = 0; $iOut < $nOut; $iOut++) {
+//
+//                        }
+//                    }
 
                     $this->blockStatsCount++;
                     if ($this->blockStatsCount === $this->blockStatsWindow) {

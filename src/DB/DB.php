@@ -48,16 +48,15 @@ class DB
     public function getTailHashes(int $height): array
     {
         if (null === $this->getHashesStmt) {
-            $this->getHashesStmt = $this->pdo->prepare("SELECT hash from header where height < ? order by id desc");
+            $this->getHashesStmt = $this->pdo->prepare("SELECT hash from header where height < ? order by id ASC");
         }
         $this->getHashesStmt->execute([
             $height
         ]);
-
         $hashes = $this->getHashesStmt->fetchAll(\PDO::FETCH_COLUMN);
         $num = count($hashes);
         for ($i = 0; $i < $num; $i++) {
-            $hashes[$i] = Buffer::hex($hashes[$i]);
+            $hashes[$i] = pack("H*", $hashes[$i]);
         }
         return $hashes;
     }
