@@ -24,6 +24,12 @@ if (getenv("REGTEST")) {
     $params = new Params(new Math());
     $net = NetworkFactory::bitcoin();
 }
-$daemon = new P2pSyncDaemon("127.0.0.1", $port, $net, $params, $db);
+
+if (getenv("SYNCIP")) {
+    $ip = getenv("SYNCIP");
+} else {
+    $ip = "127.0.0.1";
+}
+$daemon = new P2pSyncDaemon($ip, $port, $net, $params, $db);
 $daemon->sync($loop);
 $loop->run();

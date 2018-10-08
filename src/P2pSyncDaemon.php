@@ -155,8 +155,8 @@ class P2pSyncDaemon
     {
         if (!$this->downloading) {
             echo "downloadBlocks\n";
-            $this->downloader->download($peer);
             $this->downloading = true;
+            $this->downloader->download($peer);
         }
     }
 }
