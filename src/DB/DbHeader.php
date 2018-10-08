@@ -18,6 +18,9 @@ class DbHeader
     private $time;
     private $nonce;
 
+    public function getHeight(): int {
+        return (int) $this->height;
+    }
     public function getHeader(): BlockHeaderInterface {
         return new BlockHeader($this->version, Buffer::hex($this->prevBlock),
             Buffer::hex($this->merkleRoot), $this->time, $this->nbits, $this->nonce);

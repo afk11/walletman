@@ -39,7 +39,7 @@ $addrGen = $bip44Wallet->getAddressGenerator();
 for ($i = 0; $i < 5; $i++) {
     $dbScript = $addrGen->generate();
     $address = $dbScript->getAddress();
-    echo $address->getAddress().PHP_EOL;
+    echo $address->getAddress($net).PHP_EOL;
 }
 
 

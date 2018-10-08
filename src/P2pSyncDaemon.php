@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet;
 
+use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Chain\BlockLocator;
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Network\NetworkInterface;
@@ -15,6 +16,7 @@ use BitWasp\Bitcoin\Networking\Messages\Ping;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
 use BitWasp\Buffertools\Buffer;
+use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DB;
 use React\EventLoop\LoopInterface;
 
@@ -67,9 +69,12 @@ class P2pSyncDaemon
         if ($blockCount === 0) {
             throw new \RuntimeException("need genesis block");
         }
-
-        $genesis = $db->getBestHeader();
-        $this->chain = new Chain([], $genesis->getHeader(), 0);
+        $bestHeader = $db->getBestHeader();
+        if ($bestHeader->getHeight() > 0) {
+            $this->chain = new Chain($this->db->getTailHashes($bestHeader->getHeight()), $bestHeader->getHeader(), 0);
+        } else {
+            $this->chain = new Chain([], $bestHeader->getHeader(), 0);
+        }
 
         // would normally come from wallet birthday
         $this->chain->setStartBlock(new BlockRef(544500, Buffer::hex("0000000000000000000d8cc90c4a596a7137bc900ffc9ddeb97400f3bf5a89b9")));

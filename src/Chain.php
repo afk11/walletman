@@ -43,18 +43,14 @@ class Chain
 
     public function __construct(array $hashes, BlockHeaderInterface $bestHeader, int $bestBlockHeight)
     {
-//        $this->bestBlockHeight = 0;
         $this->bestBlockHeight = $bestBlockHeight;
 
-//        $this->bestHeader = $genesis->getHeader();
-//        $this->bestHeaderHash = $this->bestHeader->getHash();
-//        $this->bestHeaderHeight = 0;
         $this->bestHeader = $bestHeader;
         $this->bestHeaderHash = $bestHeader->getHash();
-        print_r($this->bestHeader);
         $this->bestHeaderHeight = count($hashes);
+
         foreach ($hashes as $i => $hash) {
-            // todo: what happens if i=0?
+            // todo: what happens if i=0? silent error somewhere
             $this->hashMapToHeight[$hash->getBinary()] = $i;
             $this->heightMapToHash[$i] = $hash->getBinary();
         }
@@ -65,7 +61,6 @@ class Chain
         $this->bestBlockHeight = $blockRef->getHeight();
     }
     public function getBestBlockHeight() {
-
         return $this->bestBlockHeight;
     }
     public function getBestHeaderHeight() {

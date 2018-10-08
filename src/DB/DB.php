@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\DB;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
+use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\DB\DbScript;
@@ -16,7 +17,9 @@ class DB
 
     private $addWalletStmt;
     private $addHeaderStmt;
+    private $getHashesStmt;
     private $getBestHeaderStmt;
+    private $getBlockHashStmt;
     private $createScriptStmt;
     private $loadScriptStmt;
     private $getBlockCountStmt;
@@ -31,10 +34,37 @@ class DB
         return $this->pdo;
     }
 
+    public function getBlockHash(int $height): BufferInterface {
+        if (null === $this->getBlockHashStmt) {
+            $this->getBlockHashStmt = $this->pdo->prepare("SELECT hash from header where height = ?");
+        }
+        if (!$this->getBlockHashStmt->execute([
+            $height
+        ])) {
+            throw new \RuntimeException("getblockhash query failed");
+        }
+        return Buffer::hex($this->getBestHeaderStmt->fetch()['hash']);
+    }
+    public function getTailHashes(int $height): array
+    {
+        if (null === $this->getHashesStmt) {
+            $this->getHashesStmt = $this->pdo->prepare("SELECT hash from header where height < ? order by id desc");
+        }
+        $this->getHashesStmt->execute([
+            $height
+        ]);
+
+        $hashes = $this->getHashesStmt->fetchAll(\PDO::FETCH_COLUMN);
+        $num = count($hashes);
+        for ($i = 0; $i < $num; $i++) {
+            $hashes[$i] = Buffer::hex($hashes[$i]);
+        }
+        return $hashes;
+    }
     public function getBestHeader(): DbHeader
     {
         if (null === $this->getBestHeaderStmt) {
-            $this->getBestHeaderStmt = $this->pdo->prepare("SELECT id, height, hash, version, prevBlock, merkleRoot, merkleRoot, time, nbits, nonce from header");
+            $this->getBestHeaderStmt = $this->pdo->prepare("SELECT id, height, hash, version, prevBlock, merkleRoot, merkleRoot, time, nbits, nonce from header order by id desc limit 1");
         }
         $this->getBestHeaderStmt->execute();
         return $this->getBestHeaderStmt->fetchObject(DbHeader::class);
@@ -49,11 +79,17 @@ class DB
     }
 
     public function createWalletTable() {
-        return $this->pdo->exec("CREATE TABLE `wallet` (
+        if (!$this->pdo->exec("CREATE TABLE `wallet` (
 	`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
 	`type`         INTEGER,
 	`identifier`   TEXT
-);");
+);")) {
+            throw new \RuntimeException("failed to create wallet table");
+        }
+
+        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_identifier on wallet(identifier)")) {
+            throw new \RuntimeException("failed add index on wallet table");
+        }
     }
     public function createKeyTable() {
         return $this->pdo->exec("CREATE TABLE `key` (
@@ -61,21 +97,30 @@ class DB
 	`walletId`	INTEGER,
 	`keyIdentifier`	TEXT,
 	`idx`	INTEGER,
-	`publicKey`	TEXT,
+	`publicKey`	TEXT
 );");
     }
     public function createScriptTable() {
-        return $this->pdo->exec("CREATE TABLE `script` (
+        if (!$this->pdo->exec("CREATE TABLE `script` (
 	`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
 	`walletId`	INTEGER,
 	`keyIdentifier`         TEXT,
 	`scriptPubKey`	TEXT,
 	`redeemScript`	TEXT,
 	`witnessScript`	TEXT
-);");
+);")) {
+            throw new \RuntimeException("failed to create script table");
+        }
+
+        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_keyIdentifier on script(walletId, keyIdentifier)")) {
+            throw new \RuntimeException("failed to add keyId index on script table");
+        }
+        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_scriptPubKey on script(walletId, scriptPubKey)")) {
+            throw new \RuntimeException("failed to add spk index on script table");
+        }
     }
     public function createHeaderTable() {
-        return $this->pdo->exec("CREATE TABLE `header` (
+        $this->pdo->exec("CREATE TABLE `header` (
 	`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
 	`height`	INTEGER,
 	`hash`	TEXT UNIQUE,
