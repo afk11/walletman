@@ -15,6 +15,7 @@ use BitWasp\Bitcoin\Networking\Messages\Ping;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
 use BitWasp\Buffertools\Buffer;
+use BitWasp\Wallet\DB\DB;
 use React\EventLoop\LoopInterface;
 
 

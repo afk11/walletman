@@ -5,6 +5,7 @@ namespace BitWasp\Wallet;
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
+use BitWasp\Wallet\DB\DB;
 
 class Chain
 {

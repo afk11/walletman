@@ -2,6 +2,8 @@
 
 namespace BitWasp\Wallet;
 
+use BitWasp\Wallet\DB\DB;
+
 class DbManager
 {
     public function createDb(string $dsn) {
