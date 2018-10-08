@@ -156,7 +156,13 @@ class P2pSyncDaemon
         if (!$this->downloading) {
             echo "downloadBlocks\n";
             $this->downloading = true;
-            $this->downloader->download($peer);
+            $this->downloader->download($peer)
+                ->then(function () {
+                    echo "block download complete\n";
+                    $this->downloading = false;
+                });
+        } else {
+            echo "ignoring duplicate downloadBlocks\n";
         }
     }
 }
