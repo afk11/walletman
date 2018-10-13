@@ -1,5 +1,8 @@
 <?php
 
+declare(strict_types=1);
+
+use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Math\Math;
@@ -7,11 +10,12 @@ use BitWasp\Bitcoin\Network\NetworkFactory;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Wallet\Params\RegtestParams;
 use BitWasp\Wallet\DbManager;
-use BitWasp\Wallet\Wallet\Bip44Wallet;
+use BitWasp\Wallet\Wallet\Factory as WalletFactory;
 
 require "vendor/autoload.php";
 
 $loop = \React\EventLoop\Factory::create();
+$ecAdapter = Bitcoin::getEcAdapter();
 $math = new Math();
 
 $dbMgr = new DbManager();
@@ -27,14 +31,12 @@ if (getenv("REGTEST")) {
     $net = NetworkFactory::bitcoin();
 }
 
-$walletId = $db->createWallet("lbl", 1);
-
 $seed = new Buffer("seed", 32);
-$rootNode = HierarchicalKeyFactory::fromEntropy($seed);
-$accountNode = $rootNode->derivePath("44'/0'/0'");
-
-$bip44Wallet = new Bip44Wallet($db, $walletId, $accountNode, 44, 0, 0);
-$addrGen = $bip44Wallet->getAddressGenerator();
+$rootNode = HierarchicalKeyFactory::fromEntropy($seed, $ecAdapter);
+echo $rootNode->toExtendedPrivateKey().PHP_EOL;
+$walletFactory = new WalletFactory($db, $net, $ecAdapter);
+$bip44Wallet = $walletFactory->createBip44WalletFromRootKey("lbl", $rootNode, 0, 0);
+$addrGen = $bip44Wallet->getScriptGenerator();
 
 for ($i = 0; $i < 5; $i++) {
     $dbScript = $addrGen->generate();

@@ -57,6 +57,8 @@ class Chain
         for ($height = 0; $height <= $numHashes; $height++) {
             $this->hashMapToHeight[$this->heightMapToHash[$height]] = $height;
         }
+
+        echo bin2hex(end($this->heightMapToHash)).PHP_EOL;
     }
 
     public function setStartBlock(BlockRef $blockRef)
@@ -96,10 +98,10 @@ class Chain
     public function addNextHeader(DB $db, int $height, BufferInterface $hash, BlockHeaderInterface $header)
     {
         if ($height !== 1 + $this->getBestHeaderHeight()) {
-            throw new \RuntimeException();
+            throw new \RuntimeException('height is wrong');
         }
         if (!$this->bestHeaderHash->equals($header->getPrevBlock())) {
-            throw new \RuntimeException();
+            throw new \RuntimeException("prevBlock {$header->getPrevBlock()->getHex()} doesn't match our tip {$this->bestHeaderHash->getHex()}");
         }
         if ($this->startBlockRef && $this->startBlockRef->getHeight() === $height) {
             if (!$hash->equals($this->startBlockRef->getHash())) {

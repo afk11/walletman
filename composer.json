@@ -5,6 +5,7 @@
         }
     },
     "require": {
+        "php": ">7.1",
         "bitwasp/bitcoin-p2p": "^0.0.17"
     }
 }

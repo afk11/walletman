@@ -4,43 +4,82 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet\Wallet;
 
-
+use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
+use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DbKey;
 
-class Bip44Wallet
+class Bip44Wallet implements WalletInterface
 {
+    const INDEX_EXTERNAL = 0;
+    const INDEX_CHANGE = 1;
+
     /**
      * @var HierarchicalKey
      */
     private $key;
-    private $db;
-    private $walletId;
 
-    public function __construct(DB $db, int $walletId, HierarchicalKey $hierarchicalKey, int $purpose, int $coinType, int $account)
+    /**
+     * @var DbKey
+     */
+    private $dbKey;
+
+    /**
+     * @var NetworkInterface
+     */
+    private $network;
+
+    /**
+     * @var DB
+     */
+    private $db;
+
+    /**
+     * @var EcAdapterInterface
+     */
+    private $ecAdapter;
+
+    public function __construct(DB $db, DbKey $dbKey, NetworkInterface $network, EcAdapterInterface $ecAdapter)
     {
-        if ($hierarchicalKey->getDepth() !== 3) {
+        if ($dbKey->getDepth() !== 3) {
             throw new \RuntimeException("invalid key depth for bip44 account, should provide M/purpose'/coinType'/account'");
         }
-        if ($hierarchicalKey->getSequence() !== $account + (1 << 31)) {
-            echo ($account + 1<<31).PHP_EOL;
-            throw new \RuntimeException("key's address index {$hierarchicalKey->getSequence()}'t match path value");
+        if ($dbKey->isLeaf()) {
+            throw new \RuntimeException("invalid key for bip44 account, should be a branch node");
         }
-        $this->key = $hierarchicalKey;
-        $this->purpose = $purpose;
-        $this->coinType = $coinType;
-        $this->account = $account;
+
         $this->db = $db;
-        $this->walletId = $walletId;
+        $this->dbKey = $dbKey;
+        $this->network = $network;
+        $this->key = $dbKey->getHierarchicalKey($network, $ecAdapter);
+        $this->ecAdapter = $ecAdapter;
     }
 
-    public function getAddressGenerator(): AddressGenerator {
-        $key = $this->key->deriveChild(0);
-        $idx = 0;
-        return new Bip32Generator($this->db, $this->walletId, $key, $idx);
+    protected function getExternalScriptPath(): string
+    {
+        return $this->dbKey->getPath() . "/" . self::INDEX_EXTERNAL;
     }
 
-    public function getChangeAddressGenerator(): AddressGenerator {
+    protected function getChangeScriptPath(): string
+    {
+        return $this->dbKey->getPath() . "/" . self::INDEX_CHANGE;
+    }
 
+    protected function getGeneratorForPath(string $path): ScriptGenerator
+    {
+        $branchNode = $this->db->loadKeyByPath($this->dbKey->getWalletId(), $path, 0);
+        $key = $branchNode->getHierarchicalKey($this->network, $this->ecAdapter);
+        return new Bip32Generator($this->db, $branchNode, $key, $this->network);
+    }
+
+    public function getScriptGenerator(): ScriptGenerator
+    {
+        return $this->getGeneratorForPath($this->getExternalScriptPath());
+    }
+
+    public function getChangeScriptGenerator(): ScriptGenerator
+    {
+        return $this->getGeneratorForPath($this->getChangeScriptPath());
     }
 }

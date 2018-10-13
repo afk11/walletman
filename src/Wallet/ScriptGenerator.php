@@ -6,7 +6,7 @@ namespace BitWasp\Wallet\Wallet;
 
 use BitWasp\Wallet\DB\DbScript;
 
-interface AddressGenerator
+interface ScriptGenerator
 {
     public function generate(): DbScript;
 }

@@ -5,45 +5,37 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
-use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeySequence;
+use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptFactory;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DbKey;
 use BitWasp\Wallet\DB\DbScript;
 
-class Bip32Generator implements AddressGenerator
+class Bip32Generator implements ScriptGenerator
 {
-    /**
-     * @var HierarchicalKey
-     */
-    private $key;
-
     /**
      * @var DB
      */
     private $db;
 
     /**
-     * @var int[]
+     * @var DbKey
      */
-    private $path;
+    private $dbKey;
 
     /**
-     * @var int
+     * @var HierarchicalKey
      */
-    private $walletId;
+    private $key;
 
-    /**
-     * @var int
-     */
-    private $idx;
-
-    public function __construct(DB $db, int $walletId, HierarchicalKey $key, int $idx, int... $path)
+    public function __construct(DB $db, DbKey $dbKey, HierarchicalKey $key, NetworkInterface $network)
     {
-        $this->key = $key;
-        $this->idx = $idx;
+        if ($dbKey->isLeaf()) {
+            throw new \RuntimeException("cannot use leaf key with Bip32Generator");
+        }
+        $this->dbKey = $dbKey;
         $this->db = $db;
-        $this->path = $path;
-        $this->walletId = $walletId;
+        $this->key = $key;
     }
 
     /**
@@ -52,16 +44,14 @@ class Bip32Generator implements AddressGenerator
      */
     public function generate(): DbScript
     {
-        $child = $this->key->deriveChild($this->idx);
-        $path = array_merge($this->path, [$this->idx]);
-        $this->idx++;
-
+        $childIndex = $this->dbKey->getNextSequence($this->db);
+        echo "seq $childIndex\n";
+        $child = $this->key->deriveChild($childIndex);
+        $path = $this->dbKey->getPath() . "/$childIndex";
+        echo "just derived $path\n";
         $script = ScriptFactory::scriptPubKey()->p2pkh($child->getPublicKey()->getPubKeyHash());
 
-        $sequence = new HierarchicalKeySequence();
-        $keyIdentifier = $sequence->encodePath($path);
-        $this->db->createScript($this->walletId, $keyIdentifier, $script->getHex(), null, null);
-        $script = $this->db->loadScript($this->walletId, $keyIdentifier);
-        return $script;
+        $this->db->createScript($this->dbKey->getWalletId(), $path, $script->getHex(), null, null);
+        return $this->db->loadScriptByKeyId($this->dbKey->getWalletId(), $path);
     }
 }
