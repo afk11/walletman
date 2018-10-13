@@ -28,7 +28,12 @@ class Bip32Generator implements ScriptGenerator
      */
     private $key;
 
-    public function __construct(DB $db, DbKey $dbKey, HierarchicalKey $key, NetworkInterface $network)
+    /**
+     * @var int
+     */
+    private $gapLimit;
+
+    public function __construct(DB $db, DbKey $dbKey, int $gapLimit, HierarchicalKey $key, NetworkInterface $network)
     {
         if ($dbKey->isLeaf()) {
             throw new \RuntimeException("cannot use leaf key with Bip32Generator");
@@ -36,6 +41,7 @@ class Bip32Generator implements ScriptGenerator
         $this->dbKey = $dbKey;
         $this->db = $db;
         $this->key = $key;
+        $this->gapLimit = $gapLimit;
     }
 
     /**
@@ -44,14 +50,22 @@ class Bip32Generator implements ScriptGenerator
      */
     public function generate(): DbScript
     {
-        $childIndex = $this->dbKey->getNextSequence($this->db);
-        echo "seq $childIndex\n";
-        $child = $this->key->deriveChild($childIndex);
-        $path = $this->dbKey->getPath() . "/$childIndex";
-        echo "just derived $path\n";
-        $script = ScriptFactory::scriptPubKey()->p2pkh($child->getPublicKey()->getPubKeyHash());
+        echo "CALL GENERATE\n";
+        $currentIndex = $this->dbKey->getNextSequence($this->db) - 1;
 
-        $this->db->createScript($this->dbKey->getWalletId(), $path, $script->getHex(), null, null);
-        return $this->db->loadScriptByKeyId($this->dbKey->getWalletId(), $path);
+        for ($preDeriveIdx = $this->gapLimit + $currentIndex; $preDeriveIdx >= $currentIndex; $preDeriveIdx--) {
+            $gapKeyPath = $this->dbKey->getPath() . "/$preDeriveIdx";
+            if ($this->db->loadScriptByKeyId($this->dbKey->getWalletId(), $gapKeyPath)) {
+                break;
+            }
+            $child = $this->key->deriveChild($preDeriveIdx);
+            $script = ScriptFactory::scriptPubKey()->p2pkh($child->getPublicKey()->getPubKeyHash());
+            $this->db->createScript($this->dbKey->getWalletId(), $gapKeyPath, $script->getHex(), null, null);
+            echo "FILLED GAP $gapKeyPath\n";
+        }
+
+        echo "now do gap stuff\n";
+        $loadKeyPath = $this->dbKey->getPath() . "/$currentIndex";
+        return $this->db->loadScriptByKeyId($this->dbKey->getWalletId(), $loadKeyPath);
     }
 }

@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+
+use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkFactory;
@@ -30,6 +32,7 @@ if (getenv("SYNCIP")) {
 } else {
     $ip = "127.0.0.1";
 }
-$daemon = new P2pSyncDaemon($ip, $port, $net, $params, $db);
+$ecAdapter = Bitcoin::getEcAdapter();
+$daemon = new P2pSyncDaemon($ip, $port, $ecAdapter, $net, $params, $db);
 $daemon->sync($loop);
 $loop->run();

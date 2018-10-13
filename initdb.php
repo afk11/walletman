@@ -26,4 +26,6 @@ $res = $access->addHeader(0, $hash, $header);
 $access->createWalletTable();
 $access->createKeyTable();
 $access->createScriptTable();
+$access->createTxTable();
+$access->createUtxoTable();
 print_r($res);

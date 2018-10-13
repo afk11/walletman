@@ -8,6 +8,9 @@ use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
+use BitWasp\Bitcoin\Transaction\OutPoint;
+use BitWasp\Bitcoin\Transaction\OutPointInterface;
+use BitWasp\Bitcoin\Utxo\Utxo;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 
@@ -24,9 +27,12 @@ class DB
     private $getBestHeaderStmt;
     private $getBlockHashStmt;
     private $createScriptStmt;
-    private $loadScriptStmt;
+    private $loadScriptByKeyIdStmt;
     private $getWalletStmt;
+    private $getBip44WalletKey;
     private $getBlockCountStmt;
+    private $getWalletUtxosStmt;
+    private $searchUnspentUtxoStmt;
 
     public function __construct(string $dsn)
     {
@@ -53,6 +59,48 @@ class DB
         }
     }
 
+    public function createTxTable()
+    {
+        if (!$this->pdo->exec("CREATE TABLE `tx` (
+            `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+            `walletId`     INTEGER,
+            `valueChange`  INTEGER,
+            `txid`         TEXT
+        );")) {
+            throw new \RuntimeException("failed to create tx table");
+        }
+
+        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_tx on tx(walletId, txid)")) {
+            throw new \RuntimeException("failed add index on tx table");
+        }
+    }
+
+    public function createUtxoTable()
+    {
+        if (!$this->pdo->exec("CREATE TABLE `utxo` (
+            `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+            `walletId`     INTEGER,
+            `scriptId`     INTEGER,
+            `txid`         TEXT,
+            `vout`         INTEGER,
+            `spentTxid`    TEXT,
+            `spentIdx`     INTEGER,
+            `value`        INTEGER,
+            `scriptPubKey` TEXT
+        );")) {
+            throw new \RuntimeException("failed to create wallet table");
+        }
+
+        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_utxo on utxo(walletId, txid, vout, spentTxid, spentIdx)")) {
+            throw new \RuntimeException("failed add index on utxo table");
+        }
+        if (!$this->pdo->exec("CREATE INDEX index_scriptId on utxo(walletId, scriptId)")) {
+            throw new \RuntimeException("failed add index on utxo table");
+        }
+        if (!$this->pdo->exec("CREATE INDEX index_scriptPubKey on utxo(walletId, scriptId)")) {
+            throw new \RuntimeException("failed add index on utxo table");
+        }
+    }
     public function createKeyTable()
     {
         if (!$this->pdo->exec("CREATE TABLE `key` (
@@ -63,6 +111,7 @@ class DB
             `depth`	INTEGER,
             `key`	TEXT,
             `keyIndex`	INTEGER,
+            `status`    INTEGER DEFAULT 0,
             `isLeaf`	TINYINT
         );")) {
             throw new \RuntimeException("failed to create key table");
@@ -179,7 +228,21 @@ class DB
             throw new \RuntimeException("Failed to find wallet");
         }
 
-        return (int) $this->pdo->lastInsertId();
+        return $this->getWalletStmt->fetchObject(DbWallet::class);
+    }
+
+    public function loadBip44WalletKey(int $walletId): DbKey
+    {
+        if (null === $this->getBip44WalletKey) {
+            $this->getBip44WalletKey = $this->pdo->prepare("SELECT * FROM key WHERE walletId = ? and depth = 3");
+        }
+        if (!$this->getBip44WalletKey->execute([
+            $walletId
+        ])) {
+            throw new \RuntimeException("Failed to find bip44 wallet key");
+        }
+
+        return $this->getBip44WalletKey->fetchObject(DbKey::class);
     }
 
     public function createWallet(string $identifier, int $type): int
@@ -238,25 +301,105 @@ class DB
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function loadScriptByKeyId(int $walletId, string $keyIdentifier): DbScript
+    public function loadScriptByKeyId(int $walletId, string $keyIdentifier): ?DbScript
     {
-        if (null === $this->loadScriptStmt) {
-            $this->loadScriptStmt = $this->pdo->prepare("SELECT id, keyIdentifier, scriptPubKey, redeemScript, witnessScript from script where walletId = ? and keyIdentifier = ?");
+        if (null === $this->loadScriptByKeyIdStmt) {
+            $this->loadScriptByKeyIdStmt = $this->pdo->prepare("SELECT id, keyIdentifier, scriptPubKey, redeemScript, witnessScript from script where walletId = ? and keyIdentifier = ?");
         }
-        $this->loadScriptStmt->execute([
+        if (!$this->loadScriptByKeyIdStmt->execute([
             $walletId, $keyIdentifier,
-        ]);
-        return $this->loadScriptStmt->fetchObject(DbScript::class);
+        ])) {
+            throw new \RuntimeException("Failed to query script");
+        }
+
+        if ($result = $this->loadScriptByKeyIdStmt->fetchObject(DbScript::class)) {
+            return $result;
+        }
+        return null;
     }
 
-    public function loadScriptByScriptPubKey(int $walletId, ScriptInterface $script): DbScript
+    public function loadScriptByScriptPubKey(int $walletId, ScriptInterface $script): ?DbScript
     {
         if (null === $this->loadScriptBySpkStmt) {
             $this->loadScriptBySpkStmt = $this->pdo->prepare("SELECT id, keyIdentifier, scriptPubKey, redeemScript, witnessScript from script where walletId = ? and scriptPubKey = ?");
         }
-        $this->loadScriptBySpkStmt->execute([
+        if (!$this->loadScriptBySpkStmt->execute([
             $walletId, $script->getHex(),
-        ]);
-        return $this->loadScriptStmt->fetchObject(DbScript::class);
+        ])) {
+            throw new \RuntimeException("Failed to query script");
+        }
+
+        if ($result = $this->loadScriptBySpkStmt->fetchObject(DbScript::class)) {
+            return $result;
+        }
+        return null;
+    }
+
+    public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, OutPointInterface $spendByOutPoint) {
+        $sql = sprintf("UPDATE utxo SET spentTxid = ? AND spentIdx = ? WHERE walletId = ? and txid = ? and vout = ?");
+        $stmt = $this->pdo->prepare($sql);
+        if (!$stmt->execute([
+            $spendByOutPoint->getTxId()->getHex(), $spendByOutPoint->getVout(), $walletId,
+            $utxoOutPoint->getTxId()->getHex(), $utxoOutPoint->getVout(),
+        ])) {
+            throw new \RuntimeException("Failed to update utxos with spend");
+        }
+    }
+    public function createUtxos(int $walletId, array $utxoAndDbScripts)
+    {
+        $columns = ["walletId", "scriptId", "txid", "vout", "value", "scriptPubKey"];
+        $numCols = count($columns);
+        $numRows = count($utxoAndDbScripts);
+        $placeholder = "(" . implode(",", array_fill(0, $numCols, "?")) . ")";
+        $sql = sprintf("INSERT INTO utxo (walletId, scriptId, txid, vout, value, scriptPubKey) values %s", implode(",", array_fill(0, $numRows, $placeholder)));
+
+        $stmt = $this->pdo->prepare($sql);
+        for ($i = 0; $i < $numRows; $i++) {
+            /** @var Utxo $utxo */
+            /** @var DbScript $dbScript */
+            list ($utxo, $dbScript) = $utxoAndDbScripts[$i];
+            $stmt->bindValue($i * $numCols + 1, $walletId);
+            $stmt->bindValue($i * $numCols + 2, $dbScript->getId());
+            $stmt->bindValue($i * $numCols + 3, $utxo->getOutPoint()->getTxId()->getHex());
+            $stmt->bindValue($i * $numCols + 4, $utxo->getOutPoint()->getVout());
+            $stmt->bindValue($i * $numCols + 5, $utxo->getOutput()->getValue());
+            $stmt->bindValue($i * $numCols + 6, $utxo->getOutput()->getScript()->getHex());
+        }
+        if (!$stmt->execute()) {
+            throw new \RuntimeException("Failed to insert utxos");
+        }
+    }
+
+    public function searchUnspentUtxo(int $walletId, OutPointInterface $outPoint): ?DbUtxo
+    {
+        if (null === $this->searchUnspentUtxoStmt) {
+            $this->searchUnspentUtxoStmt = $this->pdo->prepare("SELECT * from utxo where walletId = ? and txid = ? and vout = ? and spentTxid IS NULL");
+        }
+        if (!$this->searchUnspentUtxoStmt->execute([$walletId, $outPoint->getTxId()->getHex(), $outPoint->getVout()])) {
+            throw new \RuntimeException("Failed to query utxo");
+        }
+        if ($utxo = $this->searchUnspentUtxoStmt->fetchObject(DbUtxo::class)) {
+            return $utxo;
+        }
+        return null;
+    }
+
+    /**
+     * @param int $walletId
+     * @return DbUtxo[]
+     */
+    public function getWalletUtxos(int $walletId): array
+    {
+        if (null === $this->getWalletUtxosStmt) {
+            $this->getWalletUtxosStmt = $this->pdo->prepare("SELECT * from utxo where walletId = ? and spentTxid = null and spentIdx = null");
+        }
+        if (!$this->getWalletUtxosStmt->execute([$walletId])) {
+            throw new \RuntimeException("Failed to query utxos");
+        }
+        $utxos = [];
+        while ($utxo = $this->getWalletUtxosStmt->fetchObject(DbUtxo::class)) {
+            $utxos[] = $utxo;
+        }
+        return $utxos;
     }
 }

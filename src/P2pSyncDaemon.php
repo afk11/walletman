@@ -7,7 +7,9 @@ namespace BitWasp\Wallet;
 use BitWasp\Bitcoin\Block\Block;
 use BitWasp\Bitcoin\Chain\BlockLocator;
 use BitWasp\Bitcoin\Chain\Params;
+use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Network\NetworkInterface;
+use BitWasp\Bitcoin\Network\Networks\Bitcoin;
 use BitWasp\Bitcoin\Networking\Factory;
 use BitWasp\Bitcoin\Networking\Ip\Ipv4;
 use BitWasp\Bitcoin\Networking\Message;
@@ -19,6 +21,7 @@ use BitWasp\Bitcoin\Networking\Structure\Inventory;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\Wallet\Bip44Wallet;
 use React\EventLoop\LoopInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
@@ -78,7 +81,9 @@ class P2pSyncDaemon
     private $blockStatsCount;
     private $blockStatsBegin;
 
-    public function __construct(string $host, int $port, NetworkInterface $network, Params $params, DB $db)
+    private $wallet;
+
+    public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DB $db)
     {
         $this->host = $host;
         $this->port = $port;
@@ -97,8 +102,19 @@ class P2pSyncDaemon
         }
 
         // would normally come from wallet birthday
-        $this->chain->setStartBlock(new BlockRef(544600, Buffer::hex("0000000000000000000fded8e152db5d901e698d26768978d42c23ce97a55036")));
+        if (get_class($network) === Bitcoin::class) {
+            $this->chain->setStartBlock(new BlockRef(544600, Buffer::hex("0000000000000000000fded8e152db5d901e698d26768978d42c23ce97a55036")));
+            //$this->chain->setStartBlock(new BlockRef(544871, Buffer::hex("00000000000000000023c85124780fd82d4b45e0aff2f47c8b4d496965ceeb13")));
+        } else {
+            //$this->chain->setStartBlock(new BlockRef(159, Buffer::hex("2a47ce2d144dc10a6ef65869ad14394b749b6e7ae3c38aeca86ebf6f7222b63f")));
+        }
         $this->downloader = new BlockDownloader(16, $db, $this->chain);
+
+        $dbWallet = $db->loadWallet("lbl");
+        if ($dbWallet->getType() !== 1) {
+            throw new \RuntimeException("invalid wallet type");
+        }
+        $this->wallet = new Bip44Wallet($db, $dbWallet, $db->loadBip44WalletKey($dbWallet->getId()), $network, $ecAdapter);
     }
 
     public function sync(LoopInterface $loop) {
@@ -172,11 +188,10 @@ class P2pSyncDaemon
      * @todo: error if unrequested
      *
      * @param Peer $peer
-     * @param Block $blockMsg
+     * @param \BitWasp\Bitcoin\Networking\Messages\Block $blockMsg
      */
     public function receiveBlock(Peer $peer, \BitWasp\Bitcoin\Networking\Messages\Block $blockMsg)
     {
-        echo "receive block\n";
         $block = $blockMsg->getBlock();
         $hash = $block->getHeader()->getHash();
         //echo "receiveBlock {$hash->getHex()}\n";
@@ -202,7 +217,7 @@ class P2pSyncDaemon
      */
     public function requestBlock(Peer $peer, BufferInterface $hash): PromiseInterface
     {
-        echo "requestBlock {$hash->getHex()}\n";
+        //echo "requestBlock {$hash->getHex()}\n";
         $this->toDownload[] = Inventory::block($hash);
 
         $deferred = new Deferred();
@@ -212,23 +227,24 @@ class P2pSyncDaemon
 
     public function requestBlocks(Peer $peer, Deferred $deferredFinished)
     {
-        echo "requestBlocks\n";
         if (null === $this->blockStatsCount) {
             $this->blockStatsCount = 0;
             $this->blockStatsBegin = \microtime(true);
         }
 
         $startBlock = $this->chain->getBestBlockHeight() + 1;
+//        echo sprintf("count:%d\nbatch:%d\nstartBlock:%d\nbestHeader:%d\n",
+//            count($this->deferred), $this->batchSize, $startBlock, $this->chain->getBestHeaderHeight());
         while(count($this->deferred) < $this->batchSize && $startBlock + count($this->deferred) <= $this->chain->getBestHeaderHeight()) {
-            echo "queue\n";
             $height = $startBlock + count($this->deferred);
-            echo "height: $height\n";
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
                 ->then(function(Block $block) use ($peer, $height, $hash, $deferredFinished) {
-                    echo "processBlock $height, {$hash->getHex()}\n";
+                    //echo "process $height\n";
                     $this->chain->addNextBlock($height, $hash, $block);
 
+                    $processor = new BlockProcessor($this->db, $this->wallet->getDbWallet(), $this->wallet->getScriptStorage(), $this->wallet->getUtxoStorage());
+                    $processor->process($block);
 
                     $this->blockStatsCount++;
                     if ($this->blockStatsCount === $this->blockStatsWindow) {
@@ -239,7 +255,6 @@ class P2pSyncDaemon
                     }
 
                     $this->requestBlocks($peer, $deferredFinished);
-                    echo "request moar\n";
                 }, function (\Exception $e) {
                     echo "requestBlockError: {$e->getMessage()}\n";
                 })
@@ -261,7 +276,6 @@ class P2pSyncDaemon
         if (count($this->deferred) === 0) {
             $deferredFinished->resolve();
         }
-        echo "requestBlocks finished\n";
     }
 
     public function downloadBlocks(Peer $peer)
@@ -271,7 +285,7 @@ class P2pSyncDaemon
             $peer->on(Message::BLOCK, [$this, 'receiveBlock']);
 
             $deferred = new Deferred();
-            echo "request blocks\n";
+            echo "requesting blocks\n";
             $this->requestBlocks($peer, $deferred);
 
             return $deferred

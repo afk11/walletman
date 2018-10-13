@@ -22,7 +22,19 @@ class Factory
         $this->ecAdapter = $ecAdapter;
     }
 
-    public function createBip44WalletFromRootKey(string $identifier, HierarchicalKey $rootKey, int $coinType, int $account): Bip44Wallet
+    public function loadWallet(string $identifier): WalletInterface
+    {
+        $dbWallet = $this->db->loadWallet($identifier);
+        switch ($dbWallet->getType()) {
+            case 1:
+                $rootKey = $this->db->loadBip44WalletKey($dbWallet->getId());
+                return new Bip44Wallet($this->db, $dbWallet, $rootKey, $this->network, $this->ecAdapter);
+            default:
+                throw new \RuntimeException("Unknown type");
+        }
+    }
+
+    public function createBip44WalletFromRootKey(string $identifier, HierarchicalKey $rootKey, int $coinType, int $account): WalletInterface
     {
         if ($rootKey->getDepth() !== 0) {
             throw new \RuntimeException("invalid key - must be root");
@@ -37,15 +49,11 @@ class Factory
         $changeNode = $accountNode->deriveChild(Bip44Wallet::INDEX_CHANGE);
         $changePath = "{$path}/{$changeNode->getSequence()}";
 
-        echo "begintx1\n";
         $this->db->getPdo()->beginTransaction();
         try {
             $walletId = $this->db->createWallet($identifier, WalletType::BIP44_WALLET);
-            echo "$walletId $path 0\n";
             $this->db->createKey($walletId, $path, $accountNode, $this->network, 0, false);
-            echo "$walletId $externalPath 0\n";
             $this->db->createKey($walletId, $externalPath, $externalNode, $this->network, 0, false);
-            echo "$walletId $changePath 0\n";
             $this->db->createKey($walletId, $changePath, $changeNode, $this->network, 0, false);
             $this->db->getPdo()->commit();
         } catch (\Exception $e) {
@@ -53,7 +61,6 @@ class Factory
             throw $e;
         }
 
-        $rootKey = $this->db->loadKeyByPath($walletId, $path, 0);
-        return new Bip44Wallet($this->db, $rootKey, $this->network, $this->ecAdapter);
+        return $this->loadWallet($identifier);
     }
 }
