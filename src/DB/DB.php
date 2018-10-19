@@ -32,6 +32,7 @@ class DB
     private $getBip44WalletKey;
     private $getBlockCountStmt;
     private $getWalletUtxosStmt;
+    private $createTxStmt;
     private $searchUnspentUtxoStmt;
 
     public function __construct(string $dsn)
@@ -336,13 +337,16 @@ class DB
     }
 
     public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, OutPointInterface $spendByOutPoint) {
-        $sql = sprintf("UPDATE utxo SET spentTxid = ? AND spentIdx = ? WHERE walletId = ? and txid = ? and vout = ?");
+        $sql = sprintf("UPDATE utxo SET spentTxid = ?, spentIdx = ? WHERE walletId = ? and txid = ? and vout = ?");
         $stmt = $this->pdo->prepare($sql);
         if (!$stmt->execute([
             $spendByOutPoint->getTxId()->getHex(), $spendByOutPoint->getVout(), $walletId,
             $utxoOutPoint->getTxId()->getHex(), $utxoOutPoint->getVout(),
         ])) {
             throw new \RuntimeException("Failed to update utxos with spend");
+        }
+        if ($stmt->rowCount() !== 1) {
+            throw new \RuntimeException("failed to delete utxo");
         }
     }
     public function createUtxos(int $walletId, array $utxoAndDbScripts)
@@ -391,7 +395,7 @@ class DB
     public function getWalletUtxos(int $walletId): array
     {
         if (null === $this->getWalletUtxosStmt) {
-            $this->getWalletUtxosStmt = $this->pdo->prepare("SELECT * from utxo where walletId = ? and spentTxid = null and spentIdx = null");
+            $this->getWalletUtxosStmt = $this->pdo->prepare("SELECT * from utxo where walletId = ? and spentTxid IS NULL");
         }
         if (!$this->getWalletUtxosStmt->execute([$walletId])) {
             throw new \RuntimeException("Failed to query utxos");
@@ -401,5 +405,15 @@ class DB
             $utxos[] = $utxo;
         }
         return $utxos;
+    }
+
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange)
+    {
+        if (null === $this->createTxStmt) {
+            $this->createTxStmt = $this->pdo->prepare("INSERT INTO tx (walletId, txid, valueChange) values (?,?,?)");
+        }
+        $this->createTxStmt->execute([
+            $walletId, $txid->getHex(), $valueChange,
+        ]);
     }
 }

@@ -87,11 +87,19 @@ class BlockProcessor
         $walletId = $this->wallet->getId();
         $this->db->getPdo()->beginTransaction();
         try {
+            // commiting at the end means that chained
+            // transactions are probably skipped
+            // can we start tracking outpoints as they are
+            // added, so the check for spends doesn't depend
+            // on db state? perhaps load all consumed utxos
+            // from the block, knowing there are more to come
+            // as we parse the block..
             foreach ($this->txData as $update) {
                 $isMine = false;
                 foreach ($update->getSpends() as $spend) {
+                    list ($spentByOutpoint, $outpoint) = $spend;
                     $isMine = true;
-                    $this->db->deleteSpends($walletId, $spend[0], $spend[1]);
+                    $this->db->deleteSpends($walletId, $outpoint, $spentByOutpoint);
                 }
 
                 if (count($update->getUtxos()) > 0) {
@@ -99,13 +107,15 @@ class BlockProcessor
                     $this->db->createUtxos($walletId, $update->getUtxos());
                 }
 
-                $this->db->createTx($walletId, $update->getUtxos())
                 if ($isMine) {
                     print_r($update);
+                    $this->db->createTx($walletId, $update->getTxId(), $update->getValueChange());
                 }
+                echo "completed update\n";
             }
             $this->db->getPdo()->commit();
         } catch (\Exception $e) {
+            echo "exception\n";
             $this->db->getPdo()->rollBack();
             throw $e;
         }
