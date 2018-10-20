@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\BlockInterface;
-use BitWasp\Bitcoin\Script\ScriptInterface;
+use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
+use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
+use BitWasp\Wallet\Block\Tx;
+use BitWasp\Wallet\Block\Utxo;
 use BitWasp\Wallet\DB\DB;
-use BitWasp\Wallet\DB\DbScript;
-use BitWasp\Wallet\DB\DbWallet;
-use BitWasp\Wallet\Wallet\ScriptStorage;
-use BitWasp\Wallet\Wallet\UtxoStorage;
+use BitWasp\Wallet\Wallet\WalletInterface;
 
 class BlockProcessor
 {
@@ -20,118 +20,130 @@ class BlockProcessor
      * @var DB
      */
     private $db;
-    /**
-     * @var ScriptStorage
-     */
-    private $scripts;
-    /**
-     * @var UtxoStorage
-     */
-    private $utxos;
 
-    // cache
-    private $mapScriptPubKeyToDbScript = [];
     /**
-     * @var TxUpdate[]
+     * @var Tx[]
      */
-    private $txData = [];
-    private $wallet = [];
+    private $txMap = [];
+    /**
+     * @var WalletInterface[]
+     */
+    private $wallets = [];
+    private $start;
 
-    public function __construct(DB $db, DbWallet $wallet, ScriptStorage $scriptStorage, UtxoStorage $utxoStorage)
+    public function __construct(DB $db, WalletInterface $wallet)
     {
         $this->db = $db;
-        $this->wallet = $wallet;
-        $this->scripts = $scriptStorage;
-        $this->utxos = $utxoStorage;
+        $this->wallets = [$wallet];
+        $this->start = microtime(true);
     }
 
-    protected function loadScript(ScriptInterface $scriptPubKey): ?DbScript
+    private function getTxKey(BufferInterface $txid): string
     {
-        $cKey = $scriptPubKey->getBinary();
-        if (array_key_exists($cKey, $this->mapScriptPubKeyToDbScript)) {
-            return $this->mapScriptPubKeyToDbScript[$cKey];
-        }
-        if ($script = $this->scripts->searchScript($scriptPubKey)) {
-            $this->mapScriptPubKeyToDbScript[$cKey] = $script;
-            return $script;
-        }
-        return null;
+        return $txid->getHex();
     }
 
-    public function processConfirmedTx(BufferInterface $txid, TransactionInterface $tx) {
-        echo $tx->getTxId()->getHex().PHP_EOL;
-        $txUpdate = new TxUpdate($txid);
+    public function processConfirmedTx(BufferInterface $txid, TransactionInterface $tx)
+    {
+        echo ".";
+        if (array_key_exists($txid->getHex(), $this->txMap)) {
+            throw new \LogicException();
+        }
         $nIn = count($tx->getInputs());
         for ($iIn = 0; $iIn < $nIn; $iIn++) {
-            $txIn = $tx->getInput($iIn);
-            if ($utxo = $this->utxos->search($txIn->getOutPoint())) {
-                $txUpdate->inputSpendsMine($iIn, $txIn->getOutPoint(), $utxo->getTxOut());
+            $input = $tx->getInput($iIn);
+            $inputTx = null;
+            $inputTxId = $this->getTxKey($input->getOutPoint()->getTxId());
+            if (array_key_exists($inputTxId, $this->txMap)) {
+                $this->txMap[$inputTxId]->spendOutput((int) $input->getOutPoint()->getVout(), new OutPoint($txid, $iIn));
             }
         }
 
         $nOut = count($tx->getOutputs());
+        $outputs = [];
         for ($iOut = 0; $iOut < $nOut; $iOut++) {
             $txOut = $tx->getOutput($iOut);
-            if ($script = $this->loadScript($txOut->getScript())) {
-                $txUpdate->outputIsMine($iOut, $txOut, $script);
-                echo "got script\n";
+            $outputs[] = new Utxo(new OutPoint($txid, $iOut), $txOut, null);
+        }
+
+        $this->txMap[$this->getTxKey($txid)] = new Tx($txid, $tx, $outputs);
+    }
+
+    public function commit(int $blockHeight)
+    {
+        echo "\n";
+        //print_r($this->txMap);
+
+        $numTx = count($this->txMap);
+        echo "tx count $numTx\n";
+        $txIds = array_keys($this->txMap);
+        for ($i = 0; $i < $numTx; $i++) {
+            $txWorkload = $this->txMap[$txIds[$i]];
+            $txId = Buffer::hex($txIds[$i]);
+            $tx = $txWorkload->getTx();
+            $nIn = count($tx->getInputs());
+            $valueChange = [];
+
+            for ($iIn = 0; $iIn < $nIn; $iIn++) {
+                $outPoint = $tx->getInput($iIn)->getOutPoint();
+                $inputTxId = $this->getTxKey($outPoint->getTxId());
+                // mark spent. need wallet ids for balance update.
+
+                if (array_key_exists($inputTxId, $this->txMap)) {
+                    // txin was created in this block, so output information is available
+                    $fundTx = $this->txMap[$inputTxId];
+                    $spentBy = $fundTx->getOutputs()[$outPoint->getVout()]->getSpentOutPoint();
+                    assert($spentBy);
+                }
+
+                // load this utxo from wallets, and mark spent
+                $dbUtxos = $this->db->getWalletUtxosWithUnspentUtxo($outPoint);
+                foreach ($dbUtxos as $dbUtxo) {
+                    if (!array_key_exists($dbUtxo->getWalletId(), $valueChange)) {
+                        $valueChange[$dbUtxo->getWalletId()] = 0;
+                    }
+                    $valueChange[$dbUtxo->getWalletId()] -= $dbUtxo->getValue();
+                    $this->db->deleteSpends($dbUtxo->getWalletId(), $outPoint, $txId, $iIn);
+                    echo "wallet({$dbUtxo->getWalletId()}).utxoSpent {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}\n";
+                }
+            }
+
+            $nOut = count($tx->getOutputs());
+            $txUtxos = $txWorkload->getOutputs();
+            for ($iOut = 0; $iOut < $nOut; $iOut++) {
+                $txOut = $tx->getOutput($iOut);
+                foreach ($this->wallets as $walletIdx => $wallet) {
+                    $dbWallet = $wallet->getDbWallet();
+                    if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
+                        echo "wallet({$dbWallet->getId()}).newUtxo {$txId->getHex()} {$iOut}\n";
+                        $this->db->createUtxo($dbWallet, $script, $txUtxos[$iOut]);
+                        if (!array_key_exists($dbWallet->getId(), $valueChange)) {
+                            $valueChange[$dbWallet->getId()] = 0;
+                        }
+                        $valueChange[$dbWallet->getId()] += $txOut->getValue();
+                    }
+                }
+            }
+
+            foreach ($valueChange as $walletId => $change) {
+                $this->db->createTx($walletId, $txId, $change);
             }
         }
 
-        if ($txUpdate->getValueChange() !== 0) {
-            $this->txData[] = $txUpdate;
-        }
+        $dur = microtime(true)-$this->start;
     }
 
-    public function commit() {
-        $walletId = $this->wallet->getId();
-        $this->db->getPdo()->beginTransaction();
-        try {
-            // commiting at the end means that chained
-            // transactions are probably skipped
-            // can we start tracking outpoints as they are
-            // added, so the check for spends doesn't depend
-            // on db state? perhaps load all consumed utxos
-            // from the block, knowing there are more to come
-            // as we parse the block..
-            foreach ($this->txData as $update) {
-                $isMine = false;
-                foreach ($update->getSpends() as $spend) {
-                    list ($spentByOutpoint, $outpoint) = $spend;
-                    $isMine = true;
-                    $this->db->deleteSpends($walletId, $outpoint, $spentByOutpoint);
-                }
-
-                if (count($update->getUtxos()) > 0) {
-                    $isMine = true;
-                    $this->db->createUtxos($walletId, $update->getUtxos());
-                }
-
-                if ($isMine) {
-                    print_r($update);
-                    $this->db->createTx($walletId, $update->getTxId(), $update->getValueChange());
-                }
-                echo "completed update\n";
-            }
-            $this->db->getPdo()->commit();
-        } catch (\Exception $e) {
-            echo "exception\n";
-            $this->db->getPdo()->rollBack();
-            throw $e;
-        }
-    }
-
-    public function process(BlockInterface $block) {
+    public function process(int $height, BlockInterface $block)
+    {
         // 1. receive only wallet
         try {
-            $outPointMapToTxOut = [];
             $nTx = count($block->getTransactions());
             for ($iTx = 0; $iTx < $nTx; $iTx++) {
                 $tx = $block->getTransaction($iTx);
                 $txId = $tx->getTxId();
                 $this->processConfirmedTx($txId, $tx);
             }
-            $this->commit();
+            $this->commit($height);
         } catch (\Error $e) {
             echo $e->getMessage().PHP_EOL;
             echo $e->getTraceAsString().PHP_EOL;

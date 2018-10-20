@@ -25,7 +25,13 @@ class DbHeader
 
     public function getHeader(): BlockHeaderInterface
     {
-        return new BlockHeader($this->version, Buffer::hex($this->prevBlock),
-            Buffer::hex($this->merkleRoot), $this->time, $this->nbits, $this->nonce);
+        return new BlockHeader(
+            $this->version,
+            Buffer::hex($this->prevBlock),
+            Buffer::hex($this->merkleRoot),
+            $this->time,
+            $this->nbits,
+            $this->nonce
+        );
     }
 }

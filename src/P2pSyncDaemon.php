@@ -25,9 +25,6 @@ use BitWasp\Wallet\Wallet\Bip44Wallet;
 use React\EventLoop\LoopInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
-use React\Socket\ConnectionInterface;
-use React\Socket\Server;
-
 
 class P2pSyncDaemon
 {
@@ -117,7 +114,8 @@ class P2pSyncDaemon
         $this->wallet = new Bip44Wallet($db, $dbWallet, $db->loadBip44WalletKey($dbWallet->getId()), $network, $ecAdapter);
     }
 
-    public function sync(LoopInterface $loop) {
+    public function sync(LoopInterface $loop)
+    {
         $netFactory = new Factory($loop, $this->network);
         $connParams = new ConnectionParams();
         $connParams->setBestBlockHeight($this->chain->getBestHeaderHeight());
@@ -127,7 +125,7 @@ class P2pSyncDaemon
         $connector = $netFactory->getConnector($connParams);
         $connector
             ->connect($netFactory->getAddress(new Ipv4($this->host), $this->port))
-            ->then(function(Peer $peer) {
+            ->then(function (Peer $peer) {
                 $peer->on(Message::PING, function (Peer $peer, Ping $ping) {
                     $peer->pong($ping);
                 });
@@ -138,7 +136,8 @@ class P2pSyncDaemon
             });
     }
 
-    public function downloadHeaders(Peer $peer) {
+    public function downloadHeaders(Peer $peer)
+    {
         $peer->on(Message::HEADERS, function (Peer $peer, Headers $headers) {
             if (count($headers->getHeaders()) > 0) {
                 // misbehaving..
@@ -235,16 +234,23 @@ class P2pSyncDaemon
         $startBlock = $this->chain->getBestBlockHeight() + 1;
 //        echo sprintf("count:%d\nbatch:%d\nstartBlock:%d\nbestHeader:%d\n",
 //            count($this->deferred), $this->batchSize, $startBlock, $this->chain->getBestHeaderHeight());
-        while(count($this->deferred) < $this->batchSize && $startBlock + count($this->deferred) <= $this->chain->getBestHeaderHeight()) {
+        while (count($this->deferred) < $this->batchSize && $startBlock + count($this->deferred) <= $this->chain->getBestHeaderHeight()) {
             $height = $startBlock + count($this->deferred);
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
-                ->then(function(Block $block) use ($peer, $height, $hash, $deferredFinished) {
-                    //echo "process $height\n";
+                ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
+                    //echo "process $height {$hash->getHex()}\n";
                     $this->chain->addNextBlock($height, $hash, $block);
 
-                    $processor = new BlockProcessor($this->db, $this->wallet->getDbWallet(), $this->wallet->getScriptStorage(), $this->wallet->getUtxoStorage());
-                    $processor->process($block);
+                    try {
+                        $processor = new BlockProcessor($this->db, $this->wallet);
+                        $processor->process($height, $block);
+                    } catch (\Exception $e) {
+                        echo "caught fatal error\n";
+                        echo $e->getMessage().PHP_EOL;
+                        echo $e->getTraceAsString().PHP_EOL;
+                        throw $e;
+                    }
 
                     $this->blockStatsCount++;
                     if ($this->blockStatsCount === $this->blockStatsWindow) {

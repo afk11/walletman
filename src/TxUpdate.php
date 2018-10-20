@@ -21,11 +21,13 @@ class TxUpdate
     {
         $this->txid = $txid;
     }
-    public function inputSpendsMine(int $i, OutPointInterface $utxoOutpoint, TransactionOutputInterface $txOut) {
+    public function inputSpendsMine(int $i, OutPointInterface $utxoOutpoint, TransactionOutputInterface $txOut)
+    {
         $this->valueChange -= $txOut->getValue();
         $this->spends[] = [new OutPoint($this->txid, $i), $utxoOutpoint];
     }
-    public function outputIsMine(int $i, TransactionOutputInterface $txOut, DbScript $script) {
+    public function outputIsMine(int $i, TransactionOutputInterface $txOut, DbScript $script)
+    {
         $this->valueChange += $txOut->getValue();
         $this->utxos[] = [new Utxo(new OutPoint($this->txid, $i), $txOut), $script];
     }

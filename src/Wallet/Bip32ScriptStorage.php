@@ -50,6 +50,7 @@ class Bip32ScriptStorage implements ScriptStorage
                 $gapScript = ScriptFactory::scriptPubKey()->p2pkh($gapChild->getPublicKey()->getPubKeyHash());
                 $this->db->createScript($parentKey->getWalletId(), $gapKeyPath, $gapScript->getHex(), null, null);
             }
+            echo sprintf("Bip32: derived %d\n", ($this->gapLimit + $currentIndex) - $preDeriveIdx);
             return $script;
         }
         return null;

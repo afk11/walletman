@@ -19,11 +19,17 @@ class DbScript
     private $witnessScript;
     private $keyIdentifier;
 
-    public function getId(): int {
+    public function getId(): int
+    {
         return (int) $this->id;
     }
+    public function getWalletId(): int
+    {
+        return (int) $this->walletId;
+    }
 
-    public function getKeyIdentifier(): string {
+    public function getKeyIdentifier(): string
+    {
         return $this->keyIdentifier;
     }
 
@@ -38,7 +44,8 @@ class DbScript
         }
         return $signData;
     }
-    public function getScriptPubKey(): ScriptInterface {
+    public function getScriptPubKey(): ScriptInterface
+    {
         return ScriptFactory::fromHex($this->scriptPubKey);
     }
 

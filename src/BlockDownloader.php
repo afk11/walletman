@@ -49,5 +49,4 @@ class BlockDownloader extends EventEmitter
         $this->db = $db;
         $this->chain = $chain;
     }
-
 }

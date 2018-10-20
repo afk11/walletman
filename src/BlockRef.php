@@ -11,15 +11,18 @@ class BlockRef
     private $hash;
     private $height;
 
-    public function __construct(int $height, BufferInterface $hash) {
+    public function __construct(int $height, BufferInterface $hash)
+    {
         $this->height = $height;
         $this->hash = $hash;
     }
 
-    public function getHash(): BufferInterface {
+    public function getHash(): BufferInterface
+    {
         return $this->hash;
     }
-    public function getHeight(): int {
+    public function getHeight(): int
+    {
         return $this->height;
     }
 }

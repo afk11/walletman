@@ -113,7 +113,8 @@ class Bip44Wallet implements WalletInterface
         return $this->getGeneratorForPath($this->getChangeScriptPath());
     }
 
-    public function loadAccountPrivateKey(HierarchicalKey $privAccountKey) {
+    public function loadAccountPrivateKey(HierarchicalKey $privAccountKey)
+    {
         if (null === $this->accountPrivateKey) {
             $accountPubKey = $this->dbKey->getHierarchicalKey($this->network, $this->ecAdapter);
             if (!$privAccountKey->getPublicKey()->equals($accountPubKey->getPublicKey())) {
@@ -135,7 +136,7 @@ class Bip44Wallet implements WalletInterface
 
     public function sendAllCoins(ScriptInterface $destination, int $feeRate): TransactionInterface
     {
-        $utxos = $this->db->getWalletUtxos($this->dbWallet->getId());
+        $utxos = $this->db->getUnspentWalletUtxos($this->dbWallet->getId());
         $txBuilder = new TxBuilder();
         $valueIn = 0;
         /** @var ScriptAndSignData[] $inputScripts */

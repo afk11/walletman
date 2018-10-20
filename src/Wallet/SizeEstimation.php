@@ -21,7 +21,8 @@ class SizeEstimation
      * @param bool $compressed
      * @return int
      */
-    public static function getPublicKeySize($compressed = true) {
+    public static function getPublicKeySize($compressed = true)
+    {
         return $compressed ? PublicKeyInterface::LENGTH_COMPRESSED : PublicKeyInterface::LENGTH_UNCOMPRESSED;
     }
 
@@ -29,7 +30,8 @@ class SizeEstimation
      * @param int $length
      * @return int
      */
-    public static function getLengthOfScriptLengthElement($length) {
+    public static function getLengthOfScriptLengthElement($length)
+    {
         if ($length < 75) {
             return 1;
         } else if ($length <= 0xff) {
@@ -47,7 +49,8 @@ class SizeEstimation
      * @param int $length
      * @return int
      */
-    public static function getLengthOfVarInt($length) {
+    public static function getLengthOfVarInt($length)
+    {
         if ($length < 253) {
             return 1;
         } else if ($length < 65535) {
@@ -66,7 +69,8 @@ class SizeEstimation
      * @param array $vectorSizes
      * @return int|mixed
      */
-    public static function getLengthOfVector(array $vectorSizes) {
+    public static function getLengthOfVector(array $vectorSizes)
+    {
         $vectorSize = self::getLengthOfVarInt(count($vectorSizes));
         foreach ($vectorSizes as $size) {
             $vectorSize += self::getLengthOfVarInt($size) + $size;
@@ -78,7 +82,8 @@ class SizeEstimation
      * @param Multisig $multisig
      * @return array - first is array of stack sizes, second is script len
      */
-    public static function estimateMultisigStackSize(Multisig $multisig) {
+    public static function estimateMultisigStackSize(Multisig $multisig)
+    {
         $stackSizes = [0];
         for ($i = 0; $i < $multisig->getRequiredSigCount(); $i++) {
             $stackSizes[] = self::SIZE_DER_SIGNATURE;
@@ -98,7 +103,8 @@ class SizeEstimation
      * @param PayToPubKey $info
      * @return array - first is array of stack sizes, second is script len
      */
-    public static function estimateP2PKStackSize(PayToPubKey $info) {
+    public static function estimateP2PKStackSize(PayToPubKey $info)
+    {
         $stackSizes = [self::SIZE_DER_SIGNATURE];
 
         $scriptSize = 1 + $info->getKeyBuffer()->getSize(); // PUSHDATA[<75] PUBLICKEY
@@ -110,7 +116,8 @@ class SizeEstimation
      * @param bool $isCompressed
      * @return array - first is array of stack sizes, second is script len
      */
-    public static function estimateP2PKHStackSize($isCompressed = true) {
+    public static function estimateP2PKHStackSize($isCompressed = true)
+    {
         $pubKeySize = self::getPublicKeySize($isCompressed);
         $stackSizes = [self::SIZE_DER_SIGNATURE, $pubKeySize];
 
@@ -125,7 +132,8 @@ class SizeEstimation
      * @param ScriptInterface $witnessScript
      * @return array
      */
-    public static function estimateSizeForStack(array $stackSizes, $isWitness, ScriptInterface $redeemScript = null, ScriptInterface $witnessScript = null) {
+    public static function estimateSizeForStack(array $stackSizes, $isWitness, ScriptInterface $redeemScript = null, ScriptInterface $witnessScript = null)
+    {
         assert(($witnessScript === null) || $isWitness);
 
         if ($isWitness) {
@@ -172,7 +180,8 @@ class SizeEstimation
      * @param bool $isWitness
      * @return array
      */
-    public static function estimateInputFromScripts(ScriptInterface $script, ScriptInterface $redeemScript = null, ScriptInterface $witnessScript = null, $isWitness) {
+    public static function estimateInputFromScripts(ScriptInterface $script, ScriptInterface $redeemScript = null, ScriptInterface $witnessScript = null, $isWitness)
+    {
         assert($witnessScript === null || $isWitness);
         $classifier = new OutputClassifier();
         if ($classifier->isMultisig($script)) {
@@ -235,7 +244,8 @@ class SizeEstimation
      * @param bool $withWitness
      * @return integer
      */
-    public static function estimateInputsSize(array $inputScripts, $withWitness) {
+    public static function estimateInputsSize(array $inputScripts, $withWitness)
+    {
         $inputSize = 0;
         $witnessSize = 0;
         foreach ($inputScripts as $inputScript) {

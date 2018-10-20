@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\DB;
 
 use BitWasp\Bitcoin\Script\ScriptFactory;
-use BitWasp\Bitcoin\Transaction\Factory\SignData;
 use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutput;
@@ -51,6 +50,14 @@ class DbUtxo
      */
     private $spendIdx;
 
+    public function getWalletId(): int
+    {
+        return (int) $this->walletId;
+    }
+    public function getValue(): int
+    {
+        return (int) $this->value;
+    }
     public function getTxOut(): TransactionOutputInterface
     {
         return new TransactionOutput((int) $this->value, ScriptFactory::fromHex($this->scriptPubKey));
