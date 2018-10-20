@@ -54,11 +54,6 @@ class P2pSyncDaemon
     private $db;
 
     /**
-     * @var BlockDownloader
-     */
-    private $downloader;
-
-    /**
      * @var bool
      */
     private $downloading = false;
@@ -118,7 +113,6 @@ class P2pSyncDaemon
             //$this->chain->setStartBlock(new BlockRef(159, Buffer::hex("2a47ce2d144dc10a6ef65869ad14394b749b6e7ae3c38aeca86ebf6f7222b63f")));
         }
 
-        $this->downloader = new BlockDownloader(16, $this->db, $this->chain);
         foreach ($this->db->loadAllWallets() as $dbWallet) {
             if ($dbWallet->getType() !== 1) {
                 throw new \RuntimeException("invalid wallet type");
