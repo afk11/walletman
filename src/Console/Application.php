@@ -15,6 +15,7 @@ class Application extends \Symfony\Component\Console\Application
         $commands[] = new Command\Wallet\ListWallets();
         $commands[] = new Command\Wallet\GetBalance();
         $commands[] = new Command\Wallet\GetNewAddress();
+        $commands[] = new Command\Wallet\SendAll();
         return $commands;
     }
 }
