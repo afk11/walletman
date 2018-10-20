@@ -73,6 +73,11 @@ class Bip44Wallet implements WalletInterface
         $this->ecAdapter = $ecAdapter;
     }
 
+    public function getConfirmedBalance(): int
+    {
+        return $this->db->getConfirmedBalance($this->dbWallet->getId());
+    }
+
     public function getDbWallet(): DbWallet
     {
         return $this->dbWallet;

@@ -8,7 +8,6 @@ use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
-use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
 use BitWasp\Bitcoin\Utxo\Utxo;
 use BitWasp\Buffertools\Buffer;
@@ -29,10 +28,12 @@ class DB
     private $createScriptStmt;
     private $loadScriptByKeyIdStmt;
     private $getWalletStmt;
+    private $allWalletsStmt;
     private $getBip44WalletKey;
     private $getBlockCountStmt;
     private $getWalletUtxosStmt;
     private $createTxStmt;
+    private $getConfirmedBalanceStmt;
     private $createUtxoStmt;
     private $findWalletsWithUtxoStmt;
     private $searchUnspentUtxoStmt;
@@ -49,22 +50,18 @@ class DB
 
     public function createWalletTable()
     {
-        if (!$this->pdo->exec("CREATE TABLE `wallet` (
+        $this->pdo->exec("CREATE TABLE `wallet` (
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `type`         INTEGER,
             `identifier`   TEXT
-        );")) {
-            throw new \RuntimeException("failed to create wallet table");
-        }
+        );");
 
-        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_identifier on wallet(identifier)")) {
-            throw new \RuntimeException("failed add index on wallet table");
-        }
+        $this->pdo->exec("CREATE UNIQUE INDEX unique_identifier on wallet(identifier)");
     }
 
     public function createTxTable()
     {
-        if (!$this->pdo->exec("CREATE TABLE `tx` (
+        if (false === $this->pdo->exec("CREATE TABLE `tx` (
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `walletId`     INTEGER NOT NULL,
             `valueChange`  INTEGER NOT NULL,
@@ -73,14 +70,14 @@ class DB
             throw new \RuntimeException("failed to create tx table");
         }
 
-        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_tx on tx(walletId, txid)")) {
+        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_tx on tx(walletId, txid)")) {
             throw new \RuntimeException("failed add index on tx table");
         }
     }
 
     public function createUtxoTable()
     {
-        if (!$this->pdo->exec("CREATE TABLE `utxo` (
+        if (false === $this->pdo->exec("CREATE TABLE `utxo` (
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `walletId`     INTEGER NOT NULL,
             `scriptId`     INTEGER,
@@ -91,22 +88,22 @@ class DB
             `value`        INTEGER NOT NULL,
             `scriptPubKey` TEXT NOT NULL
         );")) {
-            throw new \RuntimeException("failed to create wallet table");
+            throw new \RuntimeException("failed to create utxo table");
         }
 
-        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_utxo on utxo(walletId, txid, vout, spentTxid, spentIdx)")) {
+        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_utxo on utxo(walletId, txid, vout, spentTxid, spentIdx)")) {
             throw new \RuntimeException("failed add index on utxo table");
         }
-        if (!$this->pdo->exec("CREATE INDEX index_scriptId on utxo(walletId, scriptId)")) {
+        if (false === $this->pdo->exec("CREATE INDEX index_scriptId on utxo(walletId, scriptId)")) {
             throw new \RuntimeException("failed add index on utxo table");
         }
-        if (!$this->pdo->exec("CREATE INDEX index_scriptPubKey on utxo(walletId, scriptPubKey, scriptId)")) {
+        if (false === $this->pdo->exec("CREATE INDEX index_scriptPubKey on utxo(walletId, scriptPubKey, scriptId)")) {
             throw new \RuntimeException("failed add index on utxo table");
         }
     }
     public function createKeyTable()
     {
-        if (!$this->pdo->exec("CREATE TABLE `key` (
+        if (false === $this->pdo->exec("CREATE TABLE `key` (
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `walletId`	INTEGER NOT NULL,
             `path`	TEXT NOT NULL,
@@ -119,14 +116,14 @@ class DB
         );")) {
             throw new \RuntimeException("failed to create key table");
         }
-        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_key_at_index on key(walletId, path, keyIndex)")) {
-            throw new \RuntimeException("failed add index on wallet table");
+        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_key_at_index on key(walletId, path, keyIndex)")) {
+            throw new \RuntimeException("failed add index on key table");
         }
     }
 
     public function createScriptTable()
     {
-        if (!$this->pdo->exec("CREATE TABLE `script` (
+        if (false === $this->pdo->exec("CREATE TABLE `script` (
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `walletId`	INTEGER,
             `keyIdentifier`         TEXT,
@@ -137,10 +134,10 @@ class DB
             throw new \RuntimeException("failed to create script table");
         }
 
-        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_keyIdentifier on script(walletId, keyIdentifier)")) {
+        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_keyIdentifier on script(walletId, keyIdentifier)")) {
             throw new \RuntimeException("failed to add keyId index on script table");
         }
-        if (!$this->pdo->exec("CREATE UNIQUE INDEX unique_scriptPubKey on script(walletId, scriptPubKey)")) {
+        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_scriptPubKey on script(walletId, scriptPubKey)")) {
             throw new \RuntimeException("failed to add spk index on script table");
         }
     }
@@ -212,13 +209,34 @@ class DB
         if (null === $this->addHeaderStmt) {
             $this->addHeaderStmt = $this->pdo->prepare("INSERT INTO header (height, hash, version, prevBlock, merkleRoot, time, nbits, nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         }
-        return $this->addHeaderStmt->execute([
+        if (!$this->addHeaderStmt->execute([
             $height, $hash->getHex(), $header->getVersion(),
             $header->getPrevBlock()->getHex(), $header->getMerkleRoot()->getHex(),
             $header->getTimestamp(), $header->getBits(), $header->getNonce(),
-        ]);
+        ])) {
+            throw new \RuntimeException("failed to insert header");
+        }
+        return true;
     }
 
+    /**
+     * @return DbWallet[]
+     */
+    public function loadAllWallets(): array
+    {
+        if (null === $this->allWalletsStmt) {
+            $this->allWalletsStmt = $this->pdo->prepare("SELECT * FROM wallet ORDER BY id ASC");
+        }
+        if (!$this->allWalletsStmt->execute()) {
+            throw new \RuntimeException("Failed to find wallet");
+        }
+
+        $wallets = [];
+        while ($dbWallet = $this->allWalletsStmt->fetchObject(DbWallet::class)) {
+            $wallets[] = $dbWallet;
+        }
+        return $wallets;
+    }
     public function loadWallet(string $identifier): DbWallet
     {
         if (null === $this->getWalletStmt) {
@@ -463,5 +481,16 @@ class DB
         $this->createTxStmt->execute([
             $walletId, $txid->getHex(), $valueChange
         ]);
+    }
+
+    public function getConfirmedBalance(int $walletId): int
+    {
+        if (null === $this->getConfirmedBalanceStmt) {
+            $this->getConfirmedBalanceStmt = $this->pdo->prepare("SELECT SUM(valueChange) as balance FROM tx WHERE walletId = ?");
+        }
+        $this->getConfirmedBalanceStmt->execute([
+            $walletId,
+        ]);
+        return (int) $this->getConfirmedBalanceStmt->fetch()['balance'];
     }
 }

@@ -19,12 +19,12 @@ $math = new Math();
 
 $dbMgr = new DbManager();
 if (getenv("REGTEST")) {
-    $db = $dbMgr->loadDb("sqlite:wallet-regtest.sqlite3");
+    $db = $dbMgr->loadDb("wallet-regtest.sqlite3");
     $port = 18444;
     $params = new RegtestParams(new Math());
     $net = NetworkFactory::bitcoinRegtest();
 } else {
-    $db = $dbMgr->loadDb("sqlite:wallet.sqlite3");
+    $db = $dbMgr->loadDb("wallet.sqlite3");
     $port = 8333;
     $params = new Params(new Math());
     $net = NetworkFactory::bitcoin();

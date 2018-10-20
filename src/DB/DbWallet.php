@@ -6,8 +6,12 @@ class DbWallet
 {
     private $id;
     private $type;
-    private $name;
+    private $identifier;
 
+    public function getIdentifier(): string
+    {
+        return $this->identifier;
+    }
     public function getId(): int
     {
         return (int) $this->id;

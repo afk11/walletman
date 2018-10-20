@@ -2,57 +2,65 @@
 
 declare(strict_types=1);
 
-namespace BitWasp\Wallet\Console\Command;
+namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkFactory;
+use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
 use BitWasp\Wallet\P2pSyncDaemon;
 use BitWasp\Wallet\Params\RegtestParams;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class RunWallet extends Command
+class SyncWallet extends Command
 {
     protected function configure()
     {
         $this
             // the name of the command (the part after "bin/console")
-            ->setName('wallet:run')
+            ->setName('wallet:sync')
 
             // the short description shown while running "php bin/console list"
-            ->setDescription('Starts the wallet')
+            ->setDescription('Synchronize the wallet against a trusted node')
+
+            // mandatory arguments
+            ->addArgument('database', InputArgument::REQUIRED, "Database for wallet services")
+
+            ->addOption('ip', null, InputOption::VALUE_REQUIRED, "Provide a trusted nodes hostname", "127.0.0.1")
+            ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Start wallet in regtest mode")
 
             // the full command description shown when running the command with
             // the "--help" option
-            ->setHelp('This command allows you to create a user...');
+            ->setHelp('This command starts the wallet. Some configuration parameters can be provided as options, overriding default or configuration file values');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $fIsRegtest = (bool) $input->getOption('regtest');
+        $ip = $input->getOption('ip');
+        $path = $input->getArgument('database');
         $loop = \React\EventLoop\Factory::create();
         $dbMgr = new DbManager();
-        if (getenv("REGTEST")) {
-            $db = $dbMgr->loadDb("sqlite:wallet-regtest.sqlite3");
+        if ($fIsRegtest) {
             $port = 18444;
             $params = new RegtestParams(new Math());
             $net = NetworkFactory::bitcoinRegtest();
         } else {
-            $db = $dbMgr->loadDb("sqlite:wallet.sqlite3");
             $port = 8333;
             $params = new Params(new Math());
             $net = NetworkFactory::bitcoin();
         }
 
-        if (getenv("SYNCIP")) {
-            $ip = getenv("SYNCIP");
-        } else {
-            $ip = "127.0.0.1";
-        }
+        $db = $dbMgr->loadDb($path);
+
         $ecAdapter = Bitcoin::getEcAdapter();
         $daemon = new P2pSyncDaemon($ip, $port, $ecAdapter, $net, $params, $db);
+        $daemon->init();
         $daemon->sync($loop);
         $loop->run();
     }

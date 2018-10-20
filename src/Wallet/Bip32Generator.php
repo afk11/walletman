@@ -50,7 +50,6 @@ class Bip32Generator implements ScriptGenerator
      */
     public function generate(): DbScript
     {
-        echo "CALL GENERATE\n";
         $currentIndex = $this->dbKey->getNextSequence($this->db) - 1;
 
         for ($preDeriveIdx = $this->gapLimit + $currentIndex; $preDeriveIdx >= $currentIndex; $preDeriveIdx--) {
@@ -61,10 +60,8 @@ class Bip32Generator implements ScriptGenerator
             $child = $this->key->deriveChild($preDeriveIdx);
             $script = ScriptFactory::scriptPubKey()->p2pkh($child->getPublicKey()->getPubKeyHash());
             $this->db->createScript($this->dbKey->getWalletId(), $gapKeyPath, $script->getHex(), null, null);
-            echo "FILLED GAP $gapKeyPath\n";
         }
 
-        echo "now do gap stuff\n";
         $loadKeyPath = $this->dbKey->getPath() . "/$currentIndex";
         return $this->db->loadScriptByKeyId($this->dbKey->getWalletId(), $loadKeyPath);
     }

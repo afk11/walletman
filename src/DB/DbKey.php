@@ -95,8 +95,6 @@ class DbKey
 
     public function getNextSequence(DB $db): int
     {
-        echo "increment child for {$this->walletId} {$this->path}\n";
-
         $update = $db->getPdo()->prepare("
             UPDATE key
             SET childSequence = childSequence + 1
@@ -112,6 +110,9 @@ class DbKey
         $read->execute([
             $this->walletId, $this->path,
         ]);
-        return (int) $read->fetch()['childSequence'];
+
+        $childSequence = (int) $read->fetch()['childSequence'];
+
+        return $childSequence;
     }
 }

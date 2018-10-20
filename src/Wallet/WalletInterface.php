@@ -9,6 +9,7 @@ use BitWasp\Wallet\DB\DbWallet;
 interface WalletInterface
 {
     public function getDbWallet(): DbWallet;
+    public function getConfirmedBalance(): int;
     public function getScriptGenerator(): ScriptGenerator;
     public function getChangeScriptGenerator(): ScriptGenerator;
     public function getScriptStorage(): ScriptStorage;

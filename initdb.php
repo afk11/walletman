@@ -7,7 +7,6 @@ use BitWasp\Wallet\DB\DB;
 
 require "vendor/autoload.php";
 
-
 if (getenv("REGTEST")) {
     $params = new RegtestParams(new Math());
     $access = new DB("sqlite:wallet-regtest.sqlite3");
@@ -18,7 +17,6 @@ if (getenv("REGTEST")) {
 
 $header = $params->getGenesisBlockHeader();
 $hash = $header->getHash();
-
 
 $access->createHeaderTable();
 $res = $access->addHeader(0, $hash, $header);

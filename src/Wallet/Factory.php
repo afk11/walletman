@@ -41,8 +41,19 @@ class Factory
         }
 
         $path = "M/44'/{$coinType}'/{$account}'";
-        $accountNode = $rootKey->derivePath($path);
+        $accountNode = $rootKey->derivePath($path)->withoutPrivateKey();
+        return $this->createBip44WalletFromAccountKey($identifier, $accountNode, $path);
+    }
 
+    public function createBip44WalletFromAccountKey(string $identifier, HierarchicalKey $accountNode, string $path): WalletInterface
+    {
+        if ($accountNode->getDepth() !== 3) {
+            throw new \RuntimeException("invalid key - must be root");
+        }
+
+        if ($accountNode->isPrivate()) {
+            throw new \RuntimeException("Cannot initialize bip44 wallet with private account node");
+        }
         $externalNode = $accountNode->deriveChild(Bip44Wallet::INDEX_EXTERNAL);
         $externalPath = "{$path}/{$externalNode->getSequence()}";
 

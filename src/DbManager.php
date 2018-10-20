@@ -11,9 +11,12 @@ class DbManager
     public function createDb(string $dsn)
     {
     }
-    public function loadDb(string $dsn): DB
+    public function loadDb(string $path): DB
     {
-        $db = new DB($dsn);
+        if (!file_exists($path)) {
+            throw new \RuntimeException("database file does not exist, initialize first");
+        }
+        $db = new DB("sqlite:$path");
         $db->getPdo()->setAttribute(
             \PDO::ATTR_ERRMODE,
             \PDO::ERRMODE_EXCEPTION

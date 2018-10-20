@@ -28,13 +28,13 @@ class BlockProcessor
     /**
      * @var WalletInterface[]
      */
-    private $wallets = [];
+    private $wallets;
     private $start;
 
-    public function __construct(DB $db, WalletInterface $wallet)
+    public function __construct(DB $db, WalletInterface... $wallets)
     {
         $this->db = $db;
-        $this->wallets = [$wallet];
+        $this->wallets = $wallets;
         $this->start = microtime(true);
     }
 
@@ -45,7 +45,6 @@ class BlockProcessor
 
     public function processConfirmedTx(BufferInterface $txid, TransactionInterface $tx)
     {
-        echo ".";
         if (array_key_exists($txid->getHex(), $this->txMap)) {
             throw new \LogicException();
         }
@@ -71,11 +70,7 @@ class BlockProcessor
 
     public function commit(int $blockHeight)
     {
-        echo "\n";
-        //print_r($this->txMap);
-
         $numTx = count($this->txMap);
-        echo "tx count $numTx\n";
         $txIds = array_keys($this->txMap);
         for ($i = 0; $i < $numTx; $i++) {
             $txWorkload = $this->txMap[$txIds[$i]];
@@ -129,8 +124,6 @@ class BlockProcessor
                 $this->db->createTx($walletId, $txId, $change);
             }
         }
-
-        $dur = microtime(true)-$this->start;
     }
 
     public function process(int $height, BlockInterface $block)

@@ -73,25 +73,37 @@ class P2pSyncDaemon
      * @var int
      */
     private $batchSize =  16;
+    private $ecAdapter =  16;
+    private $initialized = false;
 
     private $blockStatsWindow = 16;
     private $blockStatsCount;
     private $blockStatsBegin;
 
-    private $wallet;
+    private $wallets = [];
 
     public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DB $db)
     {
         $this->host = $host;
         $this->port = $port;
         $this->db = $db;
+        $this->ecAdapter = $ecAdapter;
         $this->network = $network;
+    }
 
-        $blockCount = $db->getBlockCount();
+    private function resetBlockStats()
+    {
+        $this->blockStatsCount = null;
+        $this->blockStatsCount = null;
+    }
+
+    public function init()
+    {
+        $blockCount = $this->db->getBlockCount();
         if ($blockCount === 0) {
             throw new \RuntimeException("need genesis block");
         }
-        $bestHeader = $db->getBestHeader();
+        $bestHeader = $this->db->getBestHeader();
         if ($bestHeader->getHeight() > 0) {
             $this->chain = new Chain($this->db->getTailHashes($bestHeader->getHeight()), $bestHeader->getHeader(), 0);
         } else {
@@ -99,23 +111,28 @@ class P2pSyncDaemon
         }
 
         // would normally come from wallet birthday
-        if (get_class($network) === Bitcoin::class) {
-            $this->chain->setStartBlock(new BlockRef(544600, Buffer::hex("0000000000000000000fded8e152db5d901e698d26768978d42c23ce97a55036")));
+        if (get_class($this->network) === Bitcoin::class) {
+            $this->chain->setStartBlock(new BlockRef(546579, Buffer::hex("00000000000000000025d038e3eb59ce1062357c035d024b52e41d8e4545d245")));
             //$this->chain->setStartBlock(new BlockRef(544871, Buffer::hex("00000000000000000023c85124780fd82d4b45e0aff2f47c8b4d496965ceeb13")));
         } else {
             //$this->chain->setStartBlock(new BlockRef(159, Buffer::hex("2a47ce2d144dc10a6ef65869ad14394b749b6e7ae3c38aeca86ebf6f7222b63f")));
         }
-        $this->downloader = new BlockDownloader(16, $db, $this->chain);
 
-        $dbWallet = $db->loadWallet("lbl");
-        if ($dbWallet->getType() !== 1) {
-            throw new \RuntimeException("invalid wallet type");
+        $this->downloader = new BlockDownloader(16, $this->db, $this->chain);
+        foreach ($this->db->loadAllWallets() as $dbWallet) {
+            if ($dbWallet->getType() !== 1) {
+                throw new \RuntimeException("invalid wallet type");
+            }
+            $this->wallets[] = new Bip44Wallet($this->db, $dbWallet, $this->db->loadBip44WalletKey($dbWallet->getId()), $this->network, $this->ecAdapter);
         }
-        $this->wallet = new Bip44Wallet($db, $dbWallet, $db->loadBip44WalletKey($dbWallet->getId()), $network, $ecAdapter);
+        $this->initialized = true;
     }
 
     public function sync(LoopInterface $loop)
     {
+        if (!$this->initialized) {
+            throw new \LogicException("Cannot sync, not initialized");
+        }
         $netFactory = new Factory($loop, $this->network);
         $connParams = new ConnectionParams();
         $connParams->setBestBlockHeight($this->chain->getBestHeaderHeight());
@@ -243,7 +260,7 @@ class P2pSyncDaemon
                     $this->chain->addNextBlock($height, $hash, $block);
 
                     try {
-                        $processor = new BlockProcessor($this->db, $this->wallet);
+                        $processor = new BlockProcessor($this->db, ...$this->wallets);
                         $processor->process($height, $block);
                     } catch (\Exception $e) {
                         echo "caught fatal error\n";
