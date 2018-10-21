@@ -84,41 +84,40 @@ class P2pSyncDaemon
         $this->db = $db;
         $this->ecAdapter = $ecAdapter;
         $this->network = $network;
+        $this->params = $params;
     }
 
     private function resetBlockStats()
     {
         $this->blockStatsCount = null;
-        $this->blockStatsCount = null;
     }
 
     public function init()
     {
-        $blockCount = $this->db->getBlockCount();
-        if ($blockCount === 0) {
-            throw new \RuntimeException("need genesis block");
-        }
-        $bestHeader = $this->db->getBestHeader();
-        if ($bestHeader->getHeight() > 0) {
-            $this->chain = new Chain($this->db->getTailHashes($bestHeader->getHeight()), $bestHeader->getHeader(), 0);
-        } else {
-            $this->chain = new Chain([], $bestHeader->getHeader(), 0);
-        }
-
-        // would normally come from wallet birthday
-        if (get_class($this->network) === Bitcoin::class) {
-            $this->chain->setStartBlock(new BlockRef(546579, Buffer::hex("00000000000000000025d038e3eb59ce1062357c035d024b52e41d8e4545d245")));
-            //$this->chain->setStartBlock(new BlockRef(544871, Buffer::hex("00000000000000000023c85124780fd82d4b45e0aff2f47c8b4d496965ceeb13")));
-        } else {
-            //$this->chain->setStartBlock(new BlockRef(159, Buffer::hex("2a47ce2d144dc10a6ef65869ad14394b749b6e7ae3c38aeca86ebf6f7222b63f")));
-        }
-
-        foreach ($this->db->loadAllWallets() as $dbWallet) {
+        $dbWallets = $this->db->loadAllWallets();
+        foreach ($dbWallets as $dbWallet) {
             if ($dbWallet->getType() !== 1) {
                 throw new \RuntimeException("invalid wallet type");
             }
             $this->wallets[] = new Bip44Wallet($this->db, $dbWallet, $this->db->loadBip44WalletKey($dbWallet->getId()), $this->network, $this->ecAdapter);
         }
+
+        $headerCount = $this->db->getHeaderCount();
+        if ($headerCount === 0) {
+            throw new \RuntimeException("need genesis block");
+        }
+        $genesisHash = $this->db->getBlockHash(0);
+        if (!$genesisHash->equals($this->params->getGenesisBlockHeader()->getHash())) {
+            throw new \RuntimeException("parameters and database have different genesis hash");
+        }
+        $bestHeader = $this->db->getBestHeader();
+        if ($bestHeader->getHeight() > 0) {
+            $this->chain = new Chain($this->db->getTailHashes($bestHeader->getHeight()), $bestHeader->getHeader(), $this->db->getBestBlockHeight());
+        } else {
+            $this->chain = new Chain([], $bestHeader->getHeader(), 0);
+        }
+
+        // would normally come from wallet birthday
         $this->initialized = true;
     }
 
@@ -132,7 +131,7 @@ class P2pSyncDaemon
         $connParams->setBestBlockHeight($this->chain->getBestHeaderHeight());
 
         echo "best height {$this->chain->getBestHeaderHeight()}\n";
-        echo "best block {$this->chain->getBestHeaderHeight()}\n";
+        echo "best block {$this->chain->getBestBlockHeight()}\n";
         $connector = $netFactory->getConnector($connParams);
         $connector
             ->connect($netFactory->getAddress(new Ipv4($this->host), $this->port))
@@ -251,15 +250,17 @@ class P2pSyncDaemon
             $this->requestBlock($peer, $hash)
                 ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
                     //echo "process $height {$hash->getHex()}\n";
-                    $this->chain->addNextBlock($height, $hash, $block);
 
+                    $this->db->getPdo()->beginTransaction();
                     try {
                         $processor = new BlockProcessor($this->db, ...$this->wallets);
                         $processor->process($height, $block);
+                        $this->chain->addNextBlock($this->db, $height, $hash, $block);
+                        $this->db->setBlockReceived($hash);
+                        $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
-                        echo "caught fatal error\n";
                         echo $e->getMessage().PHP_EOL;
-                        echo $e->getTraceAsString().PHP_EOL;
+                        $this->db->getPdo()->rollBack();
                         throw $e;
                     }
 
@@ -272,11 +273,11 @@ class P2pSyncDaemon
                     }
 
                     $this->requestBlocks($peer, $deferredFinished);
-                }, function (\Exception $e) {
-                    echo "requestBlockError: {$e->getMessage()}\n";
+                }, function (\Exception $e) use ($deferredFinished) {
+                    $deferredFinished->reject(new \Exception("requestBlockError", 0, $e));
                 })
-                ->then(null, function (\Exception $e) {
-                    echo "finalizeBlockError: {$e->getMessage()}\n";
+                ->then(null, function (\Exception $e) use ($deferredFinished) {
+                    $deferredFinished->reject(new \Exception("processBlockError", 0, $e));
                 });
         }
 
@@ -298,6 +299,15 @@ class P2pSyncDaemon
     public function downloadBlocks(Peer $peer)
     {
         if (!$this->downloading) {
+            $isFirstSetup = false;
+            // shortcut for new wallets - request blocks from headers tip
+            if ($this->chain->getBestBlockHeight() === 0 && count($this->wallets) === 0) {
+                $isFirstSetup = true;
+                $this->chain->setStartBlock(new BlockRef(
+                    $this->chain->getBestHeaderHeight(),
+                    $this->chain->getBestHeaderHash()
+                ));
+            }
             $this->downloading = true;
             $peer->on(Message::BLOCK, [$this, 'receiveBlock']);
 
@@ -307,9 +317,16 @@ class P2pSyncDaemon
 
             return $deferred
                 ->promise()
-                ->then(function () use ($peer) {
+                ->then(function () use ($peer, $isFirstSetup) {
+                    // finish shortcut for new wallets - mark history before we came online
+                    // as valid
+                    if ($isFirstSetup) {
+                        echo "mark birthday history as valid {$this->chain->getBestHeaderHeight()}\n";
+                        $this->db->markBirthdayHistoryValid($this->chain->getBestHeaderHeight());
+                    }
                     echo "done syncing\n";
                     $this->downloading = false;
+                    $this->resetBlockStats();
                     $peer->removeListener(Message::BLOCK, [$this, 'receiveBlock']);
                 });
         } else {

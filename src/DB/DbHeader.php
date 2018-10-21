@@ -5,6 +5,7 @@ namespace BitWasp\Wallet\DB;
 use BitWasp\Bitcoin\Block\BlockHeader;
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Buffertools\Buffer;
+use BitWasp\Buffertools\BufferInterface;
 
 class DbHeader
 {
@@ -22,7 +23,10 @@ class DbHeader
     {
         return (int) $this->height;
     }
-
+    public function getHash(): BufferInterface
+    {
+        return Buffer::hex($this->hash);
+    }
     public function getHeader(): BlockHeaderInterface
     {
         return new BlockHeader(

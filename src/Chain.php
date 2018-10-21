@@ -109,7 +109,7 @@ class Chain
             }
         }
 
-        $db->addHeader($height, $hash, $header);
+        $db->addHeader($height, $hash, $header, 1);
 
         $this->bestHeader = $header;
         $this->bestHeaderHash = $hash;
@@ -117,7 +117,7 @@ class Chain
         $this->heightMapToHash[$height] = $hash->getBinary();
     }
 
-    public function addNextBlock(int $height, BufferInterface $hash, $block)
+    public function addNextBlock(DB $db, int $height, BufferInterface $hash, $block)
     {
         if ($height !== 1 + $this->bestBlockHeight) {
             throw new \RuntimeException("height $height != 1 + {$this->bestBlockHeight}");
@@ -129,5 +129,7 @@ class Chain
             throw new \RuntimeException("height for hash {$this->hashMapToHeight[$hash->getBinary()]} != input $height");
         }
         $this->bestBlockHeight = $height;
+
+        $db->setBlockReceived($hash);
     }
 }

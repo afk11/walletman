@@ -19,7 +19,7 @@ $header = $params->getGenesisBlockHeader();
 $hash = $header->getHash();
 
 $access->createHeaderTable();
-$res = $access->addHeader(0, $hash, $header);
+$res = $access->addHeader(0, $hash, $header, 2);
 
 $access->createWalletTable();
 $access->createKeyTable();

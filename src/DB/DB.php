@@ -22,6 +22,7 @@ class DB
     private $loadKeyByPathStmt;
     private $loadScriptBySpkStmt;
     private $addHeaderStmt;
+    private $setBlockReceivedStmt;
     private $getHashesStmt;
     private $getBestHeaderStmt;
     private $getBlockHashStmt;
@@ -31,6 +32,7 @@ class DB
     private $allWalletsStmt;
     private $getBip44WalletKey;
     private $getBlockCountStmt;
+    private $getBestBlockRefStmt;
     private $getWalletUtxosStmt;
     private $createTxStmt;
     private $getConfirmedBalanceStmt;
@@ -146,6 +148,7 @@ class DB
     {
         $this->pdo->exec("CREATE TABLE `header` (
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+            `status`	INTEGER,
             `height`	INTEGER,
             `hash`	TEXT UNIQUE,
             `version`	INTEGER,
@@ -167,7 +170,7 @@ class DB
         ])) {
             throw new \RuntimeException("getblockhash query failed");
         }
-        return Buffer::hex($this->getBestHeaderStmt->fetch()['hash']);
+        return Buffer::hex($this->getBlockHashStmt->fetch()['hash']);
     }
 
     public function getTailHashes(int $height): array
@@ -195,7 +198,7 @@ class DB
         return $this->getBestHeaderStmt->fetchObject(DbHeader::class);
     }
 
-    public function getBlockCount(): int
+    public function getHeaderCount(): int
     {
         if (null === $this->getBlockCountStmt) {
             $this->getBlockCountStmt = $this->pdo->prepare("SELECT count(*) as count from header");
@@ -204,13 +207,31 @@ class DB
         return (int) $this->getBlockCountStmt->fetch()['count'];
     }
 
-    public function addHeader(int $height, BufferInterface $hash, BlockHeaderInterface $header): bool
+    public function getBestBlockHeight(): int
+    {
+        if (null === $this->getBestBlockRefStmt) {
+            $this->getBestBlockRefStmt = $this->pdo->prepare("SELECT height from header where status = 2 order by id desc limit 1");
+        }
+        $this->getBestBlockRefStmt->execute();
+
+         $r = $this->getBestBlockRefStmt->fetch();
+         return (int) $r['height'];
+    }
+
+    public function markBirthdayHistoryValid(int $height)
+    {
+        $stmt = $this->pdo->prepare("UPDATE header set status = 2 where status = 1 and height <= ?");
+        $stmt->execute([
+            $height,
+        ]);
+    }
+    public function addHeader(int $height, BufferInterface $hash, BlockHeaderInterface $header, int $status): bool
     {
         if (null === $this->addHeaderStmt) {
-            $this->addHeaderStmt = $this->pdo->prepare("INSERT INTO header (height, hash, version, prevBlock, merkleRoot, time, nbits, nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $this->addHeaderStmt = $this->pdo->prepare("INSERT INTO header (height, hash, status, version, prevBlock, merkleRoot, time, nbits, nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         }
         if (!$this->addHeaderStmt->execute([
-            $height, $hash->getHex(), $header->getVersion(),
+            $height, $hash->getHex(), $status, $header->getVersion(),
             $header->getPrevBlock()->getHex(), $header->getMerkleRoot()->getHex(),
             $header->getTimestamp(), $header->getBits(), $header->getNonce(),
         ])) {
@@ -219,6 +240,18 @@ class DB
         return true;
     }
 
+    public function setBlockReceived(BufferInterface $hash): bool
+    {
+        if (null === $this->setBlockReceivedStmt) {
+            $this->setBlockReceivedStmt = $this->pdo->prepare("UPDATE header set status = 2 where hash = ?");
+        }
+        if (!$this->setBlockReceivedStmt->execute([
+            $hash->getHex(),
+        ])) {
+            throw new \RuntimeException("failed to insert header");
+        }
+        return true;
+    }
     /**
      * @return DbWallet[]
      */
