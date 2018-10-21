@@ -126,7 +126,7 @@ class SizeEstimation
     }
 
     /**
-     * @param array $stackSizes - array of integer size of a value (for scriptSig or witness)
+     * @param int[] $stackSizes - array of integer size of a value (for scriptSig or witness)
      * @param bool $isWitness
      * @param ScriptInterface $redeemScript
      * @param ScriptInterface $witnessScript
@@ -202,7 +202,7 @@ class SizeEstimation
      * @param ScriptInterface $scriptPubKey
      * @param ScriptInterface $redeemScript
      * @param ScriptInterface $witnessScript
-     * @return array
+     * @return int[]
      */
     public static function estimateUtxoFromScripts(
         ScriptInterface $scriptPubKey,

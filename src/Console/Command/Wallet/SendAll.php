@@ -49,9 +49,9 @@ class SendAll extends Command
         $fIsRegtest = $input->getOption('regtest');
         $fIsTestnet = $input->getOption('testnet');
         $fBip39Pass = $input->getOption('bip39-passphrase');
-        $customFeeRate = (int) $input->getOption('feerate-custom');
         $path = $this->getStringArgument($input, 'database');
         $identifier = $this->getStringArgument($input, 'identifier');
+        $destAddress = $this->getStringArgument($input, 'address');
 
         $ecAdapter = Bitcoin::getEcAdapter();
         $addrCreator = new AddressCreator();
@@ -65,13 +65,17 @@ class SendAll extends Command
             $net = NetworkFactory::bitcoin();
         }
 
-        if ($customFeeRate) {
-            $feeRate = $customFeeRate;
+        if (is_string($input->getOption('feerate-custom'))) {
+            $customRate = $input->getOption('feerate-custom');
+            if ($customRate !== (string)(int)$customRate) {
+                throw new \RuntimeException("invalid fee rate provided");
+            }
+            $feeRate = (int)$customRate;
         } else {
             throw new \RuntimeException("must select a feerate option");
         }
 
-        $destAddress = $input->getArgument('address');
+
         $scriptPubKey = $addrCreator->fromString($destAddress, $net)->getScriptPubKey();
 
         $db = $dbMgr->loadDb($path);

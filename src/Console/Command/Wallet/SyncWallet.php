@@ -45,7 +45,7 @@ class SyncWallet extends Command
     {
         $fIsRegtest = $input->getOption('regtest');
         $fIsTestnet = $input->getOption('testnet');
-        $ip = $input->getOption('ip');
+        $ip = (string) $input->getOption('ip');
         $path = $this->getStringArgument($input, "database");
 
         $loop = \React\EventLoop\Factory::create();
