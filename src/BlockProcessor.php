@@ -54,7 +54,7 @@ class BlockProcessor
             $inputTx = null;
             $inputTxId = $this->getTxKey($input->getOutPoint()->getTxId());
             if (array_key_exists($inputTxId, $this->txMap)) {
-                $this->txMap[$inputTxId]->spendOutput($input->getOutPoint()->getVout(), new OutPoint($txid, $iIn));
+                $this->txMap[$inputTxId]->spendOutput((int) $input->getOutPoint()->getVout(), new OutPoint($txid, $iIn));
             }
         }
 

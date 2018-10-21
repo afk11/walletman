@@ -17,6 +17,7 @@ use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DbKey;
 use BitWasp\Wallet\DB\DbScript;
+use BitWasp\Wallet\DB\DbUtxo;
 use BitWasp\Wallet\DB\DbWallet;
 
 class Bip44Wallet implements WalletInterface
@@ -49,6 +50,9 @@ class Bip44Wallet implements WalletInterface
      */
     private $dbWallet;
 
+    /**
+     * @var int
+     */
     private $gapLimit;
 
     /**
@@ -109,16 +113,13 @@ class Bip44Wallet implements WalletInterface
     {
         return $this->getGeneratorForPath($this->getExternalScriptPath());
     }
-    public function getUtxoStorage(): UtxoStorage
-    {
-        return new UtxoStorage($this->db, $this->dbWallet);
-    }
+
     public function getChangeScriptGenerator(): ScriptGenerator
     {
         return $this->getGeneratorForPath($this->getChangeScriptPath());
     }
 
-    public function loadAccountPrivateKey(HierarchicalKey $privAccountKey)
+    public function unlockWithAccountKey(HierarchicalKey $privAccountKey)
     {
         if (null === $this->accountPrivateKey) {
             $accountPubKey = $this->dbKey->getHierarchicalKey($this->network, $this->ecAdapter);
@@ -129,7 +130,7 @@ class Bip44Wallet implements WalletInterface
         }
     }
 
-    private function getPrivateKey(string $path): PrivateKeyInterface
+    protected function getSigner(string $path): PrivateKeyInterface
     {
         if (null === $this->accountPrivateKey) {
             throw new \RuntimeException("private key not available");
@@ -138,7 +139,86 @@ class Bip44Wallet implements WalletInterface
         return $this->accountPrivateKey->deriveFromList($end)->getPrivateKey();
     }
 
-    public function sendAllCoins(ScriptInterface $destination, int $feeRate): TransactionInterface
+    /**
+     * @param array $txOuts
+     * @param int $feeRate
+     * @return PreparedTx
+     */
+    public function send(array $txOuts, int $feeRate): PreparedTx
+    {
+        $totalOut = 0;
+        foreach ($txOuts as $txOut) {
+            $totalOut += $txOut->getValue();
+        }
+
+        $changeScript = $this->getChangeScriptGenerator()->generate();
+        $txWeight = SizeEstimation::estimateWeight([], $txOuts);
+        $changeOutputWeight = SizeEstimation::estimateWeight([], array_merge($txOuts, [new TransactionOutput(0, $changeScript->getScriptPubKey())])) - $txWeight;
+
+        /** @var DbUtxo[] $utxos */
+        /** @var DbScript[] $dbScripts */
+        $utxos = [];
+        $dbScripts = [];
+        $segwit = false;
+        $totalIn = 0;
+
+        $stmt = $this->db->getPdo()->prepare("select * from utxo where walletId = ? and spentTxid IS NULL");
+        $stmt->execute([
+            $this->dbWallet->getId(),
+        ]);
+
+        while ($dbUtxo = $stmt->fetchObject(DbUtxo::class)) {
+            /** @var DbUtxo $dbUtxo */
+            $dbScript = $dbUtxo->getDbScript($this->db);
+            $signData = $dbScript->getSignData();
+            $rs = $signData->hasRedeemScript() ? $signData->getRedeemScript() : null;
+            $ws = $signData->hasWitnessScript() ? $signData->getWitnessScript() : null;
+
+            list ($scriptSig, $witness) = SizeEstimation::estimateUtxoFromScripts($dbScript->getScriptPubKey(), $rs, $ws);
+
+            $inputWeight = (32+4+4+$scriptSig) * 4 + $witness;
+            $markSegwit = false;
+            if ($ws && !$segwit) {
+                $inputWeight += 2 * 4; // two flag bytes
+                $markSegwit = true;
+            }
+
+            $inputFee = (int) ceil(($inputWeight + 3) / 4) * $feeRate;
+            if ($inputFee * 3 > $dbUtxo->getValue()) {
+                continue;
+            }
+            if ($markSegwit) {
+                $segwit = true;
+            }
+            $utxos[] = $dbUtxo;
+            $dbScripts[] = $dbScript;
+            $totalIn += $dbUtxo->getValue();
+            $txWeight += $inputWeight;
+        }
+
+        $totalVsize = (int)ceil(($txWeight+$changeOutputWeight + 3) / 4);
+        $change = $totalIn - $totalOut - ($totalVsize * $feeRate);
+        $changeOutputFee = (int)ceil(($changeOutputWeight + 3) / 4) * $feeRate;
+
+        if ($change > $changeOutputFee/3) {
+            $txOuts[] = new TransactionOutput($change, $changeScript->getScriptPubKey());
+        }
+        if (!shuffle($utxos)) {
+            throw new \RuntimeException("utxos shuffle failed");
+        }
+        if (!shuffle($txOuts)) {
+            throw new \RuntimeException("txouts shuffle failed");
+        }
+        $builder = new TxBuilder();
+        foreach ($utxos as $utxo) {
+            $builder->spendOutPoint($utxo->getOutPoint());
+        }
+        $builder->outputs($txOuts);
+
+        return new PreparedTx($builder->get(), $utxos, $dbScripts);
+    }
+
+    public function sendAllCoins(ScriptInterface $destination, int $feeRate): PreparedTx
     {
         $utxos = $this->db->getUnspentWalletUtxos($this->dbWallet->getId());
         $txBuilder = new TxBuilder();
@@ -155,20 +235,26 @@ class Bip44Wallet implements WalletInterface
             $valueIn += $txOut->getValue();
         }
         $estimatedVsize = SizeEstimation::estimateVsize($inputScripts, [new TransactionOutput(0, $destination)]);
-        echo "estimate size: $estimatedVsize\n";
+
         $fee = $estimatedVsize * $feeRate;
         if ($fee > $valueIn) {
             throw new \RuntimeException("Insufficient funds for fee");
         }
         $txBuilder->output($valueIn - $fee, $destination);
-        $unsignedTx = $txBuilder->get();
-        $signer = new Signer($unsignedTx);
-        foreach ($inputScripts as $i => $scriptAndSignData) {
-            $priv = $this->getPrivateKey($dbScripts[$i]->getKeyIdentifier());
-            $signer->input($i, $utxos[$i]->getTxOut())
-                ->sign($priv);
+        return new PreparedTx($txBuilder->get(), $utxos, $dbScripts);
+    }
+
+    public function signTx(PreparedTx $prepTx): TransactionInterface
+    {
+        $unsignedTx = $prepTx->getUnsignedTx();
+        $txSigner = new Signer($unsignedTx);
+        $numInputs = count($unsignedTx->getInputs());
+        for ($i = 0; $i < $numInputs; $i++) {
+            $txSigner
+                ->input($i, $prepTx->getTxOut($i), $prepTx->getSignData($i))
+                ->sign($this->getSigner($prepTx->getKeyIdentifier($i)))
+            ;
         }
-        $signedTx = $signer->get();
-        return $signedTx;
+        return $txSigner->get();
     }
 }

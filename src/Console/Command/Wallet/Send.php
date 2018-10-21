@@ -10,6 +10,7 @@ use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
 use BitWasp\Bitcoin\Mnemonic\MnemonicFactory;
 use BitWasp\Bitcoin\Network\NetworkFactory;
+use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
 use BitWasp\Wallet\Wallet\Bip44Wallet;
@@ -19,21 +20,22 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class SendAll extends Command
+class Send extends Command
 {
     protected function configure()
     {
         $this
             // the name of the command (the part after "bin/console")
-            ->setName('wallet:sendall')
+            ->setName('wallet:send')
 
             // the short description shown while running "php bin/console list"
-            ->setDescription('Sends entire balance to the provided address')
+            ->setDescription('Generate a transaction paying the specified destinations')
 
             // mandatory arguments
             ->addArgument('database', InputArgument::REQUIRED, "Database for wallet services")
             ->addArgument('identifier', InputArgument::REQUIRED, "Wallet identifier")
-            ->addArgument('address', InputArgument::REQUIRED, "Destination for funds")
+
+            ->addOption('destination', null, InputOption::VALUE_REQUIRED |InputOption::VALUE_IS_ARRAY, "Set one or many destinations, btcvalue,address")
 
             ->addOption('feerate-custom', null, InputOption::VALUE_REQUIRED, "Provide fee rate in satoshis per kilobyte")
             ->addOption('bip39-passphrase', 'p', InputOption::VALUE_NONE, "Prompt for a BIP39 passphrase")
@@ -51,7 +53,6 @@ class SendAll extends Command
         $fBip39Pass = $input->getOption('bip39-passphrase');
         $path = $this->getStringArgument($input, 'database');
         $identifier = $this->getStringArgument($input, 'identifier');
-        $destAddress = $this->getStringArgument($input, 'address');
 
         $ecAdapter = Bitcoin::getEcAdapter();
         $addrCreator = new AddressCreator();
@@ -75,7 +76,26 @@ class SendAll extends Command
             throw new \RuntimeException("must select a feerate option");
         }
 
-        $scriptPubKey = $addrCreator->fromString($destAddress, $net)->getScriptPubKey();
+        $outputs = [];
+        foreach ($input->getOption("destination") as $destination) {
+            $row = explode(",", $destination);
+            if (count($row) !== 2) {
+                throw new \RuntimeException("Destination should be in format: btcvalue,address");
+            }
+            list ($btcValue, $address) = $row;
+            try {
+                $addr = $addrCreator->fromString($address, $net);
+            } catch (\Exception $e) {
+                $output->write("Invalid address: {$address}");
+                return -1;
+            }
+            $outputs[] = new TransactionOutput((int) ($btcValue * 1e8), $addr->getScriptPubKey());
+        }
+
+        if (count($outputs) < 1) {
+            $output->write("A destination is required");
+            return -1;
+        }
 
         $db = $dbMgr->loadDb($path);
         $walletFactory = new Factory($db, $net, $ecAdapter);
@@ -97,8 +117,9 @@ class SendAll extends Command
 
         $bip44Wallet->unlockWithAccountKey($accountNode);
 
-        $preparedTx = $bip44Wallet->sendAllCoins($scriptPubKey, $feeRate);
+        $preparedTx = $bip44Wallet->send($outputs, $feeRate);
         $signedTx = $bip44Wallet->signTx($preparedTx);
         echo $signedTx->getHex().PHP_EOL;
+        return 0;
     }
 }

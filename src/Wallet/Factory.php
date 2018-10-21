@@ -6,7 +6,9 @@ namespace BitWasp\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
+use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeySequence;
 use BitWasp\Bitcoin\Network\NetworkInterface;
+use BitWasp\Wallet\BlockRef;
 use BitWasp\Wallet\DB\DB;
 
 class Factory
@@ -34,18 +36,27 @@ class Factory
         }
     }
 
-    public function createBip44WalletFromRootKey(string $identifier, HierarchicalKey $rootKey, int $coinType, int $account): WalletInterface
+    public function createBip44WalletFromRootKey(string $identifier, HierarchicalKey $rootKey, string $accountPath, ?BlockRef $birthday): WalletInterface
     {
         if ($rootKey->getDepth() !== 0) {
             throw new \RuntimeException("invalid key - must be root");
         }
+        $chunks = explode("/", $accountPath);
+        if (count($chunks) !== 4 || $chunks[0] !== "M") {
+            throw new \RuntimeException("invalid path for bip44 account: M/44'/coinType'/account'");
+        }
 
-        $path = "M/44'/{$coinType}'/{$account}'";
-        $accountNode = $rootKey->derivePath($path)->withoutPrivateKey();
-        return $this->createBip44WalletFromAccountKey($identifier, $accountNode, $path);
+        $seq = new HierarchicalKeySequence();
+        $path = $seq->decodePath($accountPath);
+        if (count($path) + 1 !== count($chunks)) {
+            throw new \RuntimeException("invalid path");
+        }
+
+        $accountNode = $rootKey->derivePath($accountPath)->withoutPrivateKey();
+        return $this->createBip44WalletFromAccountKey($identifier, $accountNode, $accountPath, $birthday);
     }
 
-    public function createBip44WalletFromAccountKey(string $identifier, HierarchicalKey $accountNode, string $path): WalletInterface
+    public function createBip44WalletFromAccountKey(string $identifier, HierarchicalKey $accountNode, string $path, ?BlockRef $birthday): WalletInterface
     {
         if ($accountNode->getDepth() !== 3) {
             throw new \RuntimeException("invalid key - must be root");
@@ -62,7 +73,7 @@ class Factory
 
         $this->db->getPdo()->beginTransaction();
         try {
-            $walletId = $this->db->createWallet($identifier, WalletType::BIP44_WALLET);
+            $walletId = $this->db->createWallet($identifier, WalletType::BIP44_WALLET, $birthday);
             $this->db->createKey($walletId, $path, $accountNode, $this->network, 0, false);
             $this->db->createKey($walletId, $externalPath, $externalNode, $this->network, 0, false);
             $this->db->createKey($walletId, $changePath, $changeNode, $this->network, 0, false);

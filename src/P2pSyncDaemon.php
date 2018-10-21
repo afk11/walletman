@@ -21,6 +21,7 @@ use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\Wallet\Bip44Wallet;
+use BitWasp\Wallet\Wallet\WalletInterface;
 use React\EventLoop\LoopInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
@@ -78,6 +79,9 @@ class P2pSyncDaemon
     private $blockStatsCount;
     private $blockStatsBegin;
 
+    /**
+     * @var WalletInterface[]
+     */
     private $wallets = [];
 
     public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DB $db)
@@ -98,11 +102,17 @@ class P2pSyncDaemon
     public function init()
     {
         $dbWallets = $this->db->loadAllWallets();
+        $startBlock = null;
         foreach ($dbWallets as $dbWallet) {
             if ($dbWallet->getType() !== 1) {
                 throw new \RuntimeException("invalid wallet type");
             }
             $this->wallets[] = new Bip44Wallet($this->db, $dbWallet, $this->db->loadBip44WalletKey($dbWallet->getId()), $this->network, $this->ecAdapter);
+            if ($birthday = $dbWallet->getBirthday()) {
+                if ($startBlock === null || $birthday->getHeight() < $startBlock->getHeight()) {
+                    $startBlock = $dbWallet->getBirthday();
+                }
+            }
         }
 
         $headerCount = $this->db->getHeaderCount();
@@ -304,12 +314,25 @@ class P2pSyncDaemon
         if (!$this->downloading) {
             $isFirstSetup = false;
             // shortcut for new wallets - request blocks from headers tip
-            if ($this->chain->getBestBlockHeight() === 0 && count($this->wallets) === 0) {
+            if ($this->chain->getBestBlockHeight() === 0) {
                 $isFirstSetup = true;
-                $this->chain->setStartBlock(new BlockRef(
-                    $this->chain->getBestHeaderHeight(),
-                    $this->chain->getBestHeaderHash()
-                ));
+                if (count($this->wallets) === 0) {
+                    $this->chain->setStartBlock(new BlockRef(
+                        $this->chain->getBestHeaderHeight(),
+                        $this->chain->getBestHeaderHash()
+                    ));
+                } else {
+                    $startBlock = null;
+                    foreach ($this->wallets as $wallet) {
+                        $dbWallet = $wallet->getDbWallet();
+                        if ($birthday = $dbWallet->getBirthday()) {
+                            if ($startBlock === null || $birthday->getHeight() < $startBlock->getHeight()) {
+                                $startBlock = $dbWallet->getBirthday();
+                            }
+                        }
+                    }
+                    $this->chain->setStartBlock($startBlock);
+                }
             }
             $this->downloading = true;
             $peer->on(Message::BLOCK, [$this, 'receiveBlock']);

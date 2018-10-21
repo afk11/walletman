@@ -44,11 +44,11 @@ class DbUtxo
     /**
      * @var string
      */
-    private $spendTxid;
+    private $spentTxid;
     /**
      * @var string
      */
-    private $spendIdx;
+    private $spentIdx;
 
     public function getWalletId(): int
     {
@@ -72,8 +72,8 @@ class DbUtxo
     }
     public function getSpendOutPoint(): ?OutPointInterface
     {
-        if ($this->spendTxid && $this->spendIdx) {
-            return new OutPoint(Buffer::hex($this->spendTxid), (int) $this->spendIdx);
+        if ($this->spentTxid && $this->spentIdx) {
+            return new OutPoint(Buffer::hex($this->spentTxid), (int) $this->spentIdx);
         }
         return null;
     }

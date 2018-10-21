@@ -12,6 +12,7 @@ use BitWasp\Bitcoin\Transaction\OutPointInterface;
 use BitWasp\Bitcoin\Utxo\Utxo;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
+use BitWasp\Wallet\BlockRef;
 
 class DB
 {
@@ -55,7 +56,9 @@ class DB
         $this->pdo->exec("CREATE TABLE `wallet` (
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `type`         INTEGER,
-            `identifier`   TEXT
+            `identifier`   TEXT,
+            `birthday_hash`TEXT,
+            `birthday_height` INTEGER
         );");
 
         $this->pdo->exec("CREATE UNIQUE INDEX unique_identifier on wallet(identifier)");
@@ -298,13 +301,15 @@ class DB
         return $this->getBip44WalletKey->fetchObject(DbKey::class);
     }
 
-    public function createWallet(string $identifier, int $type): int
+    public function createWallet(string $identifier, int $type, ?BlockRef $birthday): int
     {
         if (null === $this->addWalletStmt) {
-            $this->addWalletStmt = $this->pdo->prepare("INSERT INTO wallet (identifier, type) VALUES (?, ?)");
+            $this->addWalletStmt = $this->pdo->prepare("INSERT INTO wallet (identifier, type, birthday_hash, birthday_height) VALUES (?, ?, ?, ?)");
         }
         if (!$this->addWalletStmt->execute([
             $identifier, $type,
+            null === $birthday ? null : $birthday->getHash()->getHex(),
+            null === $birthday ? null : $birthday->getHeight(),
         ])) {
             throw new \RuntimeException("Failed to create wallet");
         }
@@ -525,5 +530,14 @@ class DB
             $walletId,
         ]);
         return (int) $this->getConfirmedBalanceStmt->fetch()['balance'];
+    }
+
+    public function getTransactions(int $walletId): \PDOStatement
+    {
+        $stmt = $this->pdo->prepare("select * from tx where walletId = ? order by id asc");
+        $stmt->execute([
+            $walletId,
+        ]);
+        return $stmt;
     }
 }
