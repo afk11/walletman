@@ -52,13 +52,9 @@ class Init extends Command
             $params = new Params(new Math());
         }
 
-        if (file_exists($path)) {
-            $output->writeln("<error>File already exists: $path</error>");
-            return;
-        }
-
         $initializer = new Initializer();
         $initializer->setup($path, $params);
+
         $output->write("<info>Database setup in location: {$path}</info>\n");
     }
 }

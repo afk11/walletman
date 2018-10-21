@@ -51,6 +51,10 @@ class P2pSyncDaemon
      * @var DB
      */
     private $db;
+    /**
+     * @var Params
+     */
+    private $params;
 
     /**
      * @var bool
