@@ -43,10 +43,11 @@ class SyncWallet extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $fIsRegtest = (bool) $input->getOption('regtest');
-        $fIsTestnet = (bool) $input->getOption('testnet');
+        $fIsRegtest = $input->getOption('regtest');
+        $fIsTestnet = $input->getOption('testnet');
         $ip = $input->getOption('ip');
-        $path = $input->getArgument('database');
+        $path = $this->getStringArgument($input, "database");
+
         $loop = \React\EventLoop\Factory::create();
         $dbMgr = new DbManager();
         if ($fIsRegtest) {

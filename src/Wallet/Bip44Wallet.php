@@ -131,11 +131,10 @@ class Bip44Wallet implements WalletInterface
 
     private function getPrivateKey(string $path): PrivateKeyInterface
     {
-        if (!$this->accountPrivateKey) {
+        if (null === $this->accountPrivateKey) {
             throw new \RuntimeException("private key not available");
         }
         $end = array_slice(explode("/", $path), 4);
-        print_r($end);
         return $this->accountPrivateKey->deriveFromList($end)->getPrivateKey();
     }
 

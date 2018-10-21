@@ -9,6 +9,7 @@ use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Crypto\Random\Random;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
+use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39WordListInterface;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Wordlist\EnglishWordList;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Wordlist\JapaneseWordList;
 use BitWasp\Bitcoin\Mnemonic\MnemonicFactory;
@@ -53,7 +54,7 @@ class SetupWallet extends Command
             ->setHelp('');
     }
 
-    private function getBip39Wordlist(InputInterface $input)
+    private function getBip39Wordlist(InputInterface $input): Bip39WordListInterface
     {
         if ($input->getOption('bip39-jp')) {
             return new JapaneseWordList();
@@ -64,12 +65,12 @@ class SetupWallet extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $path = $input->getArgument('database');
-        $identifier = $input->getArgument('identifier');
-        $fIsRegtest = (bool) $input->getOption('regtest');
-        $fIsTestnet = (bool) $input->getOption('testnet');
-        $fOwnMnemonic = (bool) $input->getOption('bip39-custommnemonic');
-        $fBip39Pass = (bool) $input->getOption('bip39-passphrase');
+        $path = $this->getStringArgument($input, 'database');
+        $identifier = $this->getStringArgument($input, 'identifier');
+        $fIsRegtest = $input->getOption('regtest');
+        $fIsTestnet = $input->getOption('testnet');
+        $fOwnMnemonic = $input->getOption('bip39-custommnemonic');
+        $fBip39Pass = $input->getOption('bip39-passphrase');
 
         if ($fIsRegtest) {
             $net = NetworkFactory::bitcoinRegtest();

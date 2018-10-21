@@ -39,10 +39,10 @@ class GetBalance extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $path = $input->getArgument('database');
+        $database = $this->getStringArgument($input, "database");
         $identifier = $input->getArgument('identifier');
-        $fIsRegtest = (bool) $input->getOption('regtest');
-        $fIsTestnet = (bool) $input->getOption('testnet');
+        $fIsRegtest =  $input->getOption('regtest');
+        $fIsTestnet = $input->getOption('testnet');
 
         $dbMgr = new DbManager();
         if ($fIsRegtest) {
@@ -53,7 +53,7 @@ class GetBalance extends Command
             $net = NetworkFactory::bitcoin();
         }
 
-        $db = $dbMgr->loadDb($path);
+        $db = $dbMgr->loadDb($database);
         $ecAdapter = Bitcoin::getEcAdapter();
         $factory = new Factory($db, $net, $ecAdapter);
         $wallet = $factory->loadWallet($identifier);

@@ -40,9 +40,9 @@ class Init extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $fIsRegtest = (bool) $input->getOption('regtest');
-        $fIsTestnet = (bool) $input->getOption('testnet');
-        $path = $input->getArgument('database');
+        $fIsRegtest = $input->getOption('regtest');
+        $fIsTestnet = $input->getOption('testnet');
+        $path = $this->getStringArgument($input, "database");
 
         if ($fIsRegtest) {
             $params = new RegtestParams(new Math());

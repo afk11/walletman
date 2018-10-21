@@ -70,7 +70,7 @@ class RegtestParams extends Params
             $this->getGenesisBlockHeader(),
             [
                 (new TxBuilder())
-                    ->version('1')
+                    ->version(1)
                     ->input(new Buffer('', 32), 0xffffffff, $inputScript)
                     ->output(5000000000, $outputScript)
                     ->locktime(0)

@@ -54,7 +54,7 @@ class BlockProcessor
             $inputTx = null;
             $inputTxId = $this->getTxKey($input->getOutPoint()->getTxId());
             if (array_key_exists($inputTxId, $this->txMap)) {
-                $this->txMap[$inputTxId]->spendOutput((int) $input->getOutPoint()->getVout(), new OutPoint($txid, $iIn));
+                $this->txMap[$inputTxId]->spendOutput($input->getOutPoint()->getVout(), new OutPoint($txid, $iIn));
             }
         }
 
@@ -88,7 +88,7 @@ class BlockProcessor
                     // txin was created in this block, so output information is available
                     $fundTx = $this->txMap[$inputTxId];
                     $spentBy = $fundTx->getOutputs()[$outPoint->getVout()]->getSpentOutPoint();
-                    assert($spentBy);
+                    assert($spentBy !== null);
                 }
 
                 // load this utxo from wallets, and mark spent

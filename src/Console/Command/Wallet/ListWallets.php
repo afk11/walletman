@@ -32,7 +32,7 @@ class ListWallets extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $dbMgr = new DbManager();
-        $db = $dbMgr->loadDb($input->getArgument("database"));
+        $db = $dbMgr->loadDb($this->getStringArgument($input, "database"));
 
         $wallets = $db->loadAllWallets();
         foreach ($wallets as $wallet) {

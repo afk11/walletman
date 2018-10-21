@@ -11,6 +11,11 @@ use Symfony\Component\Console\Question\Question;
 
 abstract class Command extends \Symfony\Component\Console\Command\Command
 {
+    protected function getStringArgument(InputInterface $input, string $argument): string
+    {
+        return $input->getArgument($argument);
+    }
+
     protected function promptForPassphrase(InputInterface $input, OutputInterface $output): string
     {
         $helper = $this->getHelper('question');

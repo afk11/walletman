@@ -10,12 +10,12 @@ use BitWasp\Bitcoin\Network\NetworkInterface;
 class DbKey
 {
     /**
-     * @var int
+     * @var string
      */
     private $id;
 
     /**
-     * @var int
+     * @var string
      */
     private $walletId;
 
@@ -27,7 +27,7 @@ class DbKey
 
     /**
      * Depth of the key in the tree
-     * @var int
+     * @var string
      */
     private $depth;
 
@@ -40,21 +40,21 @@ class DbKey
     /**
      * is this node a leaf or a branch? branch
      * nodes can be incremented, leaf nodes can't
-     * @var bool
+     * @var string
      */
     private $isLeaf;
 
     /**
      * Current best child node
      * Only set for branches
-     * @var int
+     * @var string
      */
     private $childSequence;
 
     /**
      * Order of the keys used in this script.
      * Zero for branch nodes, can be >0 for leaf nodes.
-     * @var int
+     * @var string
      */
     private $keyIndex;
 

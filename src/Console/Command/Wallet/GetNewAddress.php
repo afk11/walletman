@@ -39,10 +39,10 @@ class GetNewAddress extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $path = $input->getArgument('database');
-        $identifier = $input->getArgument('identifier');
-        $fIsRegtest = (bool) $input->getOption('regtest');
-        $fIsTestnet = (bool) $input->getOption('testnet');
+        $path = $this->getStringArgument($input, "database");
+        $identifier = $this->getStringArgument($input, "identifier");
+        $fIsRegtest = $input->getOption('regtest');
+        $fIsTestnet = $input->getOption('testnet');
 
         if ($fIsRegtest) {
             $net = NetworkFactory::bitcoinRegtest();

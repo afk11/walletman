@@ -7,7 +7,6 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 use BitWasp\Bitcoin\Address\AddressCreator;
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
-use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39Mnemonic;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
 use BitWasp\Bitcoin\Mnemonic\MnemonicFactory;
 use BitWasp\Bitcoin\Network\NetworkFactory;
@@ -19,7 +18,6 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Question\Question;
 
 class SendAll extends Command
 {
@@ -48,12 +46,12 @@ class SendAll extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $fIsRegtest = (bool) $input->getOption('regtest');
-        $fIsTestnet = (bool) $input->getOption('testnet');
-        $fBip39Pass = (bool) $input->getOption('bip39-passphrase');
+        $fIsRegtest = $input->getOption('regtest');
+        $fIsTestnet = $input->getOption('testnet');
+        $fBip39Pass = $input->getOption('bip39-passphrase');
         $customFeeRate = (int) $input->getOption('feerate-custom');
-        $path = $input->getArgument('database');
-        $identifier = $input->getArgument('identifier');
+        $path = $this->getStringArgument($input, 'database');
+        $identifier = $this->getStringArgument($input, 'identifier');
 
         $ecAdapter = Bitcoin::getEcAdapter();
         $addrCreator = new AddressCreator();

@@ -14,15 +14,15 @@ use BitWasp\Buffertools\Buffer;
 class DbUtxo
 {
     /**
-     * @var int
+     * @var string
      */
     private $id;
     /**
-     * @var int
+     * @var string
      */
     private $walletId;
     /**
-     * @var int
+     * @var string
      */
     private $scriptId;
     /**
@@ -30,11 +30,11 @@ class DbUtxo
      */
     private $txid;
     /**
-     * @var int
+     * @var string
      */
     private $vout;
     /**
-     * @var int
+     * @var string
      */
     private $value;
     /**
@@ -46,7 +46,7 @@ class DbUtxo
      */
     private $spendTxid;
     /**
-     * @var int
+     * @var string
      */
     private $spendIdx;
 
