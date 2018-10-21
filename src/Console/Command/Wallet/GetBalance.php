@@ -30,6 +30,7 @@ class GetBalance extends Command
             ->addArgument('identifier', InputArgument::REQUIRED, "Search for wallet by identifier")
 
             ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Start wallet in regtest mode")
+            ->addOption('testnet', 't', InputOption::VALUE_NONE, "Start wallet in testnet mode")
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -41,10 +42,13 @@ class GetBalance extends Command
         $path = $input->getArgument('database');
         $identifier = $input->getArgument('identifier');
         $fIsRegtest = (bool) $input->getOption('regtest');
+        $fIsTestnet = (bool) $input->getOption('testnet');
 
         $dbMgr = new DbManager();
         if ($fIsRegtest) {
             $net = NetworkFactory::bitcoinRegtest();
+        } else if ($fIsTestnet) {
+            $net = NetworkFactory::bitcoinTestnet();
         } else {
             $net = NetworkFactory::bitcoin();
         }

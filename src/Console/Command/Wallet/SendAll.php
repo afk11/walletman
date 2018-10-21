@@ -6,19 +6,13 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Address\AddressCreator;
 use BitWasp\Bitcoin\Bitcoin;
-use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
-use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39Mnemonic;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
 use BitWasp\Bitcoin\Mnemonic\MnemonicFactory;
 use BitWasp\Bitcoin\Network\NetworkFactory;
-use BitWasp\Bitcoin\Script\ScriptFactory;
-use BitWasp\Buffertools\Buffer;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
-use BitWasp\Wallet\P2pSyncDaemon;
-use BitWasp\Wallet\Params\RegtestParams;
 use BitWasp\Wallet\Wallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\Factory;
 use Symfony\Component\Console\Input\InputArgument;
@@ -47,66 +41,15 @@ class SendAll extends Command
             ->addOption('bip39-passphrase', 'p', InputOption::VALUE_NONE, "Prompt for a BIP39 passphrase")
 
             ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Start wallet in regtest mode")
+            ->addOption('testnet', 't', InputOption::VALUE_NONE, "Start wallet in testnet mode")
 
             ->setHelp('This command will create, sign, and broadcast a transaction emptying the wallet, sending all funds to the provided address');
     }
-    private function promptForPassphrase(InputInterface $input, OutputInterface $output)
-    {
-        $helper = $this->getHelper('question');
-        $pwFirst = new Question('Enter your passphrase:');
-        $pwFirst->setHidden(true);
-        $pwFirst->setHiddenFallback(false);
-        $pwFirst->setMaxAttempts(2);
-        $pwFirst->setValidator(function ($answer) {
-            if (strlen($answer) < 1) {
-                throw new \RuntimeException("Cannot use an empty passphrase");
-            }
-        });
 
-        $pwSecond = new Question('Enter your passphrase (again):');
-        $pwSecond->setHidden(true);
-        $pwSecond->setHiddenFallback(false);
-        $pwSecond->setMaxAttempts(2);
-        $pwSecond->setValidator(function ($answer) {
-            if (strlen($answer) < 1) {
-                throw new \RuntimeException("Cannot use an empty passphrase");
-            }
-        });
-
-        $tries = 3;
-        do {
-            $answer1 = $helper->ask($input, $output, $pwFirst);
-            $answer2 = $helper->ask($input, $output, $pwSecond);
-        } while ($tries-- > 0 && $answer1 !== $answer2);
-
-        if ($answer1 !== $answer2) {
-            throw new \RuntimeException("Didn't enter matching password, abort");
-        }
-
-        return $helper->ask($input, $output, $pwFirst);
-    }
-    private function promptForMnemonic(Bip39Mnemonic $bip39, InputInterface $input, OutputInterface $output)
-    {
-        $helper = $this->getHelper('question');
-        $question = new Question('Enter your bip39 seed:');
-        $question->setHidden(true);
-        $question->setHiddenFallback(false);
-        $question->setValidator(function ($answer) use ($bip39) {
-            try {
-                $bip39->mnemonicToEntropy($answer);
-            } catch (\Exception $e) {
-                throw new \RuntimeException(
-                    "Invalid mnemonic"
-                );
-            }
-            return $answer;
-        });
-        $question->setMaxAttempts(2);
-        return $helper->ask($input, $output, $question);
-    }
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $fIsRegtest = (bool) $input->getOption('regtest');
+        $fIsTestnet = (bool) $input->getOption('testnet');
         $fBip39Pass = (bool) $input->getOption('bip39-passphrase');
         $customFeeRate = (int) $input->getOption('feerate-custom');
         $path = $input->getArgument('database');
@@ -118,6 +61,8 @@ class SendAll extends Command
 
         if ($fIsRegtest) {
             $net = NetworkFactory::bitcoinRegtest();
+        } else if ($fIsTestnet) {
+            $net = NetworkFactory::bitcoinTestnet();
         } else {
             $net = NetworkFactory::bitcoin();
         }

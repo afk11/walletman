@@ -9,6 +9,7 @@ use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DB\Initializer;
 use BitWasp\Wallet\Params\RegtestParams;
+use BitWasp\Wallet\Params\TestnetParams;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -30,6 +31,7 @@ class Init extends Command
 
             // optionally use regtest mode
             ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Initialize wallet for regtest network")
+            ->addOption('testnet', 't', InputOption::VALUE_NONE, "Initialize wallet for testnet network")
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -39,9 +41,13 @@ class Init extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $fIsRegtest = (bool) $input->getOption('regtest');
+        $fIsTestnet = (bool) $input->getOption('testnet');
         $path = $input->getArgument('database');
+
         if ($fIsRegtest) {
             $params = new RegtestParams(new Math());
+        } else if ($fIsTestnet) {
+            $params = new TestnetParams(new Math());
         } else {
             $params = new Params(new Math());
         }

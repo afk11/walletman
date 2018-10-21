@@ -12,6 +12,7 @@ use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
 use BitWasp\Wallet\P2pSyncDaemon;
 use BitWasp\Wallet\Params\RegtestParams;
+use BitWasp\Wallet\Params\TestnetParams;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -33,6 +34,7 @@ class SyncWallet extends Command
 
             ->addOption('ip', null, InputOption::VALUE_REQUIRED, "Provide a trusted nodes hostname", "127.0.0.1")
             ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Start wallet in regtest mode")
+            ->addOption('testnet', 't', InputOption::VALUE_NONE, "Start wallet in testnet mode")
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -42,6 +44,7 @@ class SyncWallet extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $fIsRegtest = (bool) $input->getOption('regtest');
+        $fIsTestnet = (bool) $input->getOption('testnet');
         $ip = $input->getOption('ip');
         $path = $input->getArgument('database');
         $loop = \React\EventLoop\Factory::create();
@@ -50,6 +53,10 @@ class SyncWallet extends Command
             $port = 18444;
             $params = new RegtestParams(new Math());
             $net = NetworkFactory::bitcoinRegtest();
+        } else if ($fIsTestnet) {
+            $port = 18333;
+            $params = new TestnetParams(new Math());
+            $net = NetworkFactory::bitcoinTestnet();
         } else {
             $port = 8333;
             $params = new Params(new Math());

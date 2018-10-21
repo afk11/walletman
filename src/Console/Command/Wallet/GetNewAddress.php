@@ -6,12 +6,9 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Address\AddressCreator;
 use BitWasp\Bitcoin\Bitcoin;
-use BitWasp\Bitcoin\Chain\Params;
-use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkFactory;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
-use BitWasp\Wallet\Params\RegtestParams;
 use BitWasp\Wallet\Wallet\Factory;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -33,6 +30,7 @@ class GetNewAddress extends Command
             ->addArgument("identifier", InputArgument::REQUIRED, "Identifier for wallet")
 
             ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Initialize wallet for regtest network")
+            ->addOption('testnet', 't', InputOption::VALUE_NONE, "Initialize wallet for testnet network")
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -44,14 +42,16 @@ class GetNewAddress extends Command
         $path = $input->getArgument('database');
         $identifier = $input->getArgument('identifier');
         $fIsRegtest = (bool) $input->getOption('regtest');
+        $fIsTestnet = (bool) $input->getOption('testnet');
 
         if ($fIsRegtest) {
-            $params = new RegtestParams(new Math());
             $net = NetworkFactory::bitcoinRegtest();
+        } else if ($fIsTestnet) {
+            $net = NetworkFactory::bitcoinTestnet();
         } else {
-            $params = new Params(new Math());
             $net = NetworkFactory::bitcoin();
         }
+
         $ecAdapter = Bitcoin::getEcAdapter();
         $dbMgr = new DbManager();
         $db = $dbMgr->loadDb($path);
