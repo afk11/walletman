@@ -33,7 +33,7 @@ class Bip32Generator implements ScriptGenerator
      */
     private $gapLimit;
 
-    public function __construct(DB $db, DbKey $dbKey, int $gapLimit, HierarchicalKey $key, NetworkInterface $network)
+    public function __construct(DB $db, DbKey $dbKey, int $gapLimit, HierarchicalKey $key)
     {
         if ($dbKey->isLeaf()) {
             throw new \RuntimeException("cannot use leaf key with Bip32Generator");

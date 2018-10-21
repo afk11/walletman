@@ -7,7 +7,7 @@ use BitWasp\Bitcoin\Script\ScriptFactory;
 use BitWasp\Bitcoin\Script\ScriptType;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PublicKeyInterface;
 use \BitWasp\Bitcoin\Script\ScriptInfo\Multisig;
-use \BitWasp\Bitcoin\Script\ScriptInfo\PayToPubKey;
+use \BitWasp\Bitcoin\Script\ScriptInfo\PayToPubkey;
 use \BitWasp\Bitcoin\Script\Classifier\OutputClassifier;
 use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
@@ -100,10 +100,10 @@ class SizeEstimation
     }
 
     /**
-     * @param PayToPubKey $info
+     * @param PayToPubkey $info
      * @return array - first is array of stack sizes, second is script len
      */
-    public static function estimateP2PKStackSize(PayToPubKey $info)
+    public static function estimateP2PKStackSize(PayToPubkey $info)
     {
         $stackSizes = [self::SIZE_DER_SIGNATURE];
 

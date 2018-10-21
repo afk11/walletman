@@ -97,7 +97,7 @@ class Bip44Wallet implements WalletInterface
     {
         $branchNode = $this->db->loadKeyByPath($this->dbKey->getWalletId(), $path, 0);
         $key = $branchNode->getHierarchicalKey($this->network, $this->ecAdapter);
-        return new Bip32Generator($this->db, $branchNode, $this->gapLimit, $key, $this->network);
+        return new Bip32Generator($this->db, $branchNode, $this->gapLimit, $key);
     }
 
     public function getScriptStorage(): ScriptStorage
