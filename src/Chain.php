@@ -57,8 +57,6 @@ class Chain
         for ($height = 0; $height <= $numHashes; $height++) {
             $this->hashMapToHeight[$this->heightMapToHash[$height]] = $height;
         }
-
-        echo bin2hex(end($this->heightMapToHash)).PHP_EOL;
     }
 
     public function setStartBlock(BlockRef $blockRef)

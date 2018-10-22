@@ -45,6 +45,7 @@ class GetBalance extends Command
         $fIsTestnet = $input->getOption('testnet');
 
         $dbMgr = new DbManager();
+        $ecAdapter = Bitcoin::getEcAdapter();
         if ($fIsRegtest) {
             $net = NetworkFactory::bitcoinRegtest();
         } else if ($fIsTestnet) {
@@ -54,7 +55,6 @@ class GetBalance extends Command
         }
 
         $db = $dbMgr->loadDb($database);
-        $ecAdapter = Bitcoin::getEcAdapter();
         $factory = new Factory($db, $net, $ecAdapter);
         $wallet = $factory->loadWallet($identifier);
         $balance = $wallet->getConfirmedBalance();

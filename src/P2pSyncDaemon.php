@@ -8,12 +8,14 @@ use BitWasp\Bitcoin\Block\Block;
 use BitWasp\Bitcoin\Chain\BlockLocator;
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
+use BitWasp\Bitcoin\Crypto\Random\Random;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Networking\Factory;
 use BitWasp\Bitcoin\Networking\Ip\Ipv4;
 use BitWasp\Bitcoin\Networking\Message;
 use BitWasp\Bitcoin\Networking\Messages\Headers;
 use BitWasp\Bitcoin\Networking\Messages\Ping;
+use BitWasp\Bitcoin\Networking\Messages\Pong;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
 use BitWasp\Bitcoin\Networking\Structure\Inventory;
@@ -28,6 +30,8 @@ use React\Promise\PromiseInterface;
 
 class P2pSyncDaemon
 {
+    const PING_TIMEOUT = 1200;
+
     /**
      * @var string
      */
@@ -69,6 +73,10 @@ class P2pSyncDaemon
 
     private $toDownload = [];
     /**
+     * @var Random
+     */
+    private $random;
+    /**
      * @var int
      */
     private $batchSize =  16;
@@ -84,7 +92,7 @@ class P2pSyncDaemon
      */
     private $wallets = [];
 
-    public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DB $db)
+    public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DB $db, Random $random)
     {
         $this->host = $host;
         $this->port = $port;
@@ -92,6 +100,7 @@ class P2pSyncDaemon
         $this->ecAdapter = $ecAdapter;
         $this->network = $network;
         $this->params = $params;
+        $this->random = $random;
     }
 
     private function resetBlockStats()
@@ -145,11 +154,43 @@ class P2pSyncDaemon
 
         echo "best height {$this->chain->getBestHeaderHeight()}\n";
         echo "best block {$this->chain->getBestBlockHeight()}\n";
-        $connector = $netFactory->getConnector($connParams);
-        $connector
+
+        return $netFactory
+            ->getConnector($connParams)
             ->connect($netFactory->getAddress(new Ipv4($this->host), $this->port))
-            ->then(function (Peer $peer) {
-                $peer->on(Message::PING, function (Peer $peer, Ping $ping) {
+            ->then(function (Peer $peer) use ($loop) {
+                $timeLastPing = null;
+                $pingLastNonce = null;
+                $peer->on('close', function (Peer $peer) {
+                    throw new \RuntimeException("peer closed connection\n");
+                });
+                $loop->addPeriodicTimer(60, function () use ($peer, &$timeLastPing, &$pingLastNonce) {
+                    if ($timeLastPing === null) {
+                        $ping = Ping::generate($this->random);
+                        $timeLastPing = time();
+                        $pingLastNonce = $ping->getNonce();
+                        $peer->send($ping);
+                    } else {
+                        $timeSinceLast = time() - $timeLastPing;
+                        if ($timeSinceLast > self::PING_TIMEOUT) {
+                            throw new \RuntimeException("ping timeout");
+                        }
+                    }
+                });
+                $peer->on(Message::PONG, function (Peer $peer, Pong $pong) use (&$timeLastPing, &$pingLastNonce) {
+                    if (!$pingLastNonce) {
+                        // unexpected pong..
+                        return;
+                    }
+
+                    if (!$pong->getNonce()->equals($pingLastNonce)) {
+                        // returned unexpected pong
+                        return;
+                    }
+                    $timeLastPing = null;
+                    $pingLastNonce = null;
+                });
+                $peer->on(Message::PING, function (Peer $peer, Ping $ping) use (&$timeLastPing) {
                     $peer->pong($ping);
                 });
 
@@ -163,7 +204,6 @@ class P2pSyncDaemon
     {
         $peer->on(Message::HEADERS, function (Peer $peer, Headers $headers) {
             if (count($headers->getHeaders()) > 0) {
-                // misbehaving..
                 $this->db->getPdo()->beginTransaction();
                 try {
                     $last = null;

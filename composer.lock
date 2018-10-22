@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "fb275c97564928f418c5f69aa0cd9137",
+    "content-hash": "06f9ab6b4bf2ba1cebcf9ac82b249d02",
     "packages": [
         {
             "name": "bitwasp/bitcoin",
@@ -66,16 +66,16 @@
         },
         {
             "name": "bitwasp/bitcoin-p2p",
-            "version": "v0.0.18",
+            "version": "v0.0.19",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Bit-Wasp/bitcoin-p2p-php.git",
-                "reference": "532106e61a584a48d3c685c06c6f75dcb845786b"
+                "reference": "0f110aeac24c7dbe1ce2d9b6dee103daea3aed1e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Bit-Wasp/bitcoin-p2p-php/zipball/532106e61a584a48d3c685c06c6f75dcb845786b",
-                "reference": "532106e61a584a48d3c685c06c6f75dcb845786b",
+                "url": "https://api.github.com/repos/Bit-Wasp/bitcoin-p2p-php/zipball/0f110aeac24c7dbe1ce2d9b6dee103daea3aed1e",
+                "reference": "0f110aeac24c7dbe1ce2d9b6dee103daea3aed1e",
                 "shasum": ""
             },
             "require": {
@@ -99,7 +99,7 @@
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
-                "Unlicence"
+                "Unlicense"
             ],
             "authors": [
                 {
@@ -110,7 +110,7 @@
             ],
             "description": "Implementation of the bitcoin protocol using ReactPHP",
             "homepage": "https://github.com/bit-wasp/node-php",
-            "time": "2018-10-08T09:48:58+00:00"
+            "time": "2018-10-22T15:40:58+00:00"
         },
         {
             "name": "bitwasp/buffertools",

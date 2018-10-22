@@ -40,6 +40,7 @@ class ListTransactions extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $ec = Bitcoin::getEcAdapter();
         $dbMgr = new DbManager();
         $db = $dbMgr->loadDb($this->getStringArgument($input, "database"));
 
@@ -51,7 +52,6 @@ class ListTransactions extends Command
             $net = NetworkFactory::bitcoin();
         }
 
-        $ec = Bitcoin::getEcAdapter();
         $factory = new Factory($db, $net, $ec);
         $wallet = $factory->loadWallet($input->getArgument("identifier"));
         $stmt = $db->getTransactions($wallet->getDbWallet()->getId());

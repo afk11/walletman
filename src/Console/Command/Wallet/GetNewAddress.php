@@ -44,6 +44,9 @@ class GetNewAddress extends Command
         $fIsRegtest = $input->getOption('regtest');
         $fIsTestnet = $input->getOption('testnet');
 
+        $ecAdapter = Bitcoin::getEcAdapter();
+        $dbMgr = new DbManager();
+
         if ($fIsRegtest) {
             $net = NetworkFactory::bitcoinRegtest();
         } else if ($fIsTestnet) {
@@ -52,11 +55,8 @@ class GetNewAddress extends Command
             $net = NetworkFactory::bitcoin();
         }
 
-        $ecAdapter = Bitcoin::getEcAdapter();
-        $dbMgr = new DbManager();
         $db = $dbMgr->loadDb($path);
         $walletFactory = new Factory($db, $net, $ecAdapter);
-
         $wallet = $walletFactory->loadWallet($identifier);
         $addrGen = $wallet->getScriptGenerator();
         $dbScript = $addrGen->generate();

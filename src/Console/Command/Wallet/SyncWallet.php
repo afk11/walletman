@@ -6,6 +6,7 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Chain\Params;
+use BitWasp\Bitcoin\Crypto\Random\Random;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkFactory;
 use BitWasp\Wallet\Console\Command\Command;
@@ -48,6 +49,8 @@ class SyncWallet extends Command
         $ip = (string) $input->getOption('ip');
         $path = $this->getStringArgument($input, "database");
 
+        $ecAdapter = Bitcoin::getEcAdapter();
+        $random = new Random();
         $loop = \React\EventLoop\Factory::create();
         $dbMgr = new DbManager();
         if ($fIsRegtest) {
@@ -65,9 +68,7 @@ class SyncWallet extends Command
         }
 
         $db = $dbMgr->loadDb($path);
-
-        $ecAdapter = Bitcoin::getEcAdapter();
-        $daemon = new P2pSyncDaemon($ip, $port, $ecAdapter, $net, $params, $db);
+        $daemon = new P2pSyncDaemon($ip, $port, $ecAdapter, $net, $params, $db, $random);
         $daemon->init();
         $daemon->sync($loop);
         $loop->run();
