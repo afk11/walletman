@@ -48,7 +48,8 @@ class Send extends Command
             ->setHelp('This command will create, sign, and broadcast a transaction emptying the wallet, sending all funds to the provided address');
     }
 
-    private function parseFeeRate(InputInterface $input): int {
+    private function parseFeeRate(InputInterface $input): int
+    {
         if (!is_string($input->getOption('feerate-custom'))) {
             throw new \RuntimeException("must select a feerate option");
         }

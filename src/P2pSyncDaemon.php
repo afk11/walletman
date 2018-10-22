@@ -353,16 +353,12 @@ class P2pSyncDaemon
     {
         if (!$this->downloading) {
             $isFirstSetup = false;
-            // shortcut for new wallets - request blocks from headers tip
             if ($this->chain->getBestBlockHeight() === 0) {
                 $isFirstSetup = true;
+                $startBlock = null;
                 if (count($this->wallets) === 0) {
-                    $this->chain->setStartBlock(new BlockRef(
-                        $this->chain->getBestHeaderHeight(),
-                        $this->chain->getBestHeaderHash()
-                    ));
+                    $startBlock = new BlockRef($this->chain->getBestHeaderHeight(), $this->chain->getBestHeaderHash());
                 } else {
-                    $startBlock = null;
                     foreach ($this->wallets as $wallet) {
                         $dbWallet = $wallet->getDbWallet();
                         if ($birthday = $dbWallet->getBirthday()) {
@@ -371,6 +367,8 @@ class P2pSyncDaemon
                             }
                         }
                     }
+                }
+                if ($startBlock) {
                     $this->chain->setStartBlock($startBlock);
                 }
             }
