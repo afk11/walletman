@@ -11,7 +11,7 @@
     },
     "require-dev": {
         "squizlabs/php_codesniffer": "^v3.2",
-        "phpunit/phpunit": "^v7.0.0",
+        "phpunit/phpunit": "^7.0",
         "phpstan/phpstan": "^0.10.5"
     }
 }
