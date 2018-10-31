@@ -23,7 +23,7 @@ class GetNewAddress extends Command
             // the name of the command (the part after "bin/console")
             ->setName('wallet:getnewaddress')
             // the short description shown while running "php bin/console list"
-            ->setDescription('Create a new wallet')
+            ->setDescription('Generate new addresses')
 
             // An identifier is required for this wallet
             ->addArgument("database", InputArgument::REQUIRED, "Database to use for wallet")
@@ -34,7 +34,7 @@ class GetNewAddress extends Command
 
             // the full command description shown when running the command with
             // the "--help" option
-            ->setHelp('');
+            ->setHelp('Generates derives the next to be used address');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
