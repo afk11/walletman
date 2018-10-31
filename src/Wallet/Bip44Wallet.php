@@ -20,7 +20,7 @@ use BitWasp\Wallet\DB\DbScript;
 use BitWasp\Wallet\DB\DbUtxo;
 use BitWasp\Wallet\DB\DbWallet;
 
-class Bip44Wallet implements WalletInterface
+class Bip44Wallet extends Wallet
 {
     const INDEX_EXTERNAL = 0;
     const INDEX_CHANGE = 1;
@@ -36,19 +36,9 @@ class Bip44Wallet implements WalletInterface
     private $network;
 
     /**
-     * @var DB
-     */
-    private $db;
-
-    /**
      * @var EcAdapterInterface
      */
     private $ecAdapter;
-
-    /**
-     * @var DbWallet
-     */
-    private $dbWallet;
 
     /**
      * @var int
@@ -62,6 +52,8 @@ class Bip44Wallet implements WalletInterface
 
     public function __construct(DB $db, DbWallet $wallet, DbKey $dbKey, NetworkInterface $network, EcAdapterInterface $ecAdapter)
     {
+        parent::__construct($db, $wallet);
+
         if ($dbKey->getDepth() !== 3) {
             throw new \RuntimeException("invalid key depth for bip44 account, should provide M/purpose'/coinType'/account'");
         }
@@ -70,22 +62,11 @@ class Bip44Wallet implements WalletInterface
         }
 
         $this->gapLimit = 100;
-        $this->db = $db;
         $this->dbKey = $dbKey;
-        $this->dbWallet = $wallet;
         $this->network = $network;
         $this->ecAdapter = $ecAdapter;
     }
 
-    public function getConfirmedBalance(): int
-    {
-        return $this->db->getConfirmedBalance($this->dbWallet->getId());
-    }
-
-    public function getDbWallet(): DbWallet
-    {
-        return $this->dbWallet;
-    }
 
     protected function getExternalScriptPath(): string
     {

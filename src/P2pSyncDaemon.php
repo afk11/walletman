@@ -161,6 +161,7 @@ class P2pSyncDaemon
             ->then(function (Peer $peer) use ($loop) {
                 $timeLastPing = null;
                 $pingLastNonce = null;
+
                 $peer->on('close', function (Peer $peer) {
                     throw new \RuntimeException("peer closed connection\n");
                 });
