@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
-use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptFactory;
 use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DbKey;

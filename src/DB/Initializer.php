@@ -24,7 +24,7 @@ class Initializer
 
         $header = $params->getGenesisBlockHeader();
         $hash = $header->getHash();
-        $res = $pdo->addHeader(0, $hash, $header, 2);
+        $pdo->addHeader(0, $hash, $header, 2);
         return $pdo;
     }
 }
