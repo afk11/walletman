@@ -90,6 +90,11 @@ class Bip44Wallet extends Wallet
         return new Bip32ScriptStorage($this->db, $this->dbWallet, $this->gapLimit, $this->ecAdapter, $this->network);
     }
 
+    public function getScriptByPath(string $path): ?DbScript
+    {
+        return $this->db->loadScriptByKeyIdentifier($this->dbKey->getWalletId(), $path);
+    }
+
     public function getScriptGenerator(): ScriptGenerator
     {
         return $this->getGeneratorForPath($this->getExternalScriptPath());

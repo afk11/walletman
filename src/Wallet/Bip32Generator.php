@@ -58,6 +58,7 @@ class Bip32Generator implements ScriptGenerator
             }
             $child = $this->key->deriveChild($preDeriveIdx);
             $script = ScriptFactory::scriptPubKey()->p2pkh($child->getPublicKey()->getPubKeyHash());
+
             $this->db->createScript($this->dbKey->getWalletId(), $gapKeyPath, $script->getHex(), null, null);
         }
 

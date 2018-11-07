@@ -31,28 +31,29 @@ class Bip32ScriptStorage implements ScriptStorage
 
     public function searchScript(ScriptInterface $scriptPubKey): ?DbScript
     {
-        if ($script = $this->db->loadScriptByScriptPubKey(
+        if (!$script = $this->db->loadScriptByScriptPubKey(
             $this->dbWallet->getId(),
             $scriptPubKey
         )) {
-            $pathParts = explode("/", $script->getKeyIdentifier());
-            $parentPath = implode("/", array_slice($pathParts, 0, -1));
-            $parentKey = $this->db->loadKeyByPath($this->dbWallet->getId(), $parentPath, 0);
-            $currentIndex = end($pathParts);
-            $key = $parentKey->getHierarchicalKey($this->network, $this->ecAdapter);
-
-            for ($preDeriveIdx = $this->gapLimit + $currentIndex; $preDeriveIdx >= $currentIndex; $preDeriveIdx--) {
-                $gapKeyPath = $parentKey->getPath() . "/$preDeriveIdx";
-                if ($this->db->loadScriptByKeyId($parentKey->getWalletId(), $gapKeyPath)) {
-                    break;
-                }
-                $gapChild = $key->deriveChild($preDeriveIdx);
-                $gapScript = ScriptFactory::scriptPubKey()->p2pkh($gapChild->getPublicKey()->getPubKeyHash());
-                $this->db->createScript($parentKey->getWalletId(), $gapKeyPath, $gapScript->getHex(), null, null);
-            }
-            echo sprintf("Bip32: derived %d\n", ($this->gapLimit + $currentIndex) - $preDeriveIdx);
-            return $script;
+            return null;
         }
-        return null;
+
+        $pathParts = explode("/", $script->getKeyIdentifier());
+        $parentPath = implode("/", array_slice($pathParts, 0, -1));
+        $parentKey = $this->db->loadKeyByPath($this->dbWallet->getId(), $parentPath, 0);
+        $currentIndex = end($pathParts);
+        $key = $parentKey->getHierarchicalKey($this->network, $this->ecAdapter);
+
+        for ($preDeriveIdx = $this->gapLimit + $currentIndex; $preDeriveIdx >= $currentIndex; $preDeriveIdx--) {
+            $gapKeyPath = $parentKey->getPath() . "/$preDeriveIdx";
+            if ($this->db->loadScriptByKeyId($parentKey->getWalletId(), $gapKeyPath)) {
+                break;
+            }
+            $gapChild = $key->deriveChild($preDeriveIdx);
+            $gapScript = ScriptFactory::scriptPubKey()->p2pkh($gapChild->getPublicKey()->getPubKeyHash());
+            $this->db->createScript($parentKey->getWalletId(), $gapKeyPath, $gapScript->getHex(), null, null);
+        }
+
+        return $script;
     }
 }

@@ -21,6 +21,7 @@ class DB
     private $addWalletStmt;
     private $createKeyStmt;
     private $loadKeyByPathStmt;
+    private $loadScriptByKeyIdentifierStmt;
     private $loadScriptBySpkStmt;
     private $addHeaderStmt;
     private $setBlockReceivedStmt;
@@ -345,6 +346,25 @@ class DB
         }
 
         return $this->loadKeyByPathStmt->fetchObject(DbKey::class);
+    }
+
+    public function loadScriptByKeyIdentifier(int $walletId, string $keyIdentifier): ?DbScript
+    {
+        if (null === $this->loadScriptByKeyIdentifierStmt) {
+            $this->loadScriptByKeyIdentifierStmt = $this->pdo->prepare("SELECT * FROM script WHERE walletId = ? AND keyIdentifier = ?");
+        }
+
+        if (!$this->loadScriptByKeyIdentifierStmt->execute([
+            $walletId, $keyIdentifier,
+        ])) {
+            throw new \RuntimeException("Failed to execute query");
+        }
+
+        if (!$result = $this->loadScriptByKeyIdentifierStmt->fetchObject(DbScript::class)) {
+            return null;
+        }
+
+        return $result;
     }
 
     public function createScript(int $walletId, string $keyIdentifier, string $scriptPubKey, string $redeemScript = null, string $witnessScript = null): int
