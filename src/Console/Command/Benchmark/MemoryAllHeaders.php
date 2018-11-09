@@ -16,6 +16,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class MemoryAllHeaders extends Command
 {
+    private $logInterval = 100000;
+
     protected function configure()
     {
         $this
@@ -46,14 +48,11 @@ class MemoryAllHeaders extends Command
 
         $features = [0, 1, 2, 3];
         foreach ($features as $feature) {
-            echo "------------------------map {$feature} \n";
             $begin = microtime(true);
             $this->benchmarkMap($db, $feature);
             $duration = microtime(true) - $begin;
             echo "duration: $duration\n";
-        }
-        foreach ($features as $feature) {
-            echo "------------------------array {$feature} \n";
+
             $begin = microtime(true);
             $this->benchmarkArray($db, $feature);
             $duration = microtime(true) - $begin;
@@ -61,10 +60,30 @@ class MemoryAllHeaders extends Command
         }
     }
 
+    private function getDataInfo(int $feature) {
+        if ($feature === 3) {
+            $dataName = "BlockHeaderInterface";
+            $size = 85;
+        } else if ($feature === 2) {
+            $dataName = "headerbin";
+            /** @var string $data */
+            $size = 80;
+        } else if ($feature === 1) {
+            $dataName = "number";
+            $size = 1;
+        } else {
+            $dataName = 'DbHeader';
+            $size = 90;
+        }
+        return [$dataName, $size];
+    }
     private function benchmarkMap(DB $db, int $feature) {
 
         $statement = $db->getPdo()->prepare("SELECT * FROM header");
         $statement->execute();
+
+        list ($dataName, $size) = $this->getDataInfo($feature);
+        echo "------------------------ ".__FUNCTION__." $feature {$dataName} \n";
 
         $usage = memory_get_usage(true);
         $map = [];
@@ -80,23 +99,23 @@ class MemoryAllHeaders extends Command
                 $data = $data->getHeader()->getBinary();
                 /** @var string $data */
             } else if ($feature === 1) {
-                $data = null;
+                $data = 1;
             }
 
             $map[$hash->getBinary()] = $data;
-            if ($count % 100000 === 0) {
-                echo "$count map diff " . number_format((memory_get_usage(true)-$usage), 6) . PHP_EOL;
+            if ($count % $this->logInterval === 0) {
+                echo "$count map usage " . number_format((memory_get_usage(true)-$usage), 0) . PHP_EOL;
             }
             unset($data);
         }
         $statement->closeCursor();
         $usageDiff = memory_get_usage(true) - $usage;
-        echo "Usage diff: $usageDiff bytes\n";
+        echo "Usage diff: ".number_format($usageDiff, 0)." bytes\n";
         echo "Objects: $count\n";
         echo "diff per obj (avg): ".($usageDiff/$count)."\n";
 
-        $theoreticalMin = ((32+80)*$count);
-        echo "theoretical min: (hash:32+header:80)*$count = ".$theoreticalMin."\n";
+        $theoreticalMin = ((32+$size)*$count);
+        echo "theoretical min: (hash:32+$dataName:$size)*$count = ".number_format($theoreticalMin, 0)."\n";
         echo "real to theoretical per obj: " . ($usageDiff/$theoreticalMin) . "x\n";
     }
 
@@ -104,10 +123,13 @@ class MemoryAllHeaders extends Command
         $statement = $db->getPdo()->prepare("SELECT * FROM header");
         $statement->execute();
 
+        list ($dataName, $size) = $this->getDataInfo($feature);
+        echo "------------------------ ".__FUNCTION__." $feature {$dataName} \n";
+
         $usage = memory_get_usage(true);
         $map = [];
         $count = 0;
-        echo "mem start $usage\n";
+
         while($data = $statement->fetchObject(DbHeader::class)) {
             /** @var DbHeader $data */
             if ($feature === 3) {
@@ -117,24 +139,24 @@ class MemoryAllHeaders extends Command
                 $data = $data->getHeader()->getBinary();
                 /** @var string $data */
             } else if ($feature === 1) {
-                $data = null;
+                $data = 1;
             }
 
             $map[] = $data;
-            if ($count % 100000 === 0) {
-                echo "$count array diff " . number_format((memory_get_usage(true)-$usage), 6) . PHP_EOL;
+            if ($count % $this->logInterval === 0) {
+                echo "$count array usage " . number_format((memory_get_usage(true)-$usage), 0) . PHP_EOL;
             }
 
             $count = count($map);
         }
         $statement->closeCursor();
         $usageDiff = memory_get_usage(true) - $usage;
-        echo "Usage diff: $usageDiff bytes\n";
+        echo "Usage diff: ".number_format($usageDiff, 0)." bytes\n";
         echo "Objects: $count\n";
         echo "diff per obj (avg): ".($usageDiff/$count)."\n";
 
-        $theoreticalMin = ((32+80)*$count);
-        echo "theoretical min: (hash:32+header:80)*$count = ".$theoreticalMin."\n";
+        $theoreticalMin = (($size)*$count);
+        echo "theoretical min: ($dataName:$size)*$count = ".number_format($theoreticalMin, 0)."\n";
         echo "real to theoretical per obj: " . ($usageDiff/$theoreticalMin) . "x\n";
     }
 }
