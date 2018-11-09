@@ -19,3 +19,8 @@ configuration:
  * `wallet db:init <sqlitedb>`
  * `wallet wallet:sync <sqlitedb>`
  * wait for initial headers sync and for one block
+
+### blocks
+
+headers  []  ->  [][]  ->  [][]
+blocks   []      []
