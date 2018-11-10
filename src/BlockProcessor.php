@@ -38,34 +38,30 @@ class BlockProcessor
         $this->start = microtime(true);
     }
 
-    private function getTxKey(BufferInterface $txid): string
-    {
-        return $txid->getHex();
-    }
-
     public function processConfirmedTx(BufferInterface $txid, TransactionInterface $tx)
     {
-        if (array_key_exists($txid->getHex(), $this->txMap)) {
+        $thisTxKey = $txid->getBinary();
+        if (array_key_exists($thisTxKey, $this->txMap)) {
             throw new \LogicException();
         }
-        $nIn = count($tx->getInputs());
+        $ins = $tx->getInputs();
+        $nIn = count($ins);
         for ($iIn = 0; $iIn < $nIn; $iIn++) {
-            $input = $tx->getInput($iIn);
-            $inputTx = null;
-            $inputTxId = $this->getTxKey($input->getOutPoint()->getTxId());
+            $outPoint = $ins[$iIn]->getOutPoint();
+            $inputTxId = $outPoint->getTxId()->getBinary();
             if (array_key_exists($inputTxId, $this->txMap)) {
-                $this->txMap[$inputTxId]->spendOutput((int) $input->getOutPoint()->getVout(), new OutPoint($txid, $iIn));
+                $this->txMap[$inputTxId]->spendOutput((int) $outPoint->getVout(), new OutPoint($txid, $iIn));
             }
         }
 
-        $nOut = count($tx->getOutputs());
-        $outputs = [];
+        $outs = $tx->getOutputs();
+        $nOut = count($outs);
+        $utxos = [];
         for ($iOut = 0; $iOut < $nOut; $iOut++) {
-            $txOut = $tx->getOutput($iOut);
-            $outputs[] = new Utxo(new OutPoint($txid, $iOut), $txOut, null);
+            $utxos[] = new Utxo(new OutPoint($txid, $iOut), $outs[$iOut], null);
         }
 
-        $this->txMap[$this->getTxKey($txid)] = new Tx($txid, $tx, $outputs);
+        $this->txMap[$thisTxKey] = new Tx($txid, $tx, $utxos);
     }
 
     public function commit(int $blockHeight)
@@ -74,23 +70,13 @@ class BlockProcessor
         $txIds = array_keys($this->txMap);
         for ($i = 0; $i < $numTx; $i++) {
             $txWorkload = $this->txMap[$txIds[$i]];
-            $txId = Buffer::hex($txIds[$i]);
+            $txId = new Buffer($txIds[$i]);
             $tx = $txWorkload->getTx();
             $nIn = count($tx->getInputs());
             $valueChange = [];
 
             for ($iIn = 0; $iIn < $nIn; $iIn++) {
                 $outPoint = $tx->getInput($iIn)->getOutPoint();
-                $inputTxId = $this->getTxKey($outPoint->getTxId());
-                // mark spent. need wallet ids for balance update.
-
-                if (array_key_exists($inputTxId, $this->txMap)) {
-                    // txin was created in this block, so output information is available
-                    $fundTx = $this->txMap[$inputTxId];
-                    $spentBy = $fundTx->getOutputs()[$outPoint->getVout()]->getSpentOutPoint();
-                    assert($spentBy !== null);
-                }
-
                 // load this utxo from wallets, and mark spent
                 $dbUtxos = $this->db->getWalletUtxosWithUnspentUtxo($outPoint);
                 foreach ($dbUtxos as $dbUtxo) {
@@ -131,12 +117,17 @@ class BlockProcessor
         // 1. receive only wallet
         try {
             $nTx = count($block->getTransactions());
+            $proc1= microtime(true);
             for ($iTx = 0; $iTx < $nTx; $iTx++) {
                 $tx = $block->getTransaction($iTx);
                 $txId = $tx->getTxId();
                 $this->processConfirmedTx($txId, $tx);
             }
+            echo "block process ($nTx) time " . (microtime(true)-$proc1) . "\n";
+            $commit1 = microtime(true);
             $this->commit($height);
+            echo "block commit time " . (microtime(true)-$commit1) . "\n";
+
         } catch (\Error $e) {
             echo $e->getMessage().PHP_EOL;
             echo $e->getTraceAsString().PHP_EOL;

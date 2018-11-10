@@ -29,7 +29,7 @@ class Tx
      * Tx constructor.
      * @param BufferInterface $txid
      * @param TransactionInterface $tx
-     * @param array $outputs
+     * @param Utxo[] $outputs
      */
     public function __construct(BufferInterface $txid, TransactionInterface $tx, array $outputs)
     {
@@ -37,6 +37,7 @@ class Tx
         $this->tx = $tx;
         $this->outputs = $outputs;
     }
+
     public function getTxId(): BufferInterface
     {
         return $this->txid;
@@ -58,6 +59,9 @@ class Tx
     {
         if (!array_key_exists($i, $this->outputs)) {
             throw new \InvalidArgumentException();
+        }
+        if (null !== $this->outputs[$i]->getSpentOutPoint()) {
+            throw new \RuntimeException("Already spent");
         }
         $this->outputs[$i] = $this->outputs[$i]->withSpendOutPoint($spendOutPoint);
     }

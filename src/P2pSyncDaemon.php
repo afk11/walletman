@@ -22,6 +22,7 @@ use BitWasp\Bitcoin\Networking\Structure\Inventory;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\Wallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\WalletInterface;
 use React\EventLoop\LoopInterface;
@@ -207,11 +208,14 @@ class P2pSyncDaemon
             if (count($headers->getHeaders()) > 0) {
                 $this->db->getPdo()->beginTransaction();
                 try {
-                    $last = null;
-                    $startHeight = $this->chain->getBestHeaderHeight();
+                    /** @var DbHeader $lastHeader */
+                    $lastHeader = null;
                     foreach ($headers->getHeaders() as $i => $header) {
-                        $last = $header->getHash();
-                        $this->chain->addNextHeader($this->db, $startHeight + $i + 1, $last, $header);
+                        if ($lastHeader !== null && !$lastHeader->getHash()->equals($header->getPrevBlock())) {
+                            throw new \RuntimeException("non continuous headers message");
+                        }
+                        $hash = $header->getHash();
+                        $this->chain->acceptHeader($this->db, $hash, $header, $lastHeader);
                     }
                     $this->db->getPdo()->commit();
                 } catch (\Exception $e) {
@@ -222,10 +226,11 @@ class P2pSyncDaemon
                 }
 
                 if (count($headers->getHeaders()) === 2000) {
-                    $peer->getheaders(new BlockLocator([$last], new Buffer('', 32)));
+                    echo "requestHeaders from height {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
+                    $peer->getheaders(new BlockLocator([$lastHeader->getHash()], new Buffer('', 32)));
                 }
 
-                echo "new header tip {$this->chain->getBestHeaderHeight()} {$last->getHex()}\n";
+                echo "new header tip {$this->chain->getBestHeaderHeight()} {$lastHeader->getHash()->getHex()}\n";
             }
 
             if (count($headers->getHeaders()) < 2000) {
@@ -290,27 +295,29 @@ class P2pSyncDaemon
 
     public function requestBlocks(Peer $peer, Deferred $deferredFinished)
     {
+        $start = microtime(true);
         if (null === $this->blockStatsCount) {
             $this->blockStatsCount = 0;
             $this->blockStatsBegin = \microtime(true);
         }
 
         $startBlock = $this->chain->getBestBlockHeight() + 1;
+        $heightBestHeader = $this->chain->getBestHeaderHeight();
 //        echo sprintf("count:%d\nbatch:%d\nstartBlock:%d\nbestHeader:%d\n",
 //            count($this->deferred), $this->batchSize, $startBlock, $this->chain->getBestHeaderHeight());
-        while (count($this->deferred) < $this->batchSize && $startBlock + count($this->deferred) <= $this->chain->getBestHeaderHeight()) {
+        while (count($this->deferred) < $this->batchSize && $startBlock + count($this->deferred) <= $heightBestHeader) {
+            $aa1 = microtime(true);
             $height = $startBlock + count($this->deferred);
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
                 ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
-                    //echo "process $height {$hash->getHex()}\n";
-
+                    echo "processBlock $height {$hash->getHex()}\n";
+                    //die();
                     $this->db->getPdo()->beginTransaction();
                     try {
+                        $this->chain->addNextBlock($this->db, $height, $hash, $block);
                         $processor = new BlockProcessor($this->db, ...$this->wallets);
                         $processor->process($height, $block);
-                        $this->chain->addNextBlock($this->db, $height, $hash, $block);
-                        $this->db->setBlockReceived($hash);
                         $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
                         echo $e->getMessage().PHP_EOL;
@@ -333,6 +340,7 @@ class P2pSyncDaemon
                 ->then(null, function (\Exception $e) use ($deferredFinished) {
                     $deferredFinished->reject(new \Exception("processBlockError", 0, $e));
                 });
+            echo "iter time " . (microtime(true)-$aa1) . "\n";
         }
 
         if (count($this->toDownload) > 0) {
@@ -340,7 +348,10 @@ class P2pSyncDaemon
             // otherwise, send when we have batch/2 or batch items
             $nearTip = count($this->deferred) < $this->batchSize;
             if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
+                echo "send getdata(" . count($this->toDownload) . ") to node\n";
+                $send1 = microtime(true);
                 $peer->getdata($this->toDownload);
+                echo "peer.getdata = " . (microtime(true) - $send1) . "\n";
                 $this->toDownload = [];
             }
         }
@@ -348,6 +359,7 @@ class P2pSyncDaemon
         if (count($this->deferred) === 0) {
             $deferredFinished->resolve();
         }
+        echo "requestBlocks.time = " . (microtime(true) - $start) . "\n";
     }
 
     public function downloadBlocks(Peer $peer)

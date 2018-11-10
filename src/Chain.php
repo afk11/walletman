@@ -8,6 +8,7 @@ use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DbHeader;
 
 class Chain
 {
@@ -93,26 +94,35 @@ class Chain
         return new Buffer($this->heightMapToHash[$headerHeight]);
     }
 
-    public function addNextHeader(DB $db, int $height, BufferInterface $hash, BlockHeaderInterface $header)
+    public function acceptHeader(DB $db, BufferInterface $hash, BlockHeaderInterface $header, DbHeader &$headerIndex = null)
     {
-        if ($height !== 1 + $this->getBestHeaderHeight()) {
-            throw new \RuntimeException('height is wrong');
+        $hashBin = $hash->getBinary();
+        if (array_key_exists($hashBin, $this->hashMapToHeight)) {
+            $headerIndex = $db->getHeader($hash);
+            return true;
         }
-        if (!$this->bestHeaderHash->equals($header->getPrevBlock())) {
-            throw new \RuntimeException("prevBlock {$header->getPrevBlock()->getHex()} doesn't match our tip {$this->bestHeaderHash->getHex()}");
+
+        $prevBin = $header->getPrevBlock()->getBinary();
+        if (!array_key_exists($prevBin, $this->hashMapToHeight)) {
+            throw new \RuntimeException("prevHeader not known");
         }
+
+        $height = $this->hashMapToHeight[$prevBin] + 1;
         if ($this->startBlockRef && $this->startBlockRef->getHeight() === $height) {
             if (!$hash->equals($this->startBlockRef->getHash())) {
                 throw new \RuntimeException("header {$hash->getHex()}) doesn't match start block {$this->startBlockRef->getHash()->getHex()}");
             }
         }
 
+        echo "add header {$height} {$hash->getHex()}\n";
         $db->addHeader($height, $hash, $header, 1);
+        $headerIndex = $db->getHeader($hash);
 
         $this->bestHeader = $header;
         $this->bestHeaderHash = $hash;
         $this->hashMapToHeight[$hash->getBinary()] = $height;
         $this->heightMapToHash[$height] = $hash->getBinary();
+        return true;
     }
 
     public function addNextBlock(DB $db, int $height, BufferInterface $hash, $block)

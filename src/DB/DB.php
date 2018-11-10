@@ -27,6 +27,7 @@ class DB
     private $setBlockReceivedStmt;
     private $getHashesStmt;
     private $getBestHeaderStmt;
+    private $getHeaderStmt;
     private $getBlockHashStmt;
     private $createScriptStmt;
     private $loadScriptByKeyIdStmt;
@@ -191,6 +192,20 @@ class DB
             $hashes[$i] = pack("H*", $hashes[$i]);
         }
         return $hashes;
+    }
+
+    public function getHeader(BufferInterface $hash): DbHeader
+    {
+        if (null === $this->getHeaderStmt) {
+            $this->getHeaderStmt = $this->pdo->prepare("SELECT * from header where hash = ?");
+        }
+        $this->getHeaderStmt->execute([
+            $hash->getHex(),
+        ]);
+        if ($header = $this->getHeaderStmt->fetchObject(DbHeader::class)) {
+            return $header;
+        }
+        return null;
     }
 
     public function getBestHeader(): DbHeader
