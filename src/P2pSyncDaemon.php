@@ -84,7 +84,7 @@ class P2pSyncDaemon
     private $ecAdapter =  16;
     private $initialized = false;
 
-    private $blockStatsWindow = 16;
+    private $blockStatsWindow = 64;
     private $blockStatsCount;
     private $blockStatsBegin;
     private $blockProcessTime;
@@ -302,13 +302,11 @@ class P2pSyncDaemon
             $this->blockStatsBegin = \microtime(true);
         }
 
-        $startBlock = $this->chain->getBestBlockHeight() + 1;
+        $downloadStartHeight = $this->chain->getBestBlockHeight() + 1;
         $heightBestHeader = $this->chain->getBestHeaderHeight();
-//        echo sprintf("count:%d\nbatch:%d\nstartBlock:%d\nbestHeader:%d\n",
-//            count($this->deferred), $this->batchSize, $startBlock, $this->chain->getBestHeaderHeight());
-        while (count($this->deferred) < $this->batchSize && $startBlock + count($this->deferred) <= $heightBestHeader) {
-            $aa1 = microtime(true);
-            $height = $startBlock + count($this->deferred);
+
+        while (count($this->deferred) < $this->batchSize && $downloadStartHeight + count($this->deferred) <= $heightBestHeader) {
+            $height = $downloadStartHeight + count($this->deferred);
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
                 ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
@@ -327,13 +325,15 @@ class P2pSyncDaemon
                         throw $e;
                     }
 
-                    $this->blockProcessTime += microtime(true)-$processStart;
+                    $this->blockProcessTime += microtime(true) - $processStart;
                     $this->blockStatsCount++;
 
                     if ($this->blockStatsCount === $this->blockStatsWindow) {
-                        $windowTime = number_format(\microtime(true) - $this->blockStatsBegin, 4);
+                        $totalTime = \microtime(true) - $this->blockStatsBegin;
+                        $windowTime = number_format($totalTime, 4);
+                        $downloadTime = number_format($totalTime - $this->blockProcessTime, 4);
                         $processTime = number_format($this->blockProcessTime, 4);
-                        echo "block process info ({$this->blockStatsWindow} blocks): height {$height} hash {$hash->getHex()} | windowtime {$windowTime}s, processtime {$processTime}s\n";
+                        echo "block process info ({$this->blockStatsWindow} blocks): height {$height} hash {$hash->getHex()} | downloadtime {$downloadTime}, processtime {$processTime}, total {$windowTime}\n";
 
                         $this->blockProcessTime = 0;
                         $this->blockStatsCount = 0;

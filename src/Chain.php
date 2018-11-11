@@ -114,7 +114,6 @@ class Chain
             }
         }
 
-        echo "add header {$height} {$hash->getHex()}\n";
         $db->addHeader($height, $hash, $header, 1);
         $headerIndex = $db->getHeader($hash);
 

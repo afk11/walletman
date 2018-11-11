@@ -60,7 +60,8 @@ class MemoryAllHeaders extends Command
         }
     }
 
-    private function getDataInfo(int $feature) {
+    private function getDataInfo(int $feature)
+    {
         if ($feature === 3) {
             $dataName = "BlockHeaderInterface";
             $size = 85;
@@ -77,7 +78,8 @@ class MemoryAllHeaders extends Command
         }
         return [$dataName, $size];
     }
-    private function benchmarkMap(DB $db, int $feature) {
+    private function benchmarkMap(DB $db, int $feature)
+    {
 
         $statement = $db->getPdo()->prepare("SELECT * FROM header");
         $statement->execute();
@@ -88,7 +90,7 @@ class MemoryAllHeaders extends Command
         $usage = memory_get_usage(true);
         $map = [];
         $count = 0;
-        while($data = $statement->fetchObject(DbHeader::class)) {
+        while ($data = $statement->fetchObject(DbHeader::class)) {
             $count++;
             /** @var DbHeader $data */
             $hash = $data->getHash();
@@ -119,7 +121,8 @@ class MemoryAllHeaders extends Command
         echo "real to theoretical per obj: " . ($usageDiff/$theoreticalMin) . "x\n";
     }
 
-    private function benchmarkArray(DB $db, int $feature) {
+    private function benchmarkArray(DB $db, int $feature)
+    {
         $statement = $db->getPdo()->prepare("SELECT * FROM header");
         $statement->execute();
 
@@ -130,7 +133,7 @@ class MemoryAllHeaders extends Command
         $map = [];
         $count = 0;
 
-        while($data = $statement->fetchObject(DbHeader::class)) {
+        while ($data = $statement->fetchObject(DbHeader::class)) {
             /** @var DbHeader $data */
             if ($feature === 3) {
                 $data = $data->getHeader();
