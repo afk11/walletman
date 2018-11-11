@@ -25,17 +25,16 @@ class BlockProcessor
      * @var Tx[]
      */
     private $txMap = [];
+
     /**
      * @var WalletInterface[]
      */
     private $wallets;
-    private $start;
 
     public function __construct(DB $db, WalletInterface... $wallets)
     {
         $this->db = $db;
         $this->wallets = $wallets;
-        $this->start = microtime(true);
     }
 
     public function processConfirmedTx(BufferInterface $txid, TransactionInterface $tx)
@@ -117,17 +116,12 @@ class BlockProcessor
         // 1. receive only wallet
         try {
             $nTx = count($block->getTransactions());
-            $proc1= microtime(true);
             for ($iTx = 0; $iTx < $nTx; $iTx++) {
                 $tx = $block->getTransaction($iTx);
                 $txId = $tx->getTxId();
                 $this->processConfirmedTx($txId, $tx);
             }
-            echo "block process ($nTx) time " . (microtime(true)-$proc1) . "\n";
-            $commit1 = microtime(true);
             $this->commit($height);
-            echo "block commit time " . (microtime(true)-$commit1) . "\n";
-
         } catch (\Error $e) {
             echo $e->getMessage().PHP_EOL;
             echo $e->getTraceAsString().PHP_EOL;

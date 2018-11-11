@@ -87,6 +87,7 @@ class P2pSyncDaemon
     private $blockStatsWindow = 16;
     private $blockStatsCount;
     private $blockStatsBegin;
+    private $blockProcessTime;
 
     /**
      * @var WalletInterface[]
@@ -295,8 +296,8 @@ class P2pSyncDaemon
 
     public function requestBlocks(Peer $peer, Deferred $deferredFinished)
     {
-        $start = microtime(true);
         if (null === $this->blockStatsCount) {
+            $this->blockProcessTime = 0;
             $this->blockStatsCount = 0;
             $this->blockStatsBegin = \microtime(true);
         }
@@ -313,6 +314,9 @@ class P2pSyncDaemon
                 ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
                     echo "processBlock $height {$hash->getHex()}\n";
                     //die();
+
+                    //die();
+                    $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();
                     try {
                         $this->chain->addNextBlock($this->db, $height, $hash, $block);
@@ -325,10 +329,14 @@ class P2pSyncDaemon
                         throw $e;
                     }
 
+                    $this->blockProcessTime += microtime(true)-$processStart;
                     $this->blockStatsCount++;
+
                     if ($this->blockStatsCount === $this->blockStatsWindow) {
                         $took = \microtime(true) - $this->blockStatsBegin;
-                        echo "Processed {$height} - {$this->blockStatsWindow} took {$took} seconds\n";
+                        echo "Processed {$height} - {$this->blockStatsWindow} window={$took} s, process={$this->blockProcessTime}\n";
+
+                        $this->blockProcessTime = 0;
                         $this->blockStatsCount = 0;
                         $this->blockStatsBegin = microtime(true);
                     }
@@ -340,7 +348,6 @@ class P2pSyncDaemon
                 ->then(null, function (\Exception $e) use ($deferredFinished) {
                     $deferredFinished->reject(new \Exception("processBlockError", 0, $e));
                 });
-            echo "iter time " . (microtime(true)-$aa1) . "\n";
         }
 
         if (count($this->toDownload) > 0) {
@@ -348,10 +355,7 @@ class P2pSyncDaemon
             // otherwise, send when we have batch/2 or batch items
             $nearTip = count($this->deferred) < $this->batchSize;
             if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
-                echo "send getdata(" . count($this->toDownload) . ") to node\n";
-                $send1 = microtime(true);
                 $peer->getdata($this->toDownload);
-                echo "peer.getdata = " . (microtime(true) - $send1) . "\n";
                 $this->toDownload = [];
             }
         }
@@ -359,7 +363,6 @@ class P2pSyncDaemon
         if (count($this->deferred) === 0) {
             $deferredFinished->resolve();
         }
-        echo "requestBlocks.time = " . (microtime(true) - $start) . "\n";
     }
 
     public function downloadBlocks(Peer $peer)
