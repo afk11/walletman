@@ -312,10 +312,8 @@ class P2pSyncDaemon
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
                 ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
-                    echo "processBlock $height {$hash->getHex()}\n";
-                    //die();
+                    //echo "processBlock $height {$hash->getHex()}\n";
 
-                    //die();
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();
                     try {
@@ -333,8 +331,9 @@ class P2pSyncDaemon
                     $this->blockStatsCount++;
 
                     if ($this->blockStatsCount === $this->blockStatsWindow) {
-                        $took = \microtime(true) - $this->blockStatsBegin;
-                        echo "Processed {$height} - {$this->blockStatsWindow} window={$took} s, process={$this->blockProcessTime}\n";
+                        $windowTime = number_format(\microtime(true) - $this->blockStatsBegin, 4);
+                        $processTime = number_format($this->blockProcessTime, 4);
+                        echo "block process info ({$this->blockStatsWindow} blocks): height {$height} hash {$hash->getHex()} | windowtime {$windowTime}s, processtime {$processTime}s\n";
 
                         $this->blockProcessTime = 0;
                         $this->blockStatsCount = 0;
