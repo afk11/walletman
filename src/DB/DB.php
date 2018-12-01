@@ -9,7 +9,6 @@ use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
-use BitWasp\Bitcoin\Utxo\Utxo;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\BlockRef;
@@ -485,31 +484,6 @@ class DB
             $utxo->getTxOut()->getValue(), $utxo->getTxOut()->getScript()->getHex(),
         ])) {
             throw new \RuntimeException("failed to create utxo");
-        }
-    }
-
-    public function createUtxos(int $walletId, array $utxoAndDbScripts)
-    {
-        $columns = ["walletId", "scriptId", "txid", "vout", "value", "scriptPubKey"];
-        $numCols = count($columns);
-        $numRows = count($utxoAndDbScripts);
-        $placeholder = "(" . implode(",", array_fill(0, $numCols, "?")) . ")";
-        $sql = sprintf("INSERT INTO utxo (walletId, scriptId, txid, vout, value, scriptPubKey) values %s", implode(",", array_fill(0, $numRows, $placeholder)));
-
-        $stmt = $this->pdo->prepare($sql);
-        for ($i = 0; $i < $numRows; $i++) {
-            /** @var Utxo $utxo */
-            /** @var DbScript $dbScript */
-            list ($utxo, $dbScript) = $utxoAndDbScripts[$i];
-            $stmt->bindValue($i * $numCols + 1, $walletId);
-            $stmt->bindValue($i * $numCols + 2, $dbScript->getId());
-            $stmt->bindValue($i * $numCols + 3, $utxo->getOutPoint()->getTxId()->getHex());
-            $stmt->bindValue($i * $numCols + 4, $utxo->getOutPoint()->getVout());
-            $stmt->bindValue($i * $numCols + 5, $utxo->getOutput()->getValue());
-            $stmt->bindValue($i * $numCols + 6, $utxo->getOutput()->getScript()->getHex());
-        }
-        if (!$stmt->execute()) {
-            throw new \RuntimeException("Failed to insert utxos");
         }
     }
 
