@@ -85,8 +85,6 @@ class ChainTest extends DbTestCase
         $chain = new Chain($pow);
         $chain->init($this->sessionDb, $this->sessionChainParams);
 
-        $pow->checkHeader($chain->getBestHeader());
-
         $this->assertEquals(0, $chain->getBestHeaderHeight());
         $this->assertEquals(0, $chain->getBestBlockHeight());
 
@@ -184,14 +182,8 @@ class ChainTest extends DbTestCase
         $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
         $chain = new Chain($pow);
 
-        try {
-            $chain->init($this->sessionDb, $this->sessionChainParams);
-            $this->assertEquals(3, $chain->getBestHeaderHeight());
-            $this->assertEquals($block3bHash->getHex(), $chain->getBestHeaderHash()->getHex());
-        } catch (\Exception $e) {
-            echo $e->getMessage().PHP_EOL;
-            echo $e->getTraceAsString().PHP_EOL;
-            die();
-        }
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+        $this->assertEquals(3, $chain->getBestHeaderHeight());
+        $this->assertEquals($block3bHash->getHex(), $chain->getBestHeaderHash()->getHex());
     }
 }

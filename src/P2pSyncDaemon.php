@@ -366,7 +366,9 @@ class P2pSyncDaemon
                     foreach ($this->wallets as $wallet) {
                         $dbWallet = $wallet->getDbWallet();
                         if ($birthday = $dbWallet->getBirthday()) {
-                            if ($startBlock === null || $birthday->getHeight() < $startBlock->getHeight()) {
+                            if (!($startBlock instanceof BlockRef)) {
+                                $startBlock = $dbWallet->getBirthday();
+                            } else if ($birthday->getHeight() < $startBlock->getHeight()) {
                                 $startBlock = $dbWallet->getBirthday();
                             }
                         }

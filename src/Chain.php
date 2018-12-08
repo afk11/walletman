@@ -170,6 +170,7 @@ class Chain
             $bestKey = $best->dbHeader->getHash()->getBinary();
             $height = $best->dbHeader->getHeight();
 
+            // unwind back to genesis block
             while (array_key_exists($bestKey, $tmpPrev)) {
                 $this->heightMapToHash[$height] = $bestKey;
                 $bestKey = $tmpPrev[$bestKey];
@@ -257,12 +258,14 @@ class Chain
         $headerIndex = $this->acceptHeaderToIndex($db, $height, $work, $hash, $header);
 
         if ($ontoTip) {
+            // todo: this lets us maintain IBD, but without
+            // proper testing for new chains, we'll never switch
+            // accepting a reorg.
             $this->bestHeaderWork = $work;
             $this->bestHeaderHash = $hash;
             $this->bestHeader = $header;
         }
 
-        // todo: shouldn't really be here, need to verify with respect to chain
         return true;
     }
 
