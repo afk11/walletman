@@ -164,7 +164,7 @@ class DB
         );");
     }
 
-    public function getBlockHash(int $height): BufferInterface
+    public function getBlockHash(int $height): ?BufferInterface
     {
         if (null === $this->getBlockHashStmt) {
             $this->getBlockHashStmt = $this->pdo->prepare("SELECT hash from header where height = ?");
@@ -174,7 +174,11 @@ class DB
         ])) {
             throw new \RuntimeException("getblockhash query failed");
         }
-        return Buffer::hex($this->getBlockHashStmt->fetch()['hash']);
+        $hash = $this->getBlockHashStmt->fetch()['hash'];
+        if (null === $hash) {
+            return null;
+        }
+        return Buffer::hex($hash);
     }
 
     public function getTailHashes(int $height): array

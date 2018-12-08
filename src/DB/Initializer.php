@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet\DB;
 
-use BitWasp\Bitcoin\Chain\ParamsInterface;
-
 class Initializer
 {
-    public function setup(string $fileName, ParamsInterface $params): DB
+    public function setup(string $fileName): DB
     {
         if (file_exists($fileName)) {
             throw new \LogicException("DB filename already exists");
@@ -22,9 +20,6 @@ class Initializer
         $pdo->createTxTable();
         $pdo->createUtxoTable();
 
-        $header = $params->getGenesisBlockHeader();
-        $hash = $header->getHash();
-        $pdo->addHeader(0, $hash, $header, 2);
         return $pdo;
     }
 }

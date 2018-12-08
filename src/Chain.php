@@ -54,21 +54,22 @@ class Chain
 
     public function init(DB $db, ParamsInterface $params)
     {
-        try {
-            $db->getBlockHash(0);
+        $genesisHeader = $params->getGenesisBlockHeader();
+        if (($genesisHash = $db->getBlockHash(0))) {
             $haveGenesis = true;
-        } catch (\RuntimeException $e) {
+            if (!$genesisHeader->getHash()->equals($genesisHash)) {
+                throw new \RuntimeException("Database has different genesis hash!");
+            }
+        } else {
+            $genesisHash = $genesisHeader->getHash();
             $haveGenesis = false;
         }
 
-
         if (!$haveGenesis) {
-            $genesis = $params->getGenesisBlockHeader();
-            $hash = $genesis->getHash();
-            $this->acceptHeaderToIndex($db, 0, $hash, $genesis);
-            $db->setBlockReceived($hash);
-            $bestHeader = $genesis;
-            $bestHeaderHash = $hash;
+            $this->acceptHeaderToIndex($db, 0, $genesisHash, $genesisHeader);
+            $db->setBlockReceived($genesisHash);
+            $bestHeader = $genesisHeader;
+            $bestHeaderHash = $genesisHash;
             $bestBlockHeight = 0;
         } else {
             // todo: this just takes the last received header.
@@ -87,14 +88,52 @@ class Chain
                 $this->hashMapToHeight[$this->heightMapToHash[$height]] = $height;
             }
 
-            // step 1: load (or iterate over) ALL height/hash/headers
+            $this->experimentalInit($db);
         }
 
         $this->bestHeader = $bestHeader;
         $this->bestHeaderHash = $bestHeaderHash;
         $this->bestBlockHeight = $bestBlockHeight;
     }
+    private function experimentalInit(DB $db) {
+        echo "EXPERIMENTAL INIT\n";
+        // step 1: load (or iterate over) ALL height/hash/headers
+        $stmt = $db->getPdo()->prepare("SELECT height, hash, status, version, prevBlock, merkleRoot, nbits, time, nonce FROM header order by height ASC");
+        if (!$stmt->execute()) {
+            throw new \RuntimeException("Failed to load block / header index");
+        }
 
+        // associate height/hash/prevHash
+        // tmpPrev allows us to build up heightMapToHash, ie, bestChain
+        // by linking hash => hashPrev. it contains links from all chains
+        // genesis hash points to \x00 * 32
+        $tmpPrev = [];
+        // candidates maps hash => candidate, we prune this as we
+        // sync
+        $candidates = [];
+        $hashMapToHeight = [];
+        while ($row = $stmt->fetchObject(DbHeader::class)) {
+            /** @var DbHeader $row */
+            $hash = $row->getHash();
+            $height = $row->getHeight();
+            $header = $row->getHeader();
+            $hashMapToHeight[$hash->getBinary()] = $height;
+            $tmpPrev[$hash->getBinary()] = $header->getPrevBlock()->getBinary();
+
+            if ($height === 0) {
+                $candidate = new ChainCandidate();
+                $candidate->work = 0;
+                $candidate->dbHeader = $row;
+                $candidates[$hash->getBinary()] = $candidate;
+            } else {
+                if ($row->getStatus() === DbHeader::HEADER_VALID) {
+
+                }
+            }
+        }
+        print_r($hashMapToHeight);
+        print_r($candidates);
+    }
     public function setStartBlock(BlockRef $blockRef)
     {
         $this->startBlockRef = $blockRef;

@@ -8,6 +8,7 @@ use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Chain\ParamsInterface;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Test\Wallet\TestCase;
+use BitWasp\Wallet\Chain;
 use BitWasp\Wallet\Console\Command\Db\Init;
 use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\Params\RegtestParams;
@@ -87,6 +88,10 @@ class InitTest extends TestCase
         $this->assertContains("Database setup in location: {$this->sessionDbFile}", $output);
 
         $db = new DB("sqlite:{$this->sessionDbFile}");
+
+        $chain = new Chain();
+        $chain->init($db, $params);
+
         $header = $db->getBestHeader();
         $this->assertEquals($params->getGenesisBlockHeader()->getHash()->getHex(), $header->getHash()->getHex());
     }

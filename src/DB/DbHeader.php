@@ -16,6 +16,7 @@ class DbHeader
     private $id;
     private $height;
     private $hash;
+    private $status;
     private $version;
     private $prevBlock;
     private $merkleRoot;
@@ -23,6 +24,10 @@ class DbHeader
     private $time;
     private $nonce;
 
+    public function getStatus(): int
+    {
+        return (int) $this->status;
+    }
     public function getHeight(): int
     {
         return (int) $this->height;

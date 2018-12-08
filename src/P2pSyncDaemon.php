@@ -130,10 +130,6 @@ class P2pSyncDaemon
         if ($headerCount === 0) {
             throw new \RuntimeException("need genesis block");
         }
-        $genesisHash = $this->db->getBlockHash(0);
-        if (!$genesisHash->equals($this->params->getGenesisBlockHeader()->getHash())) {
-            throw new \RuntimeException("parameters and database have different genesis hash");
-        }
         $this->chain->init($this->db, $this->params);
 
         // would normally come from wallet birthday
