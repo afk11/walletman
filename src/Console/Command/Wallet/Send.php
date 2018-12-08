@@ -99,7 +99,7 @@ class Send extends Command
         try {
             $outputs = $this->parseOutputs($input, $addrCreator, $net);
         } catch (\Exception $e) {
-            $output->write("Failed to parse destinations: {$e->getMessage()}", 0, $e);
+            $output->write("Failed to parse destinations: {$e->getMessage()}");
             return -1;
         }
 

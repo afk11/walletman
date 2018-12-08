@@ -46,8 +46,8 @@ class Create extends Command
 
             // key derivation options
             ->addOption('bip44', null, InputOption::VALUE_NONE, "Setup a bip44 wallet account")
-            ->addOption('bip44-account', null, InputOption::VALUE_REQUIRED, "BIP44 'account' value", 0)
-            ->addOption('bip44-cointype', null, InputOption::VALUE_REQUIRED, "BIP44 'cointype' value", 0)
+            ->addOption('bip44-account', null, InputOption::VALUE_REQUIRED, "BIP44 'account' value", '0')
+            ->addOption('bip44-cointype', null, InputOption::VALUE_REQUIRED, "BIP44 'cointype' value", '0')
 
             // settings for bip39 seed generation
             ->addOption('bip39-en', null, InputOption::VALUE_NONE, "Use the english wordlist for BIP39 (default)")
@@ -83,8 +83,11 @@ class Create extends Command
 
     private function parseHardenedBip32Index(InputInterface $input, string $optionName): int
     {
-        $index = $input->getOption($optionName);
-        if (!is_int($index) || $index < 0 || ($index & (1 << 31)) != 0) {
+        if ((string)$input->getOption($optionName) != (string)(int)$input->getOption($optionName)) {
+            throw new \RuntimeException("invalid value for hardened index: $optionName");
+        }
+        $index = (int) $input->getOption($optionName);
+        if ($index < 0 || ($index & (1 << 31)) != 0) {
             throw new \RuntimeException("invalid value for hardened index: $optionName");
         }
         return $index;
@@ -100,7 +103,7 @@ class Create extends Command
             throw new \RuntimeException("Invalid birthday, should be [height],[hash]");
         }
         list ($height, $hash) = explode(",", $input->getOption('birthday'));
-        if ((string)$height !== (string)(int)$height) {
+        if ($height !== (string)(int)$height) {
             throw new \RuntimeException("Invalid height");
         }
         if (!is_string($hash) || strlen($hash) !== 64) {

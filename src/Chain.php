@@ -108,7 +108,7 @@ class Chain
         }
 
         $height = $this->hashMapToHeight[$prevBin] + 1;
-        if ($this->startBlockRef && $this->startBlockRef->getHeight() === $height) {
+        if (null !== $this->startBlockRef && $this->startBlockRef->getHeight() === $height) {
             if (!$hash->equals($this->startBlockRef->getHash())) {
                 throw new \RuntimeException("header {$hash->getHex()}) doesn't match start block {$this->startBlockRef->getHash()->getHex()}");
             }

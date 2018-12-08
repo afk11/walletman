@@ -193,7 +193,7 @@ class DB
         return $hashes;
     }
 
-    public function getHeader(BufferInterface $hash): DbHeader
+    public function getHeader(BufferInterface $hash): ?DbHeader
     {
         if (null === $this->getHeaderStmt) {
             $this->getHeaderStmt = $this->pdo->prepare("SELECT * from header where hash = ?");

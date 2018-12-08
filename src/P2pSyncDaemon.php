@@ -193,7 +193,7 @@ class P2pSyncDaemon
                     $timeLastPing = null;
                     $pingLastNonce = null;
                 });
-                $peer->on(Message::PING, function (Peer $peer, Ping $ping) use (&$timeLastPing) {
+                $peer->on(Message::PING, function (Peer $peer, Ping $ping) {
                     $peer->pong($ping);
                 });
 
