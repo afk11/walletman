@@ -62,6 +62,7 @@ abstract class DbTestCase extends TestCase
         if (file_exists($this->sessionDbFile)) {
             unlink($this->sessionDbFile);
         }
+
         if ($this->regtest) {
             $this->sessionChainParams = new RegtestParams(new Math());
             $this->sessionNetwork = new BitcoinRegtest();

@@ -8,6 +8,7 @@ use BitWasp\Bitcoin\Block\Block;
 use BitWasp\Bitcoin\Block\BlockHeader;
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Bitcoin\Block\BlockInterface;
+use BitWasp\Bitcoin\Chain\ProofOfWork;
 use BitWasp\Bitcoin\Key\PrivateKeyFactory;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Script\Script;
@@ -32,7 +33,8 @@ class ChainTest extends DbTestCase
     {
         $genesisHeaderHashHex = $this->sessionChainParams->getGenesisBlockHeader()->getHash()->getHex();
 
-        $chain = new Chain();
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
         $chain->init($this->sessionDb, $this->sessionChainParams);
         $dbHeader = $chain->getBestHeader();
         $this->assertEquals(
@@ -57,7 +59,23 @@ class ChainTest extends DbTestCase
         $cbOutPoint = new OutPoint(new Buffer('', 32), 0xffffffff);
         $cb1 = new Transaction(1, [new TransactionInput($cbOutPoint, new Script(new Buffer("51")))], [new TransactionOutput(5000000000, $cbScript)]);
         $cb1TxId = $cb1->getTxId();
-        return new Block(new Math(), new BlockHeader(1, $prevHash, $cb1TxId, $prevHeader->getBits(), time(), 0), [$cb1]);
+
+        if (count($otherTxs) > 0) {
+            throw new \RuntimeException("do merkle root");
+        }
+
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        for ($i = 0; $i < 50; $i++) {
+            $b = new Block(new Math(), new BlockHeader(1, $prevHash, $cb1TxId, time(), $prevHeader->getBits(), $i), array_merge([$cb1], $otherTxs));
+            try {
+                $pow->checkHeader($b->getHeader());
+                break;
+            } catch (\Exception $e) {
+                continue;
+            }
+        }
+        $pow->checkHeader($b->getHeader());
+        return $b;
     }
 
     public function testAcceptBlocks()
@@ -65,8 +83,11 @@ class ChainTest extends DbTestCase
         $cbPrivKey = PrivateKeyFactory::create(true);
         $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
 
-        $chain = new Chain();
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
         $chain->init($this->sessionDb, $this->sessionChainParams);
+
+        $pow->checkHeader($chain->getBestHeader());
 
         $this->assertEquals(0, $chain->getBestHeaderHeight());
         $this->assertEquals(0, $chain->getBestBlockHeight());
@@ -97,7 +118,8 @@ class ChainTest extends DbTestCase
         $cbPrivKey = PrivateKeyFactory::create(true);
         $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
 
-        $chain = new Chain();
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
         $chain->init($this->sessionDb, $this->sessionChainParams);
 
         // Add block 1
@@ -111,10 +133,71 @@ class ChainTest extends DbTestCase
         $this->assertEquals(1, $chain->getBestBlockHeight());
 
         // Reload and ensure it's the same
-        $chain = new Chain();
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
         $chain->init($this->sessionDb, $this->sessionChainParams);
         $this->assertEquals(1, $chain->getBestHeaderHeight());
         $this->assertEquals($block1Hash->getHex(), $chain->getBestHeaderHash()->getHex());
         $this->assertEquals(1, $chain->getBestBlockHeight());
+    }
+
+    public function testChainInitDeterminesWork()
+    {
+        echo PHP_EOL;
+        $cbPrivKey = PrivateKeyFactory::create(true);
+        $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
+        $cbPrivKey2 = PrivateKeyFactory::create(true);
+        $cbScript2 = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey2->getPubKeyHash());
+
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+
+        $genesis = $chain->getBestHeader();
+        // Add header 1a
+        echo "header1a\n";
+        $block1a = $this->makeBlock($genesis, $cbScript);
+        $block1aHash = $block1a->getHeader()->getHash();
+        $chain->acceptHeader($this->sessionDb, $block1aHash, $block1a->getHeader());
+        $this->assertEquals(1, $chain->getBestHeaderHeight());
+
+        // Add header 2a
+        echo "header2ba\n";
+        $block2a = $this->makeBlock($block1a->getHeader(), $cbScript);
+        $block2aHash = $block2a->getHeader()->getHash();
+        $chain->acceptHeader($this->sessionDb, $block2aHash, $block2a->getHeader());
+        $this->assertEquals(2, $chain->getBestHeaderHeight());
+
+        // Add header 1b
+        echo "header1b\n";
+        $block1b = $this->makeBlock($genesis, $cbScript2);
+        $block1bHash = $block1b->getHeader()->getHash();
+        $chain->acceptHeader($this->sessionDb, $block1bHash, $block1b->getHeader());
+
+        // Add header 2b
+        echo "header2b\n";
+        $block2b = $this->makeBlock($block1b->getHeader(), $cbScript2);
+        $block2bHash = $block2b->getHeader()->getHash();
+        $chain->acceptHeader($this->sessionDb, $block2bHash, $block2b->getHeader());
+
+        // Add header 3b
+        echo "header3b\n";
+        $block3b = $this->makeBlock($block2b->getHeader(), $cbScript2);
+        $block3bHash = $block3b->getHeader()->getHash();
+        $chain->acceptHeader($this->sessionDb, $block3bHash, $block3b->getHeader());
+
+        // Reload and ensure it picked 3b
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+
+        try {
+            $chain->init($this->sessionDb, $this->sessionChainParams);
+            $this->assertEquals(3, $chain->getBestHeaderHeight());
+            $this->assertEquals($block3bHash->getHex(), $chain->getBestHeaderHash()->getHex());
+        } catch (\Exception $e) {
+            echo $e->getMessage().PHP_EOL;
+            echo $e->getTraceAsString().PHP_EOL;
+            die();
+        }
     }
 }

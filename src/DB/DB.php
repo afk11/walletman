@@ -154,6 +154,7 @@ class DB
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `status`	INTEGER,
             `height`	INTEGER,
+            `work`	TEXT NOT NULL,
             `hash`	TEXT UNIQUE,
             `version`	INTEGER,
             `prevBlock`	TEXT,
@@ -248,15 +249,16 @@ class DB
         ]);
     }
 
-    public function addHeader(int $height, BufferInterface $hash, BlockHeaderInterface $header, int $status): bool
+    public function addHeader(int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header, int $status): bool
     {
         if (null === $this->addHeaderStmt) {
-            $this->addHeaderStmt = $this->pdo->prepare("INSERT INTO header (height, hash, status, version, prevBlock, merkleRoot, time, nbits, nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $this->addHeaderStmt = $this->pdo->prepare("INSERT INTO header (height, hash, status, version, prevBlock, merkleRoot, time, nbits, nonce, work) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         }
         if (!$this->addHeaderStmt->execute([
             $height, $hash->getHex(), $status, $header->getVersion(),
             $header->getPrevBlock()->getHex(), $header->getMerkleRoot()->getHex(),
             $header->getTimestamp(), $header->getBits(), $header->getNonce(),
+            gmp_strval($work, 10),
         ])) {
             throw new \RuntimeException("failed to insert header");
         }

@@ -15,6 +15,7 @@ class DbHeader
     const BLOCK_VALID = 2;
     private $id;
     private $height;
+    private $work;
     private $hash;
     private $status;
     private $version;
@@ -27,6 +28,10 @@ class DbHeader
     public function getStatus(): int
     {
         return (int) $this->status;
+    }
+    public function getWork(): string
+    {
+        return (string) $this->work;
     }
     public function getHeight(): int
     {

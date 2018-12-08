@@ -6,6 +6,7 @@ namespace BitWasp\Test\Wallet\Console\Command\Db;
 
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Chain\ParamsInterface;
+use BitWasp\Bitcoin\Chain\ProofOfWork;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Test\Wallet\TestCase;
 use BitWasp\Wallet\Chain;
@@ -89,7 +90,8 @@ class InitTest extends TestCase
 
         $db = new DB("sqlite:{$this->sessionDbFile}");
 
-        $chain = new Chain();
+        $pow = new ProofOfWork(new Math(), $params);
+        $chain = new Chain($pow);
         $chain->init($db, $params);
 
         $header = $db->getBestHeader();

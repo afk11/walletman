@@ -103,6 +103,7 @@ class P2pSyncDaemon
         $this->network = $network;
         $this->params = $params;
         $this->random = $random;
+        $this->chain = $chain;
     }
 
     private function resetBlockStats()
@@ -126,14 +127,11 @@ class P2pSyncDaemon
             }
         }
 
-        $headerCount = $this->db->getHeaderCount();
-        if ($headerCount === 0) {
-            throw new \RuntimeException("need genesis block");
-        }
         $this->chain->init($this->db, $this->params);
 
         // would normally come from wallet birthday
         $this->initialized = true;
+        echo "DONE!\n";
     }
 
     public function sync(LoopInterface $loop)
@@ -218,11 +216,11 @@ class P2pSyncDaemon
                 }
 
                 if (count($headers->getHeaders()) === 2000) {
-                    echo "requestHeaders from height {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
+                    echo "requestHeaders starting at {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
                     $peer->getheaders(new BlockLocator([$lastHeader->getHash()], new Buffer('', 32)));
                 }
 
-                echo "new header tip {$this->chain->getBestHeaderHeight()} {$lastHeader->getHash()->getHex()}\n";
+                echo "processHeaders now at {$this->chain->getBestHeaderHeight()} {$lastHeader->getHash()->getHex()}\n";
             }
 
             if (count($headers->getHeaders()) < 2000) {

@@ -6,6 +6,7 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Chain\Params;
+use BitWasp\Bitcoin\Chain\ProofOfWork;
 use BitWasp\Bitcoin\Crypto\Random\Random;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkFactory;
@@ -69,7 +70,8 @@ class SyncWallet extends Command
         }
 
         $db = $dbMgr->loadDb($path);
-        $chain = new Chain();
+        $pow = new ProofOfWork(new Math(), $params);
+        $chain = new Chain($pow);
         $daemon = new P2pSyncDaemon($ip, $port, $ecAdapter, $net, $params, $db, $random, $chain);
         $daemon->init();
         $daemon->sync($loop);
