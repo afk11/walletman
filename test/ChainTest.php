@@ -22,8 +22,6 @@ use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\Chain;
-use BitWasp\Wallet\DB\DbHeader;
-use Mdanter\Ecc\Math\GmpMath;
 
 class ChainTest extends DbTestCase
 {
@@ -143,7 +141,6 @@ class ChainTest extends DbTestCase
 
     public function testChainInitDeterminesWork()
     {
-        echo PHP_EOL;
         $cbPrivKey = PrivateKeyFactory::create(true);
         $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
         $cbPrivKey2 = PrivateKeyFactory::create(true);
@@ -155,36 +152,33 @@ class ChainTest extends DbTestCase
 
         $genesis = $chain->getBestHeader();
         // Add header 1a
-        echo "header1a\n";
         $block1a = $this->makeBlock($genesis, $cbScript);
         $block1aHash = $block1a->getHeader()->getHash();
         $chain->acceptHeader($this->sessionDb, $block1aHash, $block1a->getHeader());
         $this->assertEquals(1, $chain->getBestHeaderHeight());
 
         // Add header 2a
-        echo "header2ba\n";
         $block2a = $this->makeBlock($block1a->getHeader(), $cbScript);
         $block2aHash = $block2a->getHeader()->getHash();
         $chain->acceptHeader($this->sessionDb, $block2aHash, $block2a->getHeader());
         $this->assertEquals(2, $chain->getBestHeaderHeight());
 
         // Add header 1b
-        echo "header1b\n";
         $block1b = $this->makeBlock($genesis, $cbScript2);
         $block1bHash = $block1b->getHeader()->getHash();
         $chain->acceptHeader($this->sessionDb, $block1bHash, $block1b->getHeader());
 
         // Add header 2b
-        echo "header2b\n";
         $block2b = $this->makeBlock($block1b->getHeader(), $cbScript2);
         $block2bHash = $block2b->getHeader()->getHash();
         $chain->acceptHeader($this->sessionDb, $block2bHash, $block2b->getHeader());
 
         // Add header 3b
-        echo "header3b\n";
         $block3b = $this->makeBlock($block2b->getHeader(), $cbScript2);
         $block3bHash = $block3b->getHeader()->getHash();
         $chain->acceptHeader($this->sessionDb, $block3bHash, $block3b->getHeader());
+
+        // todo: should write a separate test that reorgs happen without restart - right now they don't.
 
         // Reload and ensure it picked 3b
         $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
