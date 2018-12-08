@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
+use BitWasp\Bitcoin\Block\BlockInterface;
+use BitWasp\Bitcoin\Chain\ParamsInterface;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DB;
@@ -14,10 +16,6 @@ class Chain
 {
     // Blocks
 
-    /**
-     * @var int
-     */
-    private $bestBlockHeight;
 
     /**
      * @var BlockRef
@@ -37,27 +35,64 @@ class Chain
     private $bestHeaderHash;
 
     /**
+     * Initialized in init
+     * @var int
+     */
+    private $bestBlockHeight;
+
+    /**
+     * allows for tracking more than one chain
      * @var array - maps hashes to height
      */
     private $hashMapToHeight = [];
 
     /**
+     * locked to a single chain
      * @var array - maps height to hash
      */
     private $heightMapToHash = [];
 
-    public function __construct(array $tailHashes, BlockHeaderInterface $bestHeader, int $bestBlockHeight)
+    public function init(DB $db, ParamsInterface $params)
     {
-        $this->bestHeader = $bestHeader;
-        $this->bestHeaderHash = $bestHeader->getHash();
-        $this->bestBlockHeight = $bestBlockHeight;
-
-        $numHashes = count($tailHashes);
-        $this->heightMapToHash = $tailHashes;
-        $this->heightMapToHash[] = $this->bestHeaderHash->getBinary();
-        for ($height = 0; $height <= $numHashes; $height++) {
-            $this->hashMapToHeight[$this->heightMapToHash[$height]] = $height;
+        try {
+            $db->getBlockHash(0);
+            $haveGenesis = true;
+        } catch (\RuntimeException $e) {
+            $haveGenesis = false;
         }
+
+
+        if (!$haveGenesis) {
+            $genesis = $params->getGenesisBlockHeader();
+            $hash = $genesis->getHash();
+            $this->acceptHeaderToIndex($db, 0, $hash, $genesis);
+            $db->setBlockReceived($hash);
+            $bestHeader = $genesis;
+            $bestHeaderHash = $hash;
+            $bestBlockHeight = 0;
+        } else {
+            // todo: this just takes the last received header.
+            // need to solve for this instead
+            $bestIndex = $db->getBestHeader();
+            // EOB
+            $bestHeader = $bestIndex->getHeader();
+            $bestHeaderHash = $bestIndex->getHash();
+            $bestBlockHeight = $db->getBestBlockHeight();
+
+            $tailHashes = $db->getTailHashes($bestIndex->getHeight());
+            $numHashes = count($tailHashes);
+            $this->heightMapToHash = $tailHashes;
+            $this->heightMapToHash[] = $bestHeaderHash->getBinary();
+            for ($height = 0; $height <= $numHashes; $height++) {
+                $this->hashMapToHeight[$this->heightMapToHash[$height]] = $height;
+            }
+
+            // step 1: load (or iterate over) ALL height/hash/headers
+        }
+
+        $this->bestHeader = $bestHeader;
+        $this->bestHeaderHash = $bestHeaderHash;
+        $this->bestBlockHeight = $bestBlockHeight;
     }
 
     public function setStartBlock(BlockRef $blockRef)
@@ -114,17 +149,16 @@ class Chain
             }
         }
 
-        $db->addHeader($height, $hash, $header, 1);
-        $headerIndex = $db->getHeader($hash);
+        $headerIndex = $this->acceptHeaderToIndex($db, $height, $hash, $header);
 
-        $this->bestHeader = $header;
+        // todo: shouldn't really be here, need to verify with respect to chain
         $this->bestHeaderHash = $hash;
-        $this->hashMapToHeight[$hash->getBinary()] = $height;
-        $this->heightMapToHash[$height] = $hash->getBinary();
+        $this->bestHeader = $header;
+
         return true;
     }
 
-    public function addNextBlock(DB $db, int $height, BufferInterface $hash, $block)
+    public function addNextBlock(DB $db, int $height, BufferInterface $hash, BlockInterface $block)
     {
         if ($height !== 1 + $this->bestBlockHeight) {
             throw new \RuntimeException("height $height != 1 + {$this->bestBlockHeight}");
@@ -135,8 +169,24 @@ class Chain
         if ($this->hashMapToHeight[$hash->getBinary()] !== $height) {
             throw new \RuntimeException("height for hash {$this->hashMapToHeight[$hash->getBinary()]} != input $height");
         }
+
         $this->bestBlockHeight = $height;
 
         $db->setBlockReceived($hash);
+    }
+
+    private function acceptHeaderToIndex(DB $db, int $height, BufferInterface $hash, BlockHeaderInterface $header): DbHeader
+    {
+        $db->addHeader($height, $hash, $header, DbHeader::HEADER_VALID);
+        $headerIndex = $db->getHeader($hash);
+
+        $this->hashMapToHeight[$hash->getBinary()] = $height;
+        $this->heightMapToHash[$height] = $hash->getBinary();
+
+        return $headerIndex;
+    }
+
+    public function processBlock(DB $db, int $height, BufferInterface $hash, BlockInterface $block)
+    {
     }
 }

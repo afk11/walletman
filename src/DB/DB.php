@@ -243,6 +243,7 @@ class DB
             $height,
         ]);
     }
+
     public function addHeader(int $height, BufferInterface $hash, BlockHeaderInterface $header, int $status): bool
     {
         if (null === $this->addHeaderStmt) {
@@ -261,15 +262,16 @@ class DB
     public function setBlockReceived(BufferInterface $hash): bool
     {
         if (null === $this->setBlockReceivedStmt) {
-            $this->setBlockReceivedStmt = $this->pdo->prepare("UPDATE header set status = 2 where hash = ?");
+            $this->setBlockReceivedStmt = $this->pdo->prepare("UPDATE header set status = ? where hash = ?");
         }
         if (!$this->setBlockReceivedStmt->execute([
-            $hash->getHex(),
+            DbHeader::BLOCK_VALID, $hash->getHex(),
         ])) {
             throw new \RuntimeException("failed to insert header");
         }
         return true;
     }
+
     /**
      * @return DbWallet[]
      */

@@ -11,6 +11,8 @@ use BitWasp\Buffertools\BufferInterface;
 
 class DbHeader
 {
+    const HEADER_VALID = 1;
+    const BLOCK_VALID = 2;
     private $id;
     private $height;
     private $hash;

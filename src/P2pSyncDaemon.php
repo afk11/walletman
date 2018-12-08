@@ -94,7 +94,7 @@ class P2pSyncDaemon
      */
     private $wallets = [];
 
-    public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DB $db, Random $random)
+    public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DB $db, Random $random, Chain $chain)
     {
         $this->host = $host;
         $this->port = $port;
@@ -134,12 +134,7 @@ class P2pSyncDaemon
         if (!$genesisHash->equals($this->params->getGenesisBlockHeader()->getHash())) {
             throw new \RuntimeException("parameters and database have different genesis hash");
         }
-        $bestHeader = $this->db->getBestHeader();
-        if ($bestHeader->getHeight() > 0) {
-            $this->chain = new Chain($this->db->getTailHashes($bestHeader->getHeight()), $bestHeader->getHeader(), $this->db->getBestBlockHeight());
-        } else {
-            $this->chain = new Chain([], $bestHeader->getHeader(), 0);
-        }
+        $this->chain->init($this->db, $this->params);
 
         // would normally come from wallet birthday
         $this->initialized = true;
