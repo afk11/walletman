@@ -49,7 +49,7 @@ class BlockProcessor
             $outPoint = $ins[$iIn]->getOutPoint();
             $inputTxId = $outPoint->getTxId()->getBinary();
             if (array_key_exists($inputTxId, $this->txMap)) {
-                $this->txMap[$inputTxId]->spendOutput((int) $outPoint->getVout(), new OutPoint($txid, $iIn));
+                $this->txMap[$inputTxId]->spendOutput($outPoint->getVout(), new OutPoint($txid, $iIn));
             }
         }
 

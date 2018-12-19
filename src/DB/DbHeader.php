@@ -44,12 +44,12 @@ class DbHeader
     public function getHeader(): BlockHeaderInterface
     {
         return new BlockHeader(
-            $this->version,
+            (int) $this->version,
             Buffer::hex($this->prevBlock),
             Buffer::hex($this->merkleRoot),
-            $this->time,
-            $this->nbits,
-            $this->nonce
+            (int) $this->time,
+            (int) $this->nbits,
+            (int) $this->nonce
         );
     }
 }

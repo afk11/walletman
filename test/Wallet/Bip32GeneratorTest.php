@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace BitWasp\Test\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
-use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\Wallet\Bip32Generator;
@@ -16,7 +16,8 @@ class Bip32GeneratorTest extends DbTestCase
     public function testBip32Generator()
     {
         $ecAdapter = Bitcoin::getEcAdapter();
-        $rootKey = HierarchicalKeyFactory::fromEntropy(new Buffer("", 32), $ecAdapter);
+        $hdFactory = new HierarchicalKeyFactory();
+        $rootKey = $hdFactory->fromEntropy(new Buffer("", 32));
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
 
         $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", null);

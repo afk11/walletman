@@ -47,12 +47,12 @@ class Factory
         }
 
         $seq = new HierarchicalKeySequence();
-        $path = $seq->decodePath($accountPath);
+        $path = $seq->decodeAbsolute($accountPath)[1];
         if (count($path) + 1 !== count($chunks)) {
             throw new \RuntimeException("invalid path");
         }
 
-        $accountNode = $rootKey->derivePath($accountPath)->withoutPrivateKey();
+        $accountNode = $rootKey->derivePath(substr($accountPath, 2))->withoutPrivateKey();
         return $this->createBip44WalletFromAccountKey($identifier, $accountNode, $accountPath, $birthday);
     }
 

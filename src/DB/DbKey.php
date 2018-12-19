@@ -4,7 +4,7 @@ namespace BitWasp\Wallet\DB;
 
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
-use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 
 class DbKey
@@ -80,7 +80,8 @@ class DbKey
 
     public function getHierarchicalKey(NetworkInterface $network, EcAdapterInterface $ecAdapter): HierarchicalKey
     {
-        return HierarchicalKeyFactory::fromExtended($this->key, $network);
+        $factory = new HierarchicalKeyFactory($ecAdapter);
+        return $factory->fromExtended($this->key, $network);
     }
 
     public function isLeaf(): bool

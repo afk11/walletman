@@ -11,7 +11,7 @@
     },
     "require": {
         "php": ">7.2",
-        "bitwasp/bitcoin-p2p": "^0.0.19",
+        "bitwasp/bitcoin-p2p": "^1.0.0",
         "symfony/console": "^4.0.0"
     },
     "require-dev": {

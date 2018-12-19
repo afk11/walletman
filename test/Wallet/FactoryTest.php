@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace BitWasp\Test\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
-use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\BlockRef;
@@ -22,7 +22,8 @@ class FactoryTest extends DbTestCase
         $random = new Buffer("", 32);
         $ecAdapter = Bitcoin::getEcAdapter();
         $identifier = "wallet-identifier";
-        $rootKey = HierarchicalKeyFactory::fromEntropy($random, $ecAdapter);
+        $hdFactory = new HierarchicalKeyFactory($ecAdapter);
+        $rootKey = $hdFactory->fromEntropy($random);
         $path = "M/44'/0'/0'";
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
 
@@ -38,8 +39,9 @@ class FactoryTest extends DbTestCase
         $random = new Buffer("", 32);
         $ecAdapter = Bitcoin::getEcAdapter();
         $identifier = "wallet-identifier";
-        $rootKey = HierarchicalKeyFactory::fromEntropy($random, $ecAdapter);
-        $path = "M/44'/0'/0'";
+        $hdFactory = new HierarchicalKeyFactory($ecAdapter);
+        $rootKey = $hdFactory->fromEntropy($random);
+        $path = "44'/0'/0'";
         $accountKey = $rootKey->derivePath($path)->withoutPrivateKey();
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
 
@@ -55,7 +57,8 @@ class FactoryTest extends DbTestCase
         $random = new Buffer("", 32);
         $ecAdapter = Bitcoin::getEcAdapter();
         $identifier = "wallet-identifier";
-        $rootKey = HierarchicalKeyFactory::fromEntropy($random, $ecAdapter);
+        $hdFactory = new HierarchicalKeyFactory($ecAdapter);
+        $rootKey = $hdFactory->fromEntropy($random);
         $path = "M/44'/0'/0'";
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
         $birthday = new BlockRef(0, Buffer::hex("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206", 32));

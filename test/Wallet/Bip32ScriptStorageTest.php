@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace BitWasp\Test\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
-use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Script\Script;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
@@ -20,7 +20,8 @@ class Bip32ScriptStorageTest extends DbTestCase
     public function testDerivesGapLimitAfterLastUsedAddress()
     {
         $ecAdapter = Bitcoin::getEcAdapter();
-        $rootKey = HierarchicalKeyFactory::fromEntropy(new Buffer("", 32), $ecAdapter);
+        $hdFactory = new HierarchicalKeyFactory($ecAdapter);
+        $rootKey = $hdFactory->fromEntropy(new Buffer("", 32));
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
 
         /** @var Bip44Wallet $wallet */

@@ -9,7 +9,8 @@ use BitWasp\Bitcoin\Block\BlockHeader;
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Chain\ProofOfWork;
-use BitWasp\Bitcoin\Key\PrivateKeyFactory;
+use BitWasp\Bitcoin\Crypto\Random\Random;
+use BitWasp\Bitcoin\Key\Factory\PrivateKeyFactory;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Script\Script;
 use BitWasp\Bitcoin\Script\ScriptFactory;
@@ -64,7 +65,7 @@ class ChainTest extends DbTestCase
 
         $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
         for ($i = 0; $i < 50; $i++) {
-            $b = new Block(new Math(), new BlockHeader(1, $prevHash, $cb1TxId, time(), $prevHeader->getBits(), $i), array_merge([$cb1], $otherTxs));
+            $b = new Block(new Math(), new BlockHeader(1, $prevHash, $cb1TxId, time(), $prevHeader->getBits(), $i), ...array_merge([$cb1], $otherTxs));
             try {
                 $pow->checkHeader($b->getHeader());
                 break;
@@ -78,7 +79,9 @@ class ChainTest extends DbTestCase
 
     public function testAcceptBlocks()
     {
-        $cbPrivKey = PrivateKeyFactory::create(true);
+        $random = new Random();
+        $privKeyFactory = new PrivateKeyFactory();
+        $cbPrivKey = $privKeyFactory->generateCompressed($random);
         $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
 
         $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
@@ -111,7 +114,9 @@ class ChainTest extends DbTestCase
 
     public function testChainCanReloadState()
     {
-        $cbPrivKey = PrivateKeyFactory::create(true);
+        $random = new Random();
+        $privKeyFactory = new PrivateKeyFactory();
+        $cbPrivKey = $privKeyFactory->generateCompressed($random);
         $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
 
         $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
@@ -139,9 +144,11 @@ class ChainTest extends DbTestCase
 
     public function testChainInitDeterminesWork()
     {
-        $cbPrivKey = PrivateKeyFactory::create(true);
+        $random = new Random();
+        $privKeyFactory = new PrivateKeyFactory();
+        $cbPrivKey = $privKeyFactory->generateCompressed($random);
         $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
-        $cbPrivKey2 = PrivateKeyFactory::create(true);
+        $cbPrivKey2 = $privKeyFactory->generateCompressed($random);
         $cbScript2 = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey2->getPubKeyHash());
 
         $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
