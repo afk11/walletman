@@ -9,6 +9,7 @@ use BitWasp\Bitcoin\Chain\BlockLocator;
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Crypto\Random\Random;
+use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Networking\Factory;
 use BitWasp\Bitcoin\Networking\Ip\Ipv4;
@@ -19,6 +20,9 @@ use BitWasp\Bitcoin\Networking\Messages\Pong;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
 use BitWasp\Bitcoin\Networking\Structure\Inventory;
+use BitWasp\Bitcoin\Serializer\Block\BlockHeaderSerializer;
+use BitWasp\Bitcoin\Serializer\Block\BlockSerializer;
+use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DB;
@@ -57,10 +61,13 @@ class P2pSyncDaemon
      * @var DB
      */
     private $db;
+
     /**
      * @var Params
      */
     private $params;
+    private $headerSerializer;
+    private $blockSerializer;
 
     /**
      * @var bool
@@ -104,6 +111,9 @@ class P2pSyncDaemon
         $this->params = $params;
         $this->random = $random;
         $this->chain = $chain;
+        $this->headerSerializer = new BlockHeaderSerializer();
+        $txSerializer = new TransactionSerializer();
+        $this->blockSerializer = new BlockSerializer(new Math(), $this->headerSerializer, $txSerializer);
     }
 
     private function resetBlockStats()
@@ -200,7 +210,8 @@ class P2pSyncDaemon
                 try {
                     /** @var DbHeader $lastHeader */
                     $lastHeader = null;
-                    foreach ($headers->getHeaders() as $i => $header) {
+                    foreach ($headers->getHeaders() as $i => $headerData) {
+                        $header = $this->headerSerializer->parse($headerData);
                         if ($lastHeader !== null && !$lastHeader->getHash()->equals($header->getPrevBlock())) {
                             throw new \RuntimeException("non continuous headers message");
                         }
@@ -250,7 +261,7 @@ class P2pSyncDaemon
      */
     public function receiveBlock(Peer $peer, \BitWasp\Bitcoin\Networking\Messages\Block $blockMsg)
     {
-        $block = $blockMsg->getBlock();
+        $block = $this->blockSerializer->parse($blockMsg->getBlock());
         $hash = $block->getHeader()->getHash();
         //echo "receiveBlock {$hash->getHex()}\n";
 
