@@ -13,7 +13,7 @@ abstract class Command extends \Symfony\Component\Console\Command\Command
 {
     protected function getStringArgument(InputInterface $input, string $argument): string
     {
-        return $input->getArgument($argument);
+        return (string) $input->getArgument($argument);
     }
 
     protected function promptForPassphrase(InputInterface $input, OutputInterface $output): string

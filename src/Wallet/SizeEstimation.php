@@ -185,9 +185,9 @@ class SizeEstimation
         assert($witnessScript === null || $isWitness);
         $classifier = new OutputClassifier();
         if ($classifier->isMultisig($script)) {
-            list ($stackSizes, ) = SizeEstimation::estimateMultisigStackSize(new Multisig($script));
+            list ($stackSizes, ) = SizeEstimation::estimateMultisigStackSize(Multisig::fromScript($script));
         } else if ($classifier->isPayToPublicKey($script)) {
-            list ($stackSizes, ) = SizeEstimation::estimateP2PKStackSize(new PayToPubKey($script));
+            list ($stackSizes, ) = SizeEstimation::estimateP2PKStackSize(PayToPubKey::fromScript($script));
         } else if ($classifier->isPayToPublicKeyHash($script)) {
             // defaults to compressed, tough luck
             list ($stackSizes, ) = SizeEstimation::estimateP2PKHStackSize();
