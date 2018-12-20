@@ -70,7 +70,8 @@ class Chain
     public function init(DB $db, ParamsInterface $params)
     {
         $genesisHeader = $params->getGenesisBlockHeader();
-        if (($genesisHash = $db->getBlockHash(0))) {
+        $genesisHash = $db->getBlockHash(0);
+        if ($genesisHash instanceof BufferInterface) {
             $haveGenesis = true;
             if (!$genesisHeader->getHash()->equals($genesisHash)) {
                 throw new \RuntimeException("Database has different genesis hash!");
