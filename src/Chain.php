@@ -48,7 +48,7 @@ class Chain
 
     /**
      * allows for tracking more than one chain
-     * @var array - maps hashes to height
+     * @var int[] - maps hashes to height
      */
     private $hashMapToHeight = [];
 
