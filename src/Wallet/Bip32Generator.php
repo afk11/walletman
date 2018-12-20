@@ -63,6 +63,8 @@ class Bip32Generator implements ScriptGenerator
         }
 
         $loadKeyPath = $this->dbKey->getPath() . "/$currentIndex";
-        return $this->db->loadScriptByKeyId($this->dbKey->getWalletId(), $loadKeyPath);
+        /** @var DbScript $script */
+        $script = $this->db->loadScriptByKeyId($this->dbKey->getWalletId(), $loadKeyPath);
+        return $script;
     }
 }

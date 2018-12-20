@@ -121,8 +121,7 @@ class Bip44Wallet extends Wallet
         if (null === $this->accountPrivateKey) {
             throw new \RuntimeException("private key not available");
         }
-        $end = array_slice(explode("/", $path), 4);
-        return $this->accountPrivateKey->deriveFromList($end)->getPrivateKey();
+        return $this->accountPrivateKey->derivePath(implode("/", array_slice(explode("/", $path), 4)))->getPrivateKey();
     }
 
     /**
