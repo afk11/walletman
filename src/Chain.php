@@ -34,8 +34,9 @@ class Chain
      * @var BufferInterface
      */
     private $bestHeaderHash;
+
     /**
-     * @var BufferInterface
+     * @var \GMP
      */
     private $bestHeaderWork;
 
