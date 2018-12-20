@@ -291,6 +291,7 @@ class Chain
     private function acceptHeaderToIndex(DB $db, int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header): DbHeader
     {
         $db->addHeader($height, $work, $hash, $header, DbHeader::HEADER_VALID);
+        /** @var DbHeader $headerIndex */
         $headerIndex = $db->getHeader($hash);
 
         $this->hashMapToHeight[$hash->getBinary()] = $height;
