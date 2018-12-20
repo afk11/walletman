@@ -7,17 +7,20 @@ use BitWasp\Wallet\DB\DbHeader;
 class ChainCandidate
 {
     /**
-     * @var int|string
+     * @var \GMP
      */
     public $work;
+
     /**
      * @var int
      */
     public $status;
+
     /**
      * @var int
      */
     public $bestBlockHeight;
+
     /**
      * @var DbHeader
      */
