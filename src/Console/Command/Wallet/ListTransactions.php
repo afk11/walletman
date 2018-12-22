@@ -40,6 +40,8 @@ class ListTransactions extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $identifier = $this->getStringArgument($input, "identifier");
+
         $ec = Bitcoin::getEcAdapter();
         $dbMgr = new DbManager();
         $db = $dbMgr->loadDb($this->getStringArgument($input, "database"));
@@ -53,7 +55,7 @@ class ListTransactions extends Command
         }
 
         $factory = new Factory($db, $net, $ec);
-        $wallet = $factory->loadWallet($input->getArgument("identifier"));
+        $wallet = $factory->loadWallet($identifier);
         $stmt = $db->getTransactions($wallet->getDbWallet()->getId());
         while ($row = $stmt->fetchObject(DbWalletTx::class)) {
             /** @var DbWalletTx $row */

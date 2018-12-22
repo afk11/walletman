@@ -40,7 +40,7 @@ class GetBalance extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $database = $this->getStringArgument($input, "database");
-        $identifier = $input->getArgument('identifier');
+        $identifier = $this->getStringArgument($input, "identifier");
         $fIsRegtest =  $input->getOption('regtest');
         $fIsTestnet = $input->getOption('testnet');
 
