@@ -11,9 +11,22 @@ use Symfony\Component\Console\Question\Question;
 
 abstract class Command extends \Symfony\Component\Console\Command\Command
 {
-    protected function getStringArgument(InputInterface $input, string $argument): string
+    protected function getStringArgument(InputInterface $input, string $argumentName): string
     {
-        return (string) $input->getArgument($argument);
+        $value = $input->getArgument($argumentName);
+        if (!is_string($value)) {
+            throw new \RuntimeException("Invalid argument value for {$argumentName}");
+        }
+        return $value;
+    }
+
+    protected function getStringOption(InputInterface $input, string $optionName): string
+    {
+        $value = $input->getOption($optionName);
+        if (!is_string($value)) {
+            throw new \RuntimeException("Invalid option value for {$optionName}");
+        }
+        return $value;
     }
 
     protected function promptForPassphrase(InputInterface $input, OutputInterface $output): string

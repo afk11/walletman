@@ -168,7 +168,7 @@ class Bip44Wallet extends Wallet
                 $markSegwit = true;
             }
 
-            $inputFee = (int) ceil(($inputWeight + 3) / 4) * $feeRate;
+            $inputFee = (int) (ceil(($inputWeight + 3) / 4) * $feeRate);
             if ($inputFee * 3 > $dbUtxo->getValue()) {
                 continue;
             }
@@ -184,10 +184,10 @@ class Bip44Wallet extends Wallet
         $totalVsize = (int)ceil(($txWeight+$changeOutputWeight + 3) / 4);
         $change = $totalIn - $totalOut - ($totalVsize * $feeRate);
         $changeOutputFee = (int)ceil(($changeOutputWeight + 3) / 4) * $feeRate;
-
         if ($change > $changeOutputFee/3) {
-            $txOuts[] = new TransactionOutput($change, $changeScript->getScriptPubKey());
+            $txOuts[] = new TransactionOutput((int) $change, $changeScript->getScriptPubKey());
         }
+
         if (!shuffle($utxos)) {
             throw new \RuntimeException("utxos shuffle failed");
         }

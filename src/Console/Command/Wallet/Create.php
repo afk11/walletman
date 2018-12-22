@@ -7,7 +7,7 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 use BitWasp\Bitcoin\Address\AddressCreator;
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Crypto\Random\Random;
-use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39WordListInterface;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Wordlist\EnglishWordList;
@@ -83,10 +83,14 @@ class Create extends Command
 
     private function parseHardenedBip32Index(InputInterface $input, string $optionName): int
     {
-        if ((string)$input->getOption($optionName) != (string)(int)$input->getOption($optionName)) {
+        $indexValue = $input->getOption($optionName);
+        if (!is_string($indexValue)) {
+            throw new \RuntimeException("Invalid value provided for {$optionName}");
+        }
+        if ($indexValue != (string)(int)$indexValue) {
             throw new \RuntimeException("invalid value for hardened index: $optionName");
         }
-        $index = (int) $input->getOption($optionName);
+        $index = (int) $indexValue;
         if ($index < 0 || ($index & (1 << 31)) != 0) {
             throw new \RuntimeException("invalid value for hardened index: $optionName");
         }
@@ -95,20 +99,24 @@ class Create extends Command
 
     private function parseBirthday(InputInterface $input): ?BlockRef
     {
-        if (!is_string($input->getOption('birthday'))) {
+        $birthdayValue = $input->getOption('birthday');
+        if (!is_string($birthdayValue)) {
             return null;
         }
 
-        if (substr_count($input->getOption('birthday'), ",") !== 1) {
+        if (substr_count($birthdayValue, ",") !== 1) {
             throw new \RuntimeException("Invalid birthday, should be [height],[hash]");
         }
-        list ($height, $hash) = explode(",", $input->getOption('birthday'));
+
+        list ($height, $hash) = explode(",", $birthdayValue);
         if ($height !== (string)(int)$height) {
             throw new \RuntimeException("Invalid height");
         }
+
         if (!is_string($hash) || strlen($hash) !== 64) {
             throw new \RuntimeException("Invalid hash for birthday");
         }
+
         return new BlockRef((int) $height, Buffer::hex($hash, 32));
     }
 
@@ -118,6 +126,7 @@ class Create extends Command
         $identifier = $this->getStringArgument($input, 'identifier');
         $fIsRegtest = $input->getOption('regtest');
         $fIsTestnet = $input->getOption('testnet');
+        $fUseBip44 = $input->getOption('bip44');
         $fBip39Pass = $input->getOption('bip39-passphrase');
         $wordlist = $this->getBip39Wordlist($input);
         $birthday = $this->parseBirthday($input);
@@ -148,9 +157,10 @@ class Create extends Command
         }
 
         $seed = $seedGenerator->getSeed($mnemonic, $passphrase);
-        $rootKey = HierarchicalKeyFactory::fromEntropy($seed);
+        $hdFactory = new HierarchicalKeyFactory($ecAdapter);
+        $rootKey = $hdFactory->fromEntropy($seed);
 
-        if ($input->getOption('bip44')) {
+        if ($fUseBip44) {
             $coinType = $this->parseHardenedBip32Index($input, "bip44-cointype");
             $account = $this->parseHardenedBip32Index($input, "bip44-account");
             $wallet = $walletFactory->createBip44WalletFromRootKey($identifier, $rootKey, "M/44'/{$coinType}'/{$account}'", $birthday);

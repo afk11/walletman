@@ -65,6 +65,7 @@ class Factory
         if ($accountNode->isPrivate()) {
             throw new \RuntimeException("Cannot initialize bip44 wallet with private account node");
         }
+
         $externalNode = $accountNode->deriveChild(Bip44Wallet::INDEX_EXTERNAL);
         $externalPath = "{$path}/{$externalNode->getSequence()}";
 

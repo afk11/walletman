@@ -48,13 +48,15 @@ class SyncWallet extends Command
     {
         $fIsRegtest = $input->getOption('regtest');
         $fIsTestnet = $input->getOption('testnet');
-        $ip = (string) $input->getOption('ip');
+        $ip = $this->getStringOption($input, 'ip');
         $path = $this->getStringArgument($input, "database");
+
+        $dbMgr = new DbManager();
+        $db = $dbMgr->loadDb($path);
 
         $ecAdapter = Bitcoin::getEcAdapter();
         $random = new Random();
         $loop = \React\EventLoop\Factory::create();
-        $dbMgr = new DbManager();
         if ($fIsRegtest) {
             $port = 18444;
             $params = new RegtestParams(new Math());
@@ -69,7 +71,6 @@ class SyncWallet extends Command
             $net = NetworkFactory::bitcoin();
         }
 
-        $db = $dbMgr->loadDb($path);
         $pow = new ProofOfWork(new Math(), $params);
         $chain = new Chain($pow);
         $daemon = new P2pSyncDaemon($ip, $port, $ecAdapter, $net, $params, $db, $random, $chain);

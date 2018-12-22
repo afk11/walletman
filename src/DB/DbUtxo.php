@@ -54,22 +54,31 @@ class DbUtxo
     {
         return (int) $this->walletId;
     }
+
     public function getValue(): int
     {
         return (int) $this->value;
     }
+
     public function getTxOut(): TransactionOutputInterface
     {
         return new TransactionOutput((int) $this->value, ScriptFactory::fromHex($this->scriptPubKey));
     }
+
     public function getDbScript(DB $db): DbScript
     {
-        return $db->loadScriptByScriptPubKey((int) $this->walletId, ScriptFactory::fromHex($this->scriptPubKey));
+        $script = $db->loadScriptByScriptPubKey((int) $this->walletId, ScriptFactory::fromHex($this->scriptPubKey));
+        if ($script === null) {
+            throw new \RuntimeException("DbScript not in database");
+        }
+        return $script;
     }
+
     public function getOutPoint(): OutPointInterface
     {
         return new OutPoint(Buffer::hex($this->txid), (int) $this->vout);
     }
+
     public function getSpendOutPoint(): ?OutPointInterface
     {
         if ($this->spentTxid && $this->spentIdx) {

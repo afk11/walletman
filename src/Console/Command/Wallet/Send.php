@@ -6,7 +6,7 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Address\AddressCreator;
 use BitWasp\Bitcoin\Bitcoin;
-use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
 use BitWasp\Bitcoin\Mnemonic\MnemonicFactory;
 use BitWasp\Bitcoin\Network\NetworkFactory;
@@ -62,7 +62,9 @@ class Send extends Command
     private function parseOutputs(InputInterface $input, AddressCreator $addrCreator, NetworkInterface $net): array
     {
         $outputs = [];
-        foreach ($input->getOption("destination") as $destination) {
+        /** @var array $destinations */
+        $destinations = $input->getOption("destination");
+        foreach ($destinations as $destination) {
             $row = explode(",", $destination);
             if (count($row) !== 2) {
                 throw new \RuntimeException("Destination should be in format: btcvalue,address");
@@ -124,7 +126,8 @@ class Send extends Command
             }
 
             $seed = (new Bip39SeedGenerator())->getSeed($mnemonic, $passphrase);
-            $rootNode = HierarchicalKeyFactory::fromEntropy($seed, $ecAdapter);
+            $hdFactory = new HierarchicalKeyFactory($ecAdapter);
+            $rootNode = $hdFactory->fromEntropy($seed);
 
             $accountNode = $rootNode->derivePath("44'/0'/0'");
             $wallet->unlockWithAccountKey($accountNode);

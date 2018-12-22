@@ -13,7 +13,6 @@ use BitWasp\Bitcoin\Script\Opcodes;
 use BitWasp\Bitcoin\Script\ScriptFactory;
 use BitWasp\Bitcoin\Transaction\Factory\TxBuilder;
 use BitWasp\Buffertools\Buffer;
-use BitWasp\Buffertools\BufferInterface;
 
 class RegtestParams extends Params
 {
