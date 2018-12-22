@@ -126,6 +126,11 @@ class P2pSyncDaemon
         $this->blockStatsCount = null;
     }
 
+    public function syncMempool(bool $setting)
+    {
+        $this->mempool = $setting;
+    }
+
     public function init()
     {
         $dbWallets = $this->db->loadAllWallets();
@@ -170,10 +175,9 @@ class P2pSyncDaemon
         $connParams->setRequiredServices($requiredServices);
         $connParams->setLocalServices($myServices);
         $connParams->setProtocolVersion(70013); // above this causes problems, todo
-
-        //if ($this->mempool) {
+        if ($this->mempool) {
             $connParams->requestTxRelay(true);
-        //}
+        }
 
         echo "best height {$this->chain->getBestHeaderHeight()}\n";
         echo "best block {$this->chain->getBestBlockHeight()}\n";

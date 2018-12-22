@@ -39,6 +39,9 @@ class SyncWallet extends Command
             ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Start wallet in regtest mode")
             ->addOption('testnet', 't', InputOption::VALUE_NONE, "Start wallet in testnet mode")
 
+            // sync options
+            ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
+
             // the full command description shown when running the command with
             // the "--help" option
             ->setHelp('This command starts the wallet. Some configuration parameters can be provided as options, overriding default or configuration file values');
@@ -48,6 +51,7 @@ class SyncWallet extends Command
     {
         $fIsRegtest = $input->getOption('regtest');
         $fIsTestnet = $input->getOption('testnet');
+        $fSyncMempool = $input->getOption('mempool');
         $ip = $this->getStringOption($input, 'ip');
         $path = $this->getStringArgument($input, "database");
 
@@ -74,6 +78,7 @@ class SyncWallet extends Command
         $pow = new ProofOfWork(new Math(), $params);
         $chain = new Chain($pow);
         $daemon = new P2pSyncDaemon($ip, $port, $ecAdapter, $net, $params, $db, $random, $chain);
+        $daemon->syncMempool($fSyncMempool);
         $daemon->init();
         $daemon->sync($loop);
         $loop->run();
