@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BitWasp\Wallet\PinEntry;
+namespace BitWasp\Wallet\Validation;
 
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39Mnemonic;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39WordListInterface;

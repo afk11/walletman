@@ -10,7 +10,7 @@ use BitWasp\PinEntry\PinEntry;
 use BitWasp\PinEntry\PinRequest;
 use BitWasp\PinEntry\Process\DebugDecorator;
 use BitWasp\PinEntry\Process\Process;
-use BitWasp\Wallet\PinEntry\Bip39MnemonicValidator;
+use BitWasp\Wallet\Validation\Bip39MnemonicValidator;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
