@@ -321,7 +321,7 @@ class P2pSyncDaemon
      */
     public function requestBlock(Peer $peer, BufferInterface $hash): PromiseInterface
     {
-        //echo "requestBlock {$hash->getHex()}\n";
+        //echo "requestBlock: {$hash->getHex()}\n";
         if ($this->segwit) {
             $this->toDownload[] = Inventory::witnessBlock($hash);
         } else {
