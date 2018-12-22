@@ -5,6 +5,12 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\Console\Command;
 
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39Mnemonic;
+use BitWasp\PinEntry\Exception\RemotePinEntryException;
+use BitWasp\PinEntry\PinEntry;
+use BitWasp\PinEntry\PinRequest;
+use BitWasp\PinEntry\Process\DebugDecorator;
+use BitWasp\PinEntry\Process\Process;
+use BitWasp\Wallet\PinEntry\Bip39MnemonicValidator;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
@@ -67,21 +73,33 @@ abstract class Command extends \Symfony\Component\Console\Command\Command
 
     protected function promptForMnemonic(Bip39Mnemonic $bip39, InputInterface $input, OutputInterface $output): string
     {
-        $helper = $this->getHelper('question');
-        $question = new Question('Enter your bip39 seed:');
-        $question->setHidden(true);
-        $question->setHiddenFallback(false);
-        $question->setValidator(function ($answer) use ($bip39) {
-            try {
-                $bip39->mnemonicToEntropy($answer);
-            } catch (\Exception $e) {
-                throw new \RuntimeException(
-                    "Invalid mnemonic"
-                );
-            }
-            return $answer;
-        });
-        $question->setMaxAttempts(2);
-        return $helper->ask($input, $output, $question);
+        $validator = new Bip39MnemonicValidator($bip39);
+
+        if (file_exists("/usr/bin/pinentry")) {
+            $request = new PinRequest();
+            $request->withTitle("BIP39mnemonic");
+            $request->withDesc("mnemonic required");
+            $request->withPrompt("promptpromptprompt");
+
+            $pinEntry = new PinEntry(new Process("/usr/bin/pinentry"));
+
+            $mnemonic = $pinEntry->getPin($request, $validator);
+        } else {
+            $helper = $this->getHelper('question');
+            $question = new Question('Enter your bip39 seed:');
+            $question->setHidden(true);
+            $question->setHiddenFallback(false);
+            $question->setValidator(function ($answer) use ($validator) {
+                $error = "";
+                if (!$validator->validate($answer, $error)) {
+                    throw new \RuntimeException($error);
+                }
+                return $answer;
+            });
+            $question->setMaxAttempts(2);
+            $mnemonic = $helper->ask($input, $output, $question);
+        }
+
+        return $mnemonic;
     }
 }

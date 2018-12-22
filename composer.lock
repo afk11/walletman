@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "e4a346b4b27c8e0dfe165910e333d0f2",
+    "content-hash": "568314f69edf734cf16a2737aeded3ff",
     "packages": [
         {
             "name": "bitwasp/bech32",
@@ -198,6 +198,49 @@
             ],
             "description": "Toolbox for working with binary and hex data. Similar to NodeJS Buffer.",
             "time": "2018-11-11T16:40:42+00:00"
+        },
+        {
+            "name": "bitwasp/pinentry",
+            "version": "v0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Bit-Wasp/pinentry.git",
+                "reference": "3464aa64505f5ea2ad3facd82e0bb47f8b36219b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Bit-Wasp/pinentry/zipball/3464aa64505f5ea2ad3facd82e0bb47f8b36219b",
+                "reference": "3464aa64505f5ea2ad3facd82e0bb47f8b36219b",
+                "shasum": ""
+            },
+            "require-dev": {
+                "infection/infection": "^0.8.2",
+                "phpstan/phpstan": "^0.9.2",
+                "phpunit/phpunit": "^6.0.0",
+                "squizlabs/php_codesniffer": "^3.2"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "BitWasp\\PinEntry\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Thomas Kerin"
+                }
+            ],
+            "description": "Interface to gpgtools pinentry for PHP applications",
+            "keywords": [
+                "gpgtools",
+                "password",
+                "pinentry"
+            ],
+            "time": "2018-12-22T16:08:10+00:00"
         },
         {
             "name": "christian-riesen/base32",

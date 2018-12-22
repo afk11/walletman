@@ -119,7 +119,6 @@ class Send extends Command
         if ($wallet instanceof Bip44Wallet) {
             $bip39 = MnemonicFactory::bip39();
             $mnemonic = $this->promptForMnemonic($bip39, $input, $output);
-
             $passphrase = '';
             if ($fBip39Pass) {
                 $passphrase = $this->promptForPassphrase($input, $output);
@@ -134,7 +133,6 @@ class Send extends Command
         } else {
             throw new \RuntimeException("Unsupported wallet type");
         }
-
         $preparedTx = $wallet->send($outputs, $feeRate);
         $signedTx = $wallet->signTx($preparedTx);
         echo $signedTx->getHex().PHP_EOL;

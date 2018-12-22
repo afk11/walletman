@@ -4,91 +4,112 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet\Wallet;
 
+use BitWasp\Bitcoin\Key\KeyToScript\ScriptAndSignData;
 use BitWasp\Bitcoin\Transaction\Factory\SignData;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
-use BitWasp\Wallet\DB\DbScript;
-use BitWasp\Wallet\DB\DbUtxo;
 
 class PreparedTx
 {
     /**
+     * Required parameter - the transaction to sign
      * @var TransactionInterface
      */
-    private $unsignedTx;
+    private $tx;
 
     /**
+     * Required state for each transaction input. Each
+     * txOut must be provided to at least be able to
+     * validate signatures.
+     * @var TransactionOutputInterface[]
+     */
+    private $inputTxOuts;
+
+    /**
+     * Optional state, containing per-input ScriptAndSignData.
+     * Not usually required for partially signed transactions,
+     * but IS absolutely necessary to add the first signatures.
+     * @var ScriptAndSignData[]
+     */
+    private $inputScriptData;
+
+    /**
+     * Optional state, containing per-input key identifier.
+     * Required in any event in order to sign a transaction,
+     * normally influences how the signing private key is obtained.
+     * @var string[]
+     */
+    private $inputKeyIdentifiers;
+
+    /**
+     * Private internal state
      * @var int
      */
     private $numInputs;
 
     /**
-     * @var DbUtxo[]
-     */
-    private $utxos;
-
-    /**
-     * @var DbScript[]
-     */
-    private $scripts;
-
-    /**
-     *
      * PreparedTx constructor.
      * @param TransactionInterface $tx
-     * @param DbUtxo[] $utxos
-     * @param DbScript[] $scripts
+     * @param TransactionOutputInterface[] $txOuts
+     * @param ScriptAndSignData[] $scripts
+     * @param string[] $keyIdentifiers
      */
-    public function __construct(TransactionInterface $tx, array $utxos, array $scripts)
+    public function __construct(TransactionInterface $tx, array $txOuts, array $scripts, array $keyIdentifiers)
     {
         $this->numInputs = count($tx->getInputs());
-        if ($this->numInputs !== count($utxos)) {
-            throw new \InvalidArgumentException("num scripts should equal num inputs");
+        if ($this->numInputs !== count($txOuts)) {
+            throw new \InvalidArgumentException("All input txouts are required");
         }
-        if ($this->numInputs !== count($scripts)) {
-            throw new \InvalidArgumentException("num scripts should equal num inputs");
+        if ($this->numInputs < count($scripts)) {
+            throw new \InvalidArgumentException("passed too many scripts");
+        }
+        if ($this->numInputs < count($keyIdentifiers)) {
+            throw new \InvalidArgumentException("passed too many key identifiers");
         }
 
-        $this->unsignedTx = $tx;
-        $this->utxos = $utxos;
-        $this->scripts = $scripts;
+        $this->tx = $tx;
+        $this->inputTxOuts = $txOuts;
+        $this->inputScriptData = $scripts;
+        $this->inputKeyIdentifiers = $keyIdentifiers;
     }
 
-    /**
-     * @return TransactionInterface
-     */
-    public function getUnsignedTx(): TransactionInterface
+    public function getTx(): TransactionInterface
     {
-        return $this->unsignedTx;
+        return $this->tx;
     }
 
     public function getTxOut(int $i): TransactionOutputInterface
     {
-        if (!array_key_exists($i, $this->utxos)) {
+        // check i is within range
+        if ($i > $this->numInputs - 1) {
             throw new \LogicException();
         }
-        return $this->utxos[$i]->getTxOut();
+        return $this->inputTxOuts[$i];
     }
-    /**
-     * @param int $i
-     * @return SignData
-     */
-    public function getSignData(int $i): SignData
+
+    public function getSignData(int $i): ?SignData
     {
-        if (!array_key_exists($i, $this->scripts)) {
+        // check i is within range
+        if ($i > $this->numInputs - 1) {
             throw new \LogicException();
         }
-        return $this->scripts[$i]->getSignData();
+        // script might be set, if so return it
+        if (array_key_exists($i, $this->inputScriptData)) {
+            return $this->inputScriptData[$i];
+        }
+        return null;
     }
-    /**
-     * @param int $i
-     * @return string
-     */
-    public function getKeyIdentifier(int $i): string
+
+    public function getKeyIdentifier(int $i): ?string
     {
-        if (!array_key_exists($i, $this->scripts)) {
+        // check i is within range
+        if ($i > $this->numInputs - 1) {
             throw new \LogicException();
         }
-        return $this->scripts[$i]->getKeyIdentifier();
+        // script might be set, if so return it
+        if (array_key_exists($i, $this->inputKeyIdentifiers)) {
+            return $this->inputKeyIdentifiers[$i];
+        }
+        return null;
     }
 }

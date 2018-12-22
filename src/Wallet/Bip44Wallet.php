@@ -188,19 +188,30 @@ class Bip44Wallet extends Wallet
             $txOuts[] = new TransactionOutput((int) $change, $changeScript->getScriptPubKey());
         }
 
-        if (!shuffle($utxos)) {
-            throw new \RuntimeException("utxos shuffle failed");
-        }
         if (!shuffle($txOuts)) {
             throw new \RuntimeException("txouts shuffle failed");
         }
-        $builder = new TxBuilder();
-        foreach ($utxos as $utxo) {
-            $builder->spendOutPoint($utxo->getOutPoint());
+
+        // shuffles keys, preserving dbScript order also
+        $utxoKeys = array_keys($utxos);
+        if (!shuffle($utxoKeys)) {
+            throw new \RuntimeException("utxos shuffle failed");
         }
+
+        $inputScripts = [];
+        $inputTxOuts = [];
+        $inputKeyIds = [];
+        $builder = new TxBuilder();
+        foreach ($utxoKeys as $key) {
+            $builder->spendOutPoint($utxos[$key]->getOutPoint());
+            $inputScripts[$key] = $dbScripts[$key]->getSignData();
+            $inputKeyIds[$key] = $dbScripts[$key]->getKeyIdentifier();
+            $inputTxOuts[$key] = $utxos[$key]->getTxOut();
+        }
+
         $builder->outputs($txOuts);
 
-        return new PreparedTx($builder->get(), $utxos, $dbScripts);
+        return new PreparedTx($builder->get(), $inputTxOuts, $inputScripts, $inputKeyIds);
     }
 
     public function sendAllCoins(ScriptInterface $destination, int $feeRate): PreparedTx
@@ -231,7 +242,7 @@ class Bip44Wallet extends Wallet
 
     public function signTx(PreparedTx $prepTx): TransactionInterface
     {
-        $unsignedTx = $prepTx->getUnsignedTx();
+        $unsignedTx = $prepTx->getTx();
         $txSigner = new Signer($unsignedTx);
         $numInputs = count($unsignedTx->getInputs());
         for ($i = 0; $i < $numInputs; $i++) {
