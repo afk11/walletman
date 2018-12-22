@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Address\AddressCreator;
+use BitWasp\Bitcoin\Amount;
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
@@ -50,17 +51,19 @@ class Send extends Command
 
     private function parseFeeRate(InputInterface $input): int
     {
-        if (!is_string($input->getOption('feerate-custom'))) {
-            throw new \RuntimeException("must select a feerate option");
+        $feeRateCustom = $input->getOption('feerate-custom');
+        if (is_string($feeRateCustom)) {
+            if ($feeRateCustom != (int)$feeRateCustom) {
+                throw new \RuntimeException("invalid fee rate provided");
+            }
+            return (int) $feeRateCustom;
         }
-        $customRate = $input->getOption('feerate-custom');
-        if ($customRate !== (string)(int)$customRate) {
-            throw new \RuntimeException("invalid fee rate provided");
-        }
-        return (int) $customRate;
+        throw new \RuntimeException("must select a feerate option");
     }
+
     private function parseOutputs(InputInterface $input, AddressCreator $addrCreator, NetworkInterface $net): array
     {
+        $amount = new Amount();
         $outputs = [];
         /** @var array $destinations */
         $destinations = $input->getOption("destination");
@@ -72,8 +75,8 @@ class Send extends Command
             list ($btcValue, $address) = $row;
 
             $addr = $addrCreator->fromString($address, $net);
-
-            $outputs[] = new TransactionOutput((int) ($btcValue * 1e8), $addr->getScriptPubKey());
+            $satoshi = $amount->toSatoshis($btcValue);
+            $outputs[] = new TransactionOutput($satoshi, $addr->getScriptPubKey());
         }
         return $outputs;
     }
