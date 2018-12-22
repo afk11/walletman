@@ -15,10 +15,13 @@ use BitWasp\Bitcoin\Networking\Factory;
 use BitWasp\Bitcoin\Networking\Ip\Ipv4;
 use BitWasp\Bitcoin\Networking\Message;
 use BitWasp\Bitcoin\Networking\Messages\Headers;
+use BitWasp\Bitcoin\Networking\Messages\Inv;
 use BitWasp\Bitcoin\Networking\Messages\Ping;
 use BitWasp\Bitcoin\Networking\Messages\Pong;
+use BitWasp\Bitcoin\Networking\Messages\Tx;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
+use BitWasp\Bitcoin\Networking\Services;
 use BitWasp\Bitcoin\Networking\Structure\Inventory;
 use BitWasp\Bitcoin\Serializer\Block\BlockHeaderSerializer;
 use BitWasp\Bitcoin\Serializer\Block\BlockSerializer;
@@ -68,6 +71,7 @@ class P2pSyncDaemon
     private $params;
     private $headerSerializer;
     private $blockSerializer;
+    private $txSerializer;
 
     /**
      * @var bool
@@ -90,7 +94,8 @@ class P2pSyncDaemon
     private $batchSize =  16;
     private $ecAdapter =  16;
     private $initialized = false;
-
+    private $mempool = false;
+    private $segwit = true;
     private $blockStatsWindow = 64;
     private $blockStatsCount;
     private $blockStatsBegin;
@@ -112,8 +117,8 @@ class P2pSyncDaemon
         $this->random = $random;
         $this->chain = $chain;
         $this->headerSerializer = new BlockHeaderSerializer();
-        $txSerializer = new TransactionSerializer();
-        $this->blockSerializer = new BlockSerializer(new Math(), $this->headerSerializer, $txSerializer);
+        $this->txSerializer = new TransactionSerializer();
+        $this->blockSerializer = new BlockSerializer(new Math(), $this->headerSerializer, $this->txSerializer);
     }
 
     private function resetBlockStats()
@@ -131,7 +136,9 @@ class P2pSyncDaemon
             }
             $this->wallets[] = new Bip44Wallet($this->db, $dbWallet, $this->db->loadBip44WalletKey($dbWallet->getId()), $this->network, $this->ecAdapter);
             if ($birthday = $dbWallet->getBirthday()) {
-                if ($startBlock === null || $birthday->getHeight() < $startBlock->getHeight()) {
+                if (!($startBlock instanceof BlockRef)) {
+                    $startBlock = $dbWallet->getBirthday();
+                } else if ($birthday->getHeight() < $startBlock->getHeight()) {
                     $startBlock = $dbWallet->getBirthday();
                 }
             }
@@ -150,8 +157,23 @@ class P2pSyncDaemon
             throw new \LogicException("Cannot sync, not initialized");
         }
         $netFactory = new Factory($loop, $this->network);
+
+        $requiredServices = 0;
+        $myServices = 0;
+        if ($this->segwit) {
+            $requiredServices = $requiredServices | Services::WITNESS;
+            $myServices = $myServices | Services::WITNESS;
+        }
+
         $connParams = new ConnectionParams();
         $connParams->setBestBlockHeight($this->chain->getBestHeaderHeight());
+        $connParams->setRequiredServices($requiredServices);
+        $connParams->setLocalServices($myServices);
+        $connParams->setProtocolVersion(70013); // above this causes problems, todo
+
+        //if ($this->mempool) {
+            $connParams->requestTxRelay(true);
+        //}
 
         echo "best height {$this->chain->getBestHeaderHeight()}\n";
         echo "best block {$this->chain->getBestBlockHeight()}\n";
@@ -195,7 +217,20 @@ class P2pSyncDaemon
                 $peer->on(Message::PING, function (Peer $peer, Ping $ping) {
                     $peer->pong($ping);
                 });
-
+                $peer->on(Message::TX, function (Peer $peer, Tx $txMsg) {
+                    $tx = $this->txSerializer->parse($txMsg->getTransaction());
+                    echo "p2p tx: {$tx->getTxId()->getHex()}\n";
+                });
+                $peer->on(Message::INV, function (Peer $peer, Inv $inv) {
+                    // routine for invs, ignore until we sync blocks
+                    $txs = [];
+                    foreach ($inv->getItems() as $inventory) {
+                        if ($inventory->isTx()) {
+                            $txs[] = Inventory::witnessTx($inventory->getHash());
+                        }
+                    }
+                    $peer->getdata($txs);
+                });
                 $this->downloadHeaders($peer);
             }, function (\Exception $e) {
                 echo "error: {$e->getMessage()}\n";
@@ -287,7 +322,11 @@ class P2pSyncDaemon
     public function requestBlock(Peer $peer, BufferInterface $hash): PromiseInterface
     {
         //echo "requestBlock {$hash->getHex()}\n";
-        $this->toDownload[] = Inventory::block($hash);
+        if ($this->segwit) {
+            $this->toDownload[] = Inventory::witnessBlock($hash);
+        } else {
+            $this->toDownload[] = Inventory::block($hash);
+        }
 
         $deferred = new Deferred();
         $this->deferred[$hash->getBinary()] = $deferred;
@@ -310,7 +349,7 @@ class P2pSyncDaemon
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
                 ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
-                    //echo "processBlock $height {$hash->getHex()}\n";
+                    echo "processBlock $height {$hash->getHex()}\n";
 
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();

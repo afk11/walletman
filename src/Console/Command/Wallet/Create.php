@@ -16,6 +16,7 @@ use BitWasp\Bitcoin\Mnemonic\MnemonicFactory;
 use BitWasp\Bitcoin\Network\NetworkFactory;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Wallet\BlockRef;
+use BitWasp\Wallet\Chain;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
 use BitWasp\Wallet\Wallet\Factory;
@@ -142,6 +143,7 @@ class Create extends Command
         $ecAdapter = Bitcoin::getEcAdapter();
         $dbMgr = new DbManager();
         $db = $dbMgr->loadDb($path);
+
         $walletFactory = new Factory($db, $net, $ecAdapter);
 
         $mnemonic = $this->getBip39Mnemonic($input, $output, $wordlist);

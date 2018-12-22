@@ -109,16 +109,16 @@
         },
         {
             "name": "bitwasp/bitcoin-p2p",
-            "version": "v1.0.0",
+            "version": "v1.0.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Bit-Wasp/bitcoin-p2p-php.git",
-                "reference": "773fabd4f5fc72259fbd7eea87614b920146ef26"
+                "reference": "22dc462eb5f7c26045e6615c5ad4e50a681fc3f8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Bit-Wasp/bitcoin-p2p-php/zipball/773fabd4f5fc72259fbd7eea87614b920146ef26",
-                "reference": "773fabd4f5fc72259fbd7eea87614b920146ef26",
+                "url": "https://api.github.com/repos/Bit-Wasp/bitcoin-p2p-php/zipball/22dc462eb5f7c26045e6615c5ad4e50a681fc3f8",
+                "reference": "22dc462eb5f7c26045e6615c5ad4e50a681fc3f8",
                 "shasum": ""
             },
             "require": {
@@ -152,7 +152,7 @@
             ],
             "description": "Implementation of the bitcoin protocol using ReactPHP",
             "homepage": "https://github.com/bit-wasp/node-php",
-            "time": "2018-12-19T01:13:32+00:00"
+            "time": "2018-12-22T18:00:38+00:00"
         },
         {
             "name": "bitwasp/buffertools",
@@ -205,12 +205,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Bit-Wasp/pinentry.git",
-                "reference": "3464aa64505f5ea2ad3facd82e0bb47f8b36219b"
+                "reference": "55323d3f180c34634a8655e9efb7c074925aed67"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Bit-Wasp/pinentry/zipball/3464aa64505f5ea2ad3facd82e0bb47f8b36219b",
-                "reference": "3464aa64505f5ea2ad3facd82e0bb47f8b36219b",
+                "url": "https://api.github.com/repos/Bit-Wasp/pinentry/zipball/55323d3f180c34634a8655e9efb7c074925aed67",
+                "reference": "55323d3f180c34634a8655e9efb7c074925aed67",
                 "shasum": ""
             },
             "require-dev": {
@@ -240,7 +240,7 @@
                 "password",
                 "pinentry"
             ],
-            "time": "2018-12-22T16:08:10+00:00"
+            "time": "2018-12-22T16:28:53+00:00"
         },
         {
             "name": "christian-riesen/base32",
@@ -3307,16 +3307,16 @@
         },
         {
             "name": "squizlabs/php_codesniffer",
-            "version": "3.3.2",
+            "version": "3.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/squizlabs/PHP_CodeSniffer.git",
-                "reference": "6ad28354c04b364c3c71a34e4a18b629cc3b231e"
+                "reference": "379deb987e26c7cd103a7b387aea178baec96e48"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/squizlabs/PHP_CodeSniffer/zipball/6ad28354c04b364c3c71a34e4a18b629cc3b231e",
-                "reference": "6ad28354c04b364c3c71a34e4a18b629cc3b231e",
+                "url": "https://api.github.com/repos/squizlabs/PHP_CodeSniffer/zipball/379deb987e26c7cd103a7b387aea178baec96e48",
+                "reference": "379deb987e26c7cd103a7b387aea178baec96e48",
                 "shasum": ""
             },
             "require": {
@@ -3354,7 +3354,7 @@
                 "phpcs",
                 "standards"
             ],
-            "time": "2018-09-23T23:08:17+00:00"
+            "time": "2018-12-19T23:57:18+00:00"
         },
         {
             "name": "symfony/finder",
