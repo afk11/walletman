@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\Console\Command;
 
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39Mnemonic;
-use BitWasp\PinEntry\Exception\RemotePinEntryException;
 use BitWasp\PinEntry\PinEntry;
 use BitWasp\PinEntry\PinRequest;
-use BitWasp\PinEntry\Process\DebugDecorator;
 use BitWasp\PinEntry\Process\Process;
 use BitWasp\Wallet\Validation\Bip39MnemonicValidator;
 use Symfony\Component\Console\Input\InputInterface;

@@ -10,7 +10,6 @@ use BitWasp\Bitcoin\Chain\ParamsInterface;
 use BitWasp\Bitcoin\Chain\ProofOfWork;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
-use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\DB\DBInterface;
 

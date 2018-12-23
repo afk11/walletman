@@ -10,7 +10,6 @@ use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeySequence;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Wallet\BlockRef;
-use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DBInterface;
 
 class Factory

@@ -2,14 +2,14 @@
 
 namespace BitWasp\Wallet\Wallet;
 
-use BitWasp\Bitcoin\Key\KeyToScript\ScriptAndSignData;
-use BitWasp\Bitcoin\Script\ScriptFactory;
-use BitWasp\Bitcoin\Script\ScriptType;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PublicKeyInterface;
-use \BitWasp\Bitcoin\Script\ScriptInfo\Multisig;
-use \BitWasp\Bitcoin\Script\ScriptInfo\PayToPubkey;
-use \BitWasp\Bitcoin\Script\Classifier\OutputClassifier;
+use BitWasp\Bitcoin\Key\KeyToScript\ScriptAndSignData;
+use BitWasp\Bitcoin\Script\Classifier\OutputClassifier;
+use BitWasp\Bitcoin\Script\ScriptFactory;
+use BitWasp\Bitcoin\Script\ScriptInfo\Multisig;
+use BitWasp\Bitcoin\Script\ScriptInfo\PayToPubkey;
 use BitWasp\Bitcoin\Script\ScriptInterface;
+use BitWasp\Bitcoin\Script\ScriptType;
 use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
 
 class SizeEstimation

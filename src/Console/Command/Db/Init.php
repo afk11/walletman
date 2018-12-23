@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\Console\Command\Db;
 
  use BitWasp\Wallet\Console\Command\Command;
-use BitWasp\Wallet\DB\Initializer;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
+ use BitWasp\Wallet\DB\Initializer;
+ use Symfony\Component\Console\Input\InputArgument;
+ use Symfony\Component\Console\Input\InputInterface;
+ use Symfony\Component\Console\Output\OutputInterface;
 
-class Init extends Command
+ class Init extends Command
 {
     protected function configure()
     {

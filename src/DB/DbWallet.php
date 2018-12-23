@@ -4,7 +4,6 @@ namespace BitWasp\Wallet\DB;
 
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Wallet\BlockRef;
-use BitWasp\Wallet\Wallet\Wallet;
 use BitWasp\Wallet\Wallet\WalletType;
 
 class DbWallet

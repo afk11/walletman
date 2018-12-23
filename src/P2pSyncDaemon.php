@@ -29,7 +29,6 @@ use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
-use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\Bip44Wallet;

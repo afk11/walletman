@@ -9,7 +9,6 @@ use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PrivateKeyInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
-use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbKey;
 use BitWasp\Wallet\DB\DbScript;

@@ -7,7 +7,6 @@ namespace BitWasp\Wallet\Wallet;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
-use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbKey;
 use BitWasp\Wallet\DB\DbWallet;

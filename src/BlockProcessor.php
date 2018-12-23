@@ -11,7 +11,6 @@ use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\Block\Tx;
 use BitWasp\Wallet\Block\Utxo;
-use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\WalletInterface;
 

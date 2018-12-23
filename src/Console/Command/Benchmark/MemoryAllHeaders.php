@@ -6,7 +6,6 @@ namespace BitWasp\Wallet\Console\Command\Benchmark;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Wallet\Console\Command\Command;
-use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DbManager;

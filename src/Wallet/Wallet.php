@@ -12,7 +12,6 @@ use BitWasp\Bitcoin\Transaction\Factory\TxBuilder;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
-use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbScript;
 use BitWasp\Wallet\DB\DbUtxo;
