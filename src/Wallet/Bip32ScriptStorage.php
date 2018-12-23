@@ -6,7 +6,6 @@ namespace BitWasp\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Network\NetworkInterface;
-use BitWasp\Bitcoin\Script\ScriptFactory;
 use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Wallet\DB\DB;
@@ -16,11 +15,11 @@ use BitWasp\Wallet\DB\DbWallet;
 class Bip32ScriptStorage implements ScriptStorage
 {
     private $db;
+    private $ecAdapter;
+    private $serializer;
     private $dbWallet;
     private $gapLimit;
-    private $ecAdapter;
     private $network;
-    private $serializer;
 
     public function __construct(DB $db, Base58ExtendedKeySerializer $serializer, DbWallet $wallet, int $gapLimit, EcAdapterInterface $ecAdapter, NetworkInterface $network)
     {

@@ -53,7 +53,7 @@ abstract class HdWallet extends Wallet
     {
         parent::__construct($db, $wallet);
 
-        $this->gapLimit = 100;
+        $this->gapLimit = $wallet->getGapLimit();
         $this->dbKey = $dbKey;
         $this->network = $network;
         $this->ecAdapter = $ecAdapter;
