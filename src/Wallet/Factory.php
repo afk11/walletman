@@ -11,6 +11,7 @@ use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Wallet\BlockRef;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DBInterface;
 
 class Factory
 {
@@ -19,7 +20,7 @@ class Factory
     private $ecAdapter;
     private $serializer;
 
-    public function __construct(DB $db, NetworkInterface $network, Base58ExtendedKeySerializer $serializer, EcAdapterInterface $ecAdapter)
+    public function __construct(DBInterface $db, NetworkInterface $network, Base58ExtendedKeySerializer $serializer, EcAdapterInterface $ecAdapter)
     {
         $this->db = $db;
         $this->network = $network;

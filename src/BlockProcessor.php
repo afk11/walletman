@@ -12,12 +12,13 @@ use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\Block\Tx;
 use BitWasp\Wallet\Block\Utxo;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\WalletInterface;
 
 class BlockProcessor
 {
     /**
-     * @var DB
+     * @var DBInterface
      */
     private $db;
 
@@ -31,7 +32,7 @@ class BlockProcessor
      */
     private $wallets;
 
-    public function __construct(DB $db, WalletInterface... $wallets)
+    public function __construct(DBInterface $db, WalletInterface... $wallets)
     {
         $this->db = $db;
         $this->wallets = $wallets;

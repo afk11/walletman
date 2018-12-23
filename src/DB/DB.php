@@ -14,7 +14,7 @@ use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\BlockRef;
 
-class DB
+class DB implements DBInterface
 {
     private $pdo;
 

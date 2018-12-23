@@ -65,7 +65,7 @@ class DbUtxo
         return new TransactionOutput((int) $this->value, ScriptFactory::fromHex($this->scriptPubKey));
     }
 
-    public function getDbScript(DB $db): DbScript
+    public function getDbScript(DBInterface $db): DbScript
     {
         $script = $db->loadScriptByScriptPubKey((int) $this->walletId, ScriptFactory::fromHex($this->scriptPubKey));
         if ($script === null) {

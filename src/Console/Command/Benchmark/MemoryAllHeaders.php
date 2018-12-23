@@ -8,6 +8,7 @@ use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DbHeader;
+use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DbManager;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -78,7 +79,7 @@ class MemoryAllHeaders extends Command
         }
         return [$dataName, $size];
     }
-    private function benchmarkMap(DB $db, int $feature)
+    private function benchmarkMap(DBInterface $db, int $feature)
     {
 
         $statement = $db->getPdo()->prepare("SELECT * FROM header");
@@ -121,7 +122,7 @@ class MemoryAllHeaders extends Command
         echo "real to theoretical per obj: " . ($usageDiff/$theoreticalMin) . "x\n";
     }
 
-    private function benchmarkArray(DB $db, int $feature)
+    private function benchmarkArray(DBInterface $db, int $feature)
     {
         $statement = $db->getPdo()->prepare("SELECT * FROM header");
         $statement->execute();

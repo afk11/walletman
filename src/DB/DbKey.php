@@ -99,7 +99,7 @@ class DbKey
         return (int) $this->keyIndex;
     }
 
-    public function getNextSequence(DB $db): int
+    public function getNextSequence(DBInterface $db): int
     {
         $update = $db->getPdo()->prepare("
             UPDATE key

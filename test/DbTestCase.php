@@ -15,6 +15,7 @@ use BitWasp\Bitcoin\Network\Networks\BitcoinTestnet;
 use BitWasp\Bitcoin\Network\Slip132\BitcoinRegistry;
 use BitWasp\Bitcoin\Network\Slip132\BitcoinTestnetRegistry;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\Initializer;
 use BitWasp\Wallet\Params\RegtestParams;
 use BitWasp\Wallet\Params\TestnetParams;
@@ -60,7 +61,7 @@ abstract class DbTestCase extends TestCase
     protected $sessionDbFile;
 
     /**
-     * @var DB
+     * @var DBInterface
      */
     protected $sessionDb;
 

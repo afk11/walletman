@@ -6,7 +6,7 @@ namespace BitWasp\Wallet\DB;
 
 class Initializer
 {
-    public function setup(string $fileName): DB
+    public function setup(string $fileName): DBInterface
     {
         if (file_exists($fileName)) {
             throw new \LogicException("DB filename already exists");

@@ -10,6 +10,7 @@ use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbKey;
 use BitWasp\Wallet\DB\DbScript;
 use BitWasp\Wallet\DB\DbWallet;
@@ -49,7 +50,7 @@ abstract class HdWallet extends Wallet
      */
     protected $serializer;
 
-    public function __construct(DB $db, Base58ExtendedKeySerializer $serializer, DbWallet $wallet, DbKey $dbKey, NetworkInterface $network, EcAdapterInterface $ecAdapter)
+    public function __construct(DBInterface $db, Base58ExtendedKeySerializer $serializer, DbWallet $wallet, DbKey $dbKey, NetworkInterface $network, EcAdapterInterface $ecAdapter)
     {
         parent::__construct($db, $wallet);
 

@@ -9,6 +9,7 @@ use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbScript;
 use BitWasp\Wallet\DB\DbWallet;
 
@@ -21,7 +22,7 @@ class Bip32ScriptStorage implements ScriptStorage
     private $gapLimit;
     private $network;
 
-    public function __construct(DB $db, Base58ExtendedKeySerializer $serializer, DbWallet $wallet, int $gapLimit, EcAdapterInterface $ecAdapter, NetworkInterface $network)
+    public function __construct(DBInterface $db, Base58ExtendedKeySerializer $serializer, DbWallet $wallet, int $gapLimit, EcAdapterInterface $ecAdapter, NetworkInterface $network)
     {
         $this->db = $db;
         $this->dbWallet = $wallet;

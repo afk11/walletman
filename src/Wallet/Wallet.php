@@ -13,6 +13,7 @@ use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbScript;
 use BitWasp\Wallet\DB\DbUtxo;
 use BitWasp\Wallet\DB\DbWallet;
@@ -20,7 +21,7 @@ use BitWasp\Wallet\DB\DbWallet;
 abstract class Wallet implements WalletInterface
 {
     /**
-     * @var DB
+     * @var DBInterface
      */
     protected $db;
 
@@ -29,7 +30,7 @@ abstract class Wallet implements WalletInterface
      */
     protected $dbWallet;
 
-    public function __construct(DB $db, DbWallet $dbWallet)
+    public function __construct(DBInterface $db, DbWallet $dbWallet)
     {
         $this->db = $db;
         $this->dbWallet = $dbWallet;

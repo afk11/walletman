@@ -23,6 +23,7 @@ use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\Chain;
+use BitWasp\Wallet\ChainCandidate;
 
 class ChainTest extends DbTestCase
 {
@@ -91,11 +92,15 @@ class ChainTest extends DbTestCase
         $this->assertEquals(0, $chain->getBestHeaderHeight());
         $this->assertEquals(0, $chain->getBestBlockHeight());
 
+        $prevIdx = $this->sessionDb->getHeader($this->sessionChainParams->getGenesisBlockHeader()->getHash());
         // Add block 1
         $prev = $chain->getBestHeader();
         $block1 = $this->makeBlock($prev, $cbScript);
         $block1Hash = $block1->getHeader()->getHash();
-        $chain->acceptHeader($this->sessionDb, $block1Hash, $block1->getHeader());
+        $header1 = null;
+        $chain->acceptHeader($this->sessionDb, $block1Hash, $block1->getHeader(), $prevIdx, $header1);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1, 0));
+        $prevIdx = $header1;
         $this->assertEquals(1, $chain->getBestHeaderHeight());
 
         $chain->addNextBlock($this->sessionDb, 1, $block1Hash, $block1);
@@ -105,7 +110,9 @@ class ChainTest extends DbTestCase
         $prev = $block1->getHeader();
         $block2 = $this->makeBlock($prev, $cbScript);
         $block2Hash = $block2->getHeader()->getHash();
-        $chain->acceptHeader($this->sessionDb, $block2Hash, $block2->getHeader());
+        $header2 = null;
+        $chain->acceptHeader($this->sessionDb, $block2Hash, $block2->getHeader(), $prevIdx, $header2);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header2, 1));
         $this->assertEquals(2, $chain->getBestHeaderHeight());
 
         $chain->addNextBlock($this->sessionDb, 2, $block2Hash, $block2);
@@ -123,11 +130,15 @@ class ChainTest extends DbTestCase
         $chain = new Chain($pow);
         $chain->init($this->sessionDb, $this->sessionChainParams);
 
+        $prevIdx = $this->sessionDb->getHeader($this->sessionChainParams->getGenesisBlockHeader()->getHash());
         // Add block 1
         $prev = $chain->getBestHeader();
         $block1 = $this->makeBlock($prev, $cbScript);
         $block1Hash = $block1->getHeader()->getHash();
-        $chain->acceptHeader($this->sessionDb, $block1Hash, $block1->getHeader());
+        $header1 = null;
+        $chain->acceptHeader($this->sessionDb, $block1Hash, $block1->getHeader(), $prevIdx, $header1);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1, 0));
+        $prevIdx = $header1;
         $this->assertEquals(1, $chain->getBestHeaderHeight());
 
         $chain->addNextBlock($this->sessionDb, 1, $block1Hash, $block1);
@@ -155,35 +166,44 @@ class ChainTest extends DbTestCase
         $chain = new Chain($pow);
         $chain->init($this->sessionDb, $this->sessionChainParams);
 
+        $prevIdx = $this->sessionDb->getHeader($this->sessionChainParams->getGenesisBlockHeader()->getHash());
         $genesis = $chain->getBestHeader();
         // Add header 1a
         $block1a = $this->makeBlock($genesis, $cbScript);
         $block1aHash = $block1a->getHeader()->getHash();
-        $chain->acceptHeader($this->sessionDb, $block1aHash, $block1a->getHeader());
+        $header1a = null;
+        $chain->acceptHeader($this->sessionDb, $block1aHash, $block1a->getHeader(), $prevIdx, $header1a);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1a, 0));
+        $prevIdx = $header1a;
         $this->assertEquals(1, $chain->getBestHeaderHeight());
 
         // Add header 2a
         $block2a = $this->makeBlock($block1a->getHeader(), $cbScript);
         $block2aHash = $block2a->getHeader()->getHash();
-        $chain->acceptHeader($this->sessionDb, $block2aHash, $block2a->getHeader());
+        $header2a = null;
+        $chain->acceptHeader($this->sessionDb, $block2aHash, $block2a->getHeader(), $prevIdx, $header2a);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header2a, 0));
+        $prevIdx = $header2a;
         $this->assertEquals(2, $chain->getBestHeaderHeight());
 
         // Add header 1b
         $block1b = $this->makeBlock($genesis, $cbScript2);
         $block1bHash = $block1b->getHeader()->getHash();
-        $chain->acceptHeader($this->sessionDb, $block1bHash, $block1b->getHeader());
-
+        $header1b = null;
+        $chain->acceptHeader($this->sessionDb, $block1bHash, $block1b->getHeader(), $prevIdx, $header1b);
+        $prevIdx = $header1b;
         // Add header 2b
         $block2b = $this->makeBlock($block1b->getHeader(), $cbScript2);
         $block2bHash = $block2b->getHeader()->getHash();
-        $chain->acceptHeader($this->sessionDb, $block2bHash, $block2b->getHeader());
-
+        $header2b = null;
+        $chain->acceptHeader($this->sessionDb, $block2bHash, $block2b->getHeader(), $prevIdx, $header2b);
+        $prevIdx = $header2b;
         // Add header 3b
         $block3b = $this->makeBlock($block2b->getHeader(), $cbScript2);
         $block3bHash = $block3b->getHeader()->getHash();
-        $chain->acceptHeader($this->sessionDb, $block3bHash, $block3b->getHeader());
-
-        // todo: should write a separate test that reorgs happen without restart - right now they don't.
+        $header3b = null;
+        $chain->acceptHeader($this->sessionDb, $block3bHash, $block3b->getHeader(), $prevIdx, $header3b);
+        $prevIdx = $header3b;
 
         // Reload and ensure it picked 3b
         $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
@@ -193,4 +213,80 @@ class ChainTest extends DbTestCase
         $this->assertEquals(3, $chain->getBestHeaderHeight());
         $this->assertEquals($block3bHash->getHex(), $chain->getBestHeaderHash()->getHex());
     }
+
+    public function testChainAcceptsHeaderReorg()
+    {
+        $random = new Random();
+        $privKeyFactory = new PrivateKeyFactory();
+        $cbPrivKey = $privKeyFactory->generateCompressed($random);
+        $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
+        $cbPrivKey2 = $privKeyFactory->generateCompressed($random);
+        $cbScript2 = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey2->getPubKeyHash());
+
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+
+        $prevIdx = $genesisIdx = $this->sessionDb->getHeader($this->sessionChainParams->getGenesisBlockHeader()->getHash());
+        $genesis = $chain->getBestHeader();
+        // Add header 1a
+        $block1a = $this->makeBlock($genesis, $cbScript);
+        $block1aHash = $block1a->getHeader()->getHash();
+        $header1a = null;
+        $chain->acceptHeader($this->sessionDb, $block1aHash, $block1a->getHeader(), $prevIdx, $header1a);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1a, 0));
+        $prevIdx = $header1a;
+        $this->assertEquals(1, $chain->getBestHeaderHeight());
+        $this->assertEquals($block1aHash->getHex(), $chain->getBestHeaderHash()->getHex());
+
+        // Add header 2a
+        $block2a = $this->makeBlock($block1a->getHeader(), $cbScript);
+        $block2aHash = $block2a->getHeader()->getHash();
+        $header2a = null;
+        $chain->acceptHeader($this->sessionDb, $block2aHash, $block2a->getHeader(), $prevIdx, $header2a);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header2a, 0));
+        $prevIdx = $header2a;
+        $this->assertEquals(2, $chain->getBestHeaderHeight());
+        $this->assertEquals($block2aHash->getHex(), $chain->getBestHeaderHash()->getHex());
+
+        // Add header 1b
+        $block1b = $this->makeBlock($genesis, $cbScript2);
+        $block1bHash = $block1b->getHeader()->getHash();
+        $header1b = null;
+        $chain->acceptHeader($this->sessionDb, $block1bHash, $block1b->getHeader(), $genesisIdx, $header1b);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1b, 0));
+        $prevIdx = $header1b;
+        $this->assertEquals(2, $chain->getBestHeaderHeight());
+        $this->assertEquals($block2aHash->getHex(), $chain->getBestHeaderHash()->getHex());
+
+        // Add header 2b
+        $block2b = $this->makeBlock($block1b->getHeader(), $cbScript2);
+        $block2bHash = $block2b->getHeader()->getHash();
+        $header2b = null;
+        $chain->acceptHeader($this->sessionDb, $block2bHash, $block2b->getHeader(), $prevIdx, $header2b);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header2b, 0));
+        $prevIdx = $header2b;
+        $this->assertEquals(2, $chain->getBestHeaderHeight());
+        $this->assertEquals($block2aHash->getHex(), $chain->getBestHeaderHash()->getHex());
+
+        // Add header 3b
+        $block3b = $this->makeBlock($block2b->getHeader(), $cbScript2);
+        $block3bHash = $block3b->getHeader()->getHash();
+        $header3b = null;
+        $chain->acceptHeader($this->sessionDb, $block3bHash, $block3b->getHeader(), $prevIdx, $header3b);
+        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header3b, 0));
+        $prevIdx = $header3b;
+        $this->assertEquals(3, $chain->getBestHeaderHeight());
+        $this->assertEquals($block3bHash->getHex(), $chain->getBestHeaderHash()->getHex());
+
+        // Reload and ensure it picked 3b
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+        $this->assertEquals(3, $chain->getBestHeaderHeight());
+        $this->assertEquals($block3bHash->getHex(), $chain->getBestHeaderHash()->getHex());
+    }
+
+    // todo: write block reorg test
 }

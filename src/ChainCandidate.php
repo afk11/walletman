@@ -25,4 +25,14 @@ class ChainCandidate
      * @var DbHeader
      */
     public $dbHeader;
+
+    public static function fromHeader(DbHeader $header, int $bestBlockHeight): ChainCandidate
+    {
+        $candidate = new ChainCandidate();
+        $candidate->work = $header->getWork();
+        $candidate->status = $header->getStatus();
+        $candidate->bestBlockHeight = $bestBlockHeight;
+        $candidate->dbHeader = $header;
+        return $candidate;
+    }
 }

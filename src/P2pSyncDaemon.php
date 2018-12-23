@@ -31,6 +31,7 @@ use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DbHeader;
+use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\WalletInterface;
 use React\EventLoop\LoopInterface;
@@ -62,7 +63,7 @@ class P2pSyncDaemon
     private $network;
 
     /**
-     * @var DB
+     * @var DBInterface
      */
     private $db;
 
@@ -107,7 +108,7 @@ class P2pSyncDaemon
      */
     private $wallets = [];
 
-    public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DB $db, Random $random, Chain $chain)
+    public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DBInterface $db, Random $random, Chain $chain)
     {
         $this->host = $host;
         $this->port = $port;
@@ -176,6 +177,7 @@ class P2pSyncDaemon
         $connParams->setRequiredServices($requiredServices);
         $connParams->setLocalServices($myServices);
         $connParams->setProtocolVersion(70013); // above this causes problems, todo
+
         if ($this->mempool) {
             $connParams->requestTxRelay(true);
         }
@@ -250,13 +252,23 @@ class P2pSyncDaemon
                 try {
                     /** @var DbHeader $lastHeader */
                     $lastHeader = null;
+                    $prevIdx = null;
                     foreach ($headers->getHeaders() as $i => $headerData) {
                         $header = $this->headerSerializer->parse($headerData);
                         if ($lastHeader !== null && !$lastHeader->getHash()->equals($header->getPrevBlock())) {
                             throw new \RuntimeException("non continuous headers message");
                         }
+
+                        if (null === $prevIdx) {
+                            $prevIdx = $this->db->getHeader($header->getPrevBlock());
+                            if ($prevIdx === null) {
+                                die("oops, got a block we dunno about");
+                            }
+                        }
+
                         $hash = $header->getHash();
-                        $this->chain->acceptHeader($this->db, $hash, $header, $lastHeader);
+                        $this->chain->acceptHeader($this->db, $hash, $header, $prevIdx, $lastHeader);
+                        $prevIdx = $lastHeader;
                     }
                     $this->db->getPdo()->commit();
                 } catch (\Exception $e) {
@@ -265,6 +277,8 @@ class P2pSyncDaemon
                     $this->db->getPdo()->rollBack();
                     throw $e;
                 }
+
+                $this->chain->processCandidate($this->db, ChainCandidate::fromHeader($lastHeader, 0));
 
                 if (count($headers->getHeaders()) === 2000) {
                     echo "requestHeaders starting at {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
@@ -354,7 +368,7 @@ class P2pSyncDaemon
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
                 ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
-                    echo "processBlock $height {$hash->getHex()}\n";
+                    //echo "processBlock $height {$hash->getHex()}\n";
 
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();

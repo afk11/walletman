@@ -20,6 +20,7 @@ use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Wallet\Chain;
 use BitWasp\Wallet\Console\Command\Command;
+use BitWasp\Wallet\DB\DBDecorator;
 use BitWasp\Wallet\DbManager;
 use BitWasp\Wallet\P2pSyncDaemon;
 use BitWasp\Wallet\Params\RegtestParams;
@@ -49,6 +50,7 @@ class SyncWallet extends Command
 
             // sync options
             ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
+            ->addOption('debug-db', null, InputOption::VALUE_NONE, "Debug the database usage by printing function calls")
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -60,11 +62,15 @@ class SyncWallet extends Command
         $fIsRegtest = $input->getOption('regtest');
         $fIsTestnet = $input->getOption('testnet');
         $fSyncMempool = $input->getOption('mempool');
+        $fDebugDb = $input->getOption('debug-db');
         $ip = $this->getStringOption($input, 'ip');
         $path = $this->getStringArgument($input, "database");
 
         $dbMgr = new DbManager();
         $db = $dbMgr->loadDb($path);
+        if ($fDebugDb) {
+            $db = new DBDecorator($db);
+        }
 
         $ecAdapter = Bitcoin::getEcAdapter();
         $random = new Random();

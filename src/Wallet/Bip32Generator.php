@@ -6,13 +6,14 @@ namespace BitWasp\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbKey;
 use BitWasp\Wallet\DB\DbScript;
 
 class Bip32Generator implements ScriptGenerator
 {
     /**
-     * @var DB
+     * @var DBInterface
      */
     private $db;
 
@@ -31,7 +32,7 @@ class Bip32Generator implements ScriptGenerator
      */
     private $gapLimit;
 
-    public function __construct(DB $db, DbKey $dbKey, int $gapLimit, HierarchicalKey $key)
+    public function __construct(DBInterface $db, DbKey $dbKey, int $gapLimit, HierarchicalKey $key)
     {
         if ($dbKey->isLeaf()) {
             throw new \RuntimeException("cannot use leaf key with Bip32Generator");
