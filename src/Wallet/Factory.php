@@ -39,7 +39,7 @@ class Factory
         }
     }
 
-    public function createBip44WalletFromRootKey(string $identifier, HierarchicalKey $rootKey, string $accountPath, ?BlockRef $birthday): WalletInterface
+    public function createBip44WalletFromRootKey(string $identifier, HierarchicalKey $rootKey, string $accountPath, int $gapLimit, ?BlockRef $birthday): WalletInterface
     {
         if ($rootKey->getDepth() !== 0) {
             throw new \RuntimeException("invalid key - must be root");
@@ -56,10 +56,10 @@ class Factory
         }
 
         $accountNode = $rootKey->derivePath(substr($accountPath, 2))->withoutPrivateKey();
-        return $this->createBip44WalletFromAccountKey($identifier, $accountNode, $accountPath, $birthday);
+        return $this->createBip44WalletFromAccountKey($identifier, $accountNode, $accountPath, $gapLimit, $birthday);
     }
 
-    public function createBip44WalletFromAccountKey(string $identifier, HierarchicalKey $accountNode, string $path, ?BlockRef $birthday): WalletInterface
+    public function createBip44WalletFromAccountKey(string $identifier, HierarchicalKey $accountNode, string $path, int $gapLimit, ?BlockRef $birthday): WalletInterface
     {
         if ($accountNode->getDepth() !== 3) {
             throw new \RuntimeException("invalid key - must be root");
@@ -77,7 +77,7 @@ class Factory
 
         $this->db->getPdo()->beginTransaction();
         try {
-            $walletId = $this->db->createWallet($identifier, WalletType::BIP44_WALLET, $birthday);
+            $walletId = $this->db->createWallet($identifier, WalletType::BIP44_WALLET, $gapLimit, $birthday);
             $this->db->createKey($walletId, $this->serializer, $path, $accountNode, $this->network, 0, false);
             $this->db->createKey($walletId, $this->serializer, $externalPath, $externalNode, $this->network, 0, false);
             $this->db->createKey($walletId, $this->serializer, $changePath, $changeNode, $this->network, 0, false);

@@ -27,8 +27,9 @@ class Bip32ScriptStorageTest extends DbTestCase
         $rootKey = $hdFactory->fromEntropy(new Buffer("", 32));
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
 
+        $gapLimit = 100;
         /** @var Bip44Wallet $wallet */
-        $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", null);
+        $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", $gapLimit, null);
         $this->assertNull($wallet->getScriptByPath("M/44'/0'/0'/0/0"));
 
         $dbWallet = $wallet->getDbWallet();

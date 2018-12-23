@@ -61,7 +61,8 @@ class DB
             `type`         INTEGER,
             `identifier`   TEXT,
             `birthday_hash`TEXT,
-            `birthday_height` INTEGER
+            `birthday_height` INTEGER,
+            `gapLimit`     INTEGER
         );");
 
         $this->pdo->exec("CREATE UNIQUE INDEX unique_identifier on wallet(identifier)");
@@ -335,15 +336,16 @@ class DB
         return $this->getBip44WalletKey->fetchObject(DbKey::class);
     }
 
-    public function createWallet(string $identifier, int $type, ?BlockRef $birthday): int
+    public function createWallet(string $identifier, int $type, ?int $gapLimit, ?BlockRef $birthday): int
     {
         if (null === $this->addWalletStmt) {
-            $this->addWalletStmt = $this->pdo->prepare("INSERT INTO wallet (identifier, type, birthday_hash, birthday_height) VALUES (?, ?, ?, ?)");
+            $this->addWalletStmt = $this->pdo->prepare("INSERT INTO wallet (identifier, type, birthday_hash, birthday_height, gapLimit) VALUES (?, ?, ?, ?, ?)");
         }
         if (!$this->addWalletStmt->execute([
             $identifier, $type,
             null === $birthday ? null : $birthday->getHash()->getHex(),
             null === $birthday ? null : $birthday->getHeight(),
+            $gapLimit,
         ])) {
             throw new \RuntimeException("Failed to create wallet");
         }

@@ -72,6 +72,9 @@ class Create extends Command
             ->addOption('bip39-custommnemonic', 'm', InputOption::VALUE_NONE, "Prompt for a user-provided BIP39 mnemonic")
             ->addOption('bip39-passphrase', 'p', InputOption::VALUE_NONE, "Prompt for a BIP39 passphrase")
 
+            // settings for bip32 derived wallets
+            ->addOption('bip32-gaplimit', null, InputOption::VALUE_REQUIRED, "Set a custom gap limit for the wallet", "100")
+
             // the full command description shown when running the command with
             // the "--help" option
             ->setHelp('');
@@ -141,6 +144,13 @@ class Create extends Command
         return new BlockRef((int) $height, Buffer::hex($hash, 32));
     }
 
+    private function parseGapLimit(InputInterface $input): int
+    {
+        /** @var string $birthdayValue */
+        $birthdayValue = $input->getOption('birthday');
+        return (int) $birthdayValue;
+    }
+
     protected function getPrefixConfig(NetworkInterface $network, Slip132 $slip132, PrefixRegistry $registry): GlobalPrefixConfig
     {
         return new GlobalPrefixConfig([
@@ -161,8 +171,8 @@ class Create extends Command
         $fUseBip44 = $input->getOption('bip44');
         $fUseBip49 = $input->getOption('bip49');
         $fUseBip84 = $input->getOption('bip84');
-
         $fBip39Pass = $input->getOption('bip39-passphrase');
+        $fGapLimit = $this->parseGapLimit($input);
         $wordlist = $this->getBip39Wordlist($input);
         $birthday = $this->parseBirthday($input);
 
@@ -219,7 +229,7 @@ class Create extends Command
         $rootKey = $hdFactory->fromEntropy($seed, $scriptFactory);
 
         $walletFactory = new Factory($db, $net, $hdSerializer, $ecAdapter);
-        $wallet = $walletFactory->createBip44WalletFromRootKey($identifier, $rootKey, $path, $birthday);
+        $wallet = $walletFactory->createBip44WalletFromRootKey($identifier, $rootKey, $path, $fGapLimit, $birthday);
         $dbScript = $wallet->getScriptGenerator()->generate();
 
         $addrCreator = new AddressCreator();

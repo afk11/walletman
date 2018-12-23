@@ -34,7 +34,8 @@ class WalletTest extends DbTestCase
         $rootKey = $hdFactory->fromEntropy(new Buffer("", 32));
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
 
-        $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", null);
+        $gapLimit = 100;
+        $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", $gapLimit, null);
         $this->assertEquals(0, $wallet->getConfirmedBalance());
 
         $oneBtc = 100000000;
