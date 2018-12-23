@@ -7,6 +7,8 @@ namespace BitWasp\Test\Wallet\Wallet;
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Script\Script;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\DB\DbScript;
@@ -20,9 +22,10 @@ class Bip32ScriptStorageTest extends DbTestCase
     public function testDerivesGapLimitAfterLastUsedAddress()
     {
         $ecAdapter = Bitcoin::getEcAdapter();
+        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter));
         $hdFactory = new HierarchicalKeyFactory($ecAdapter);
         $rootKey = $hdFactory->fromEntropy(new Buffer("", 32));
-        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
+        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
 
         /** @var Bip44Wallet $wallet */
         $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", null);
@@ -39,7 +42,7 @@ class Bip32ScriptStorageTest extends DbTestCase
         $this->assertNull($wallet->getScriptByPath("M/44'/0'/0'/0/3"));
 
         // test with gap limit 5
-        $storage = new Bip32ScriptStorage($this->sessionDb, $dbWallet, 5, $ecAdapter, $this->sessionNetwork);
+        $storage = new Bip32ScriptStorage($this->sessionDb, $hdSerializer, $dbWallet, 5, $ecAdapter, $this->sessionNetwork);
         $this->assertNull($storage->searchScript(new Script()));
 
         $foundLast = $storage->searchScript($last->getScriptPubKey());

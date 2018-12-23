@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
-use BitWasp\Bitcoin\Script\ScriptFactory;
 use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DbKey;
 use BitWasp\Wallet\DB\DbScript;
@@ -57,9 +56,17 @@ class Bip32Generator implements ScriptGenerator
                 break;
             }
             $child = $this->key->deriveChild($preDeriveIdx);
-            $script = ScriptFactory::scriptPubKey()->p2pkh($child->getPublicKey()->getPubKeyHash());
+            $scriptAndSignData = $child->getScriptAndSignData();
 
-            $this->db->createScript($this->dbKey->getWalletId(), $gapKeyPath, $script->getHex(), null, null);
+            $rs = "";
+            $ws = "";
+            if ($scriptAndSignData->getSignData()->hasRedeemScript()) {
+                $rs = $scriptAndSignData->getSignData()->getRedeemScript()->getHex();
+            }
+            if ($scriptAndSignData->getSignData()->hasWitnessScript()) {
+                $ws = $scriptAndSignData->getSignData()->getWitnessScript()->getHex();
+            }
+            $this->db->createScript($this->dbKey->getWalletId(), $gapKeyPath, $scriptAndSignData->getScriptPubKey()->getHex(), $rs, $ws);
         }
 
         $loadKeyPath = $this->dbKey->getPath() . "/$currentIndex";

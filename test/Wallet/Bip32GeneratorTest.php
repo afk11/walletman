@@ -5,7 +5,13 @@ declare(strict_types=1);
 namespace BitWasp\Test\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
+use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\GlobalPrefixConfig;
+use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\NetworkConfig;
+use BitWasp\Bitcoin\Key\Deterministic\Slip132\Slip132;
 use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Network\Slip132\BitcoinTestnetRegistry;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\Wallet\Bip32Generator;
@@ -16,9 +22,20 @@ class Bip32GeneratorTest extends DbTestCase
     public function testBip32Generator()
     {
         $ecAdapter = Bitcoin::getEcAdapter();
-        $hdFactory = new HierarchicalKeyFactory();
+        $slip132 = new Slip132();
+        $p2wpkh = $slip132->p2wpkh($this->sessionPrefixRegistry);
+        $cfg = new GlobalPrefixConfig([
+            new NetworkConfig($this->sessionNetwork, [
+                $slip132->p2pkh($this->sessionPrefixRegistry),
+                $p2wpkh,
+                $slip132->p2shP2wpkh($this->sessionPrefixRegistry),
+            ])
+        ]);
+
+        $serializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter, $cfg));
+        $hdFactory = new HierarchicalKeyFactory($ecAdapter, $serializer);
         $rootKey = $hdFactory->fromEntropy(new Buffer("", 32));
-        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
+        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $serializer, $ecAdapter);
 
         $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", null);
         $this->assertNull($wallet->getScriptByPath("M/44'/0'/0'/0/0"));

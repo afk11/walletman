@@ -78,6 +78,11 @@ class DbKey
         return (int) $this->childSequence;
     }
 
+    public function getBase58Key(): string
+    {
+        return $this->key;
+    }
+
     public function getHierarchicalKey(NetworkInterface $network, EcAdapterInterface $ecAdapter): HierarchicalKey
     {
         $factory = new HierarchicalKeyFactory($ecAdapter);

@@ -8,6 +8,7 @@ use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeySequence;
 use BitWasp\Bitcoin\Network\NetworkInterface;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Wallet\BlockRef;
 use BitWasp\Wallet\DB\DB;
 
@@ -16,11 +17,13 @@ class Factory
     private $db;
     private $network;
     private $ecAdapter;
+    private $serializer;
 
-    public function __construct(DB $db, NetworkInterface $network, EcAdapterInterface $ecAdapter)
+    public function __construct(DB $db, NetworkInterface $network, Base58ExtendedKeySerializer $serializer, EcAdapterInterface $ecAdapter)
     {
         $this->db = $db;
         $this->network = $network;
+        $this->serializer = $serializer;
         $this->ecAdapter = $ecAdapter;
     }
 
@@ -30,7 +33,7 @@ class Factory
         switch ($dbWallet->getType()) {
             case 1:
                 $rootKey = $this->db->loadBip44WalletKey($dbWallet->getId());
-                return new Bip44Wallet($this->db, $dbWallet, $rootKey, $this->network, $this->ecAdapter);
+                return new Bip44Wallet($this->db, $this->serializer, $dbWallet, $rootKey, $this->network, $this->ecAdapter);
             default:
                 throw new \RuntimeException("Unknown type");
         }
@@ -75,9 +78,9 @@ class Factory
         $this->db->getPdo()->beginTransaction();
         try {
             $walletId = $this->db->createWallet($identifier, WalletType::BIP44_WALLET, $birthday);
-            $this->db->createKey($walletId, $path, $accountNode, $this->network, 0, false);
-            $this->db->createKey($walletId, $externalPath, $externalNode, $this->network, 0, false);
-            $this->db->createKey($walletId, $changePath, $changeNode, $this->network, 0, false);
+            $this->db->createKey($walletId, $this->serializer, $path, $accountNode, $this->network, 0, false);
+            $this->db->createKey($walletId, $this->serializer, $externalPath, $externalNode, $this->network, 0, false);
+            $this->db->createKey($walletId, $this->serializer, $changePath, $changeNode, $this->network, 0, false);
             $this->db->getPdo()->commit();
         } catch (\Exception $e) {
             $this->db->getPdo()->rollBack();

@@ -6,6 +6,8 @@ namespace BitWasp\Test\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\DB\DbWallet;
@@ -28,8 +30,9 @@ class WalletTest extends DbTestCase
         $pdo = $this->sessionDb->getPdo();
         $ecAdapter = Bitcoin::getEcAdapter();
         $hdFactory = new HierarchicalKeyFactory($ecAdapter);
+        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter));
         $rootKey = $hdFactory->fromEntropy(new Buffer("", 32));
-        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
+        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
 
         $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", null);
         $this->assertEquals(0, $wallet->getConfirmedBalance());

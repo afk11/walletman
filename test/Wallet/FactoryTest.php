@@ -6,6 +6,8 @@ namespace BitWasp\Test\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\BlockRef;
@@ -25,7 +27,9 @@ class FactoryTest extends DbTestCase
         $hdFactory = new HierarchicalKeyFactory($ecAdapter);
         $rootKey = $hdFactory->fromEntropy($random);
         $path = "M/44'/0'/0'";
-        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
+
+        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter));
+        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
 
         $wallet = $walletFactory->createBip44WalletFromRootKey($identifier, $rootKey, $path, null);
         $this->assertInstanceOf(Bip44Wallet::class, $wallet);
@@ -43,7 +47,9 @@ class FactoryTest extends DbTestCase
         $rootKey = $hdFactory->fromEntropy($random);
         $path = "44'/0'/0'";
         $accountKey = $rootKey->derivePath($path)->withoutPrivateKey();
-        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
+
+        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter));
+        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
 
         $wallet = $walletFactory->createBip44WalletFromAccountKey($identifier, $accountKey, $path, null);
         $this->assertInstanceOf(Bip44Wallet::class, $wallet);
@@ -60,7 +66,8 @@ class FactoryTest extends DbTestCase
         $hdFactory = new HierarchicalKeyFactory($ecAdapter);
         $rootKey = $hdFactory->fromEntropy($random);
         $path = "M/44'/0'/0'";
-        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $ecAdapter);
+        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter));
+        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
         $birthday = new BlockRef(0, Buffer::hex("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206", 32));
         $wallet = $walletFactory->createBip44WalletFromRootKey($identifier, $rootKey, $path, $birthday);
         $this->assertInstanceOf(Bip44Wallet::class, $wallet);

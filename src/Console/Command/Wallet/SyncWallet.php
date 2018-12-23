@@ -8,8 +8,16 @@ use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Chain\ProofOfWork;
 use BitWasp\Bitcoin\Crypto\Random\Random;
+use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\GlobalPrefixConfig;
+use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\NetworkConfig;
+use BitWasp\Bitcoin\Key\Deterministic\Slip132\Slip132;
+use BitWasp\Bitcoin\Key\KeyToScript\KeyToScriptHelper;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkFactory;
+use BitWasp\Bitcoin\Network\Slip132\BitcoinRegistry;
+use BitWasp\Bitcoin\Network\Slip132\BitcoinTestnetRegistry;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Wallet\Chain;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
@@ -65,21 +73,33 @@ class SyncWallet extends Command
             $port = 18444;
             $params = new RegtestParams(new Math());
             $net = NetworkFactory::bitcoinRegtest();
+            $registry = new BitcoinTestnetRegistry();
         } else if ($fIsTestnet) {
             $port = 18333;
             $params = new TestnetParams(new Math());
             $net = NetworkFactory::bitcoinTestnet();
+            $registry = new BitcoinTestnetRegistry();
         } else {
             $port = 8333;
             $params = new Params(new Math());
             $net = NetworkFactory::bitcoin();
+            $registry = new BitcoinRegistry();
         }
+
+        $slip132 = new Slip132(new KeyToScriptHelper($ecAdapter));
+        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter, new GlobalPrefixConfig([
+            new NetworkConfig($net, [
+                $slip132->p2pkh($registry),
+                $slip132->p2wpkh($registry),
+                $slip132->p2shP2wpkh($registry),
+            ])
+        ])));
 
         $pow = new ProofOfWork(new Math(), $params);
         $chain = new Chain($pow);
         $daemon = new P2pSyncDaemon($ip, $port, $ecAdapter, $net, $params, $db, $random, $chain);
         $daemon->syncMempool($fSyncMempool);
-        $daemon->init();
+        $daemon->init($hdSerializer);
         $daemon->sync($loop);
         $loop->run();
     }

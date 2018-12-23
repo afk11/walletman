@@ -8,6 +8,7 @@ use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
@@ -31,6 +32,7 @@ class DB
     private $createScriptStmt;
     private $loadScriptByKeyIdStmt;
     private $getWalletStmt;
+    private $checkWalletExistsStmt;
     private $allWalletsStmt;
     private $getBip44WalletKey;
     private $getBlockCountStmt;
@@ -310,6 +312,15 @@ class DB
         return $this->getWalletStmt->fetchObject(DbWallet::class);
     }
 
+    public function checkWalletExists(string $identifier): bool
+    {
+        if (null === $this->checkWalletExistsStmt) {
+            $this->checkWalletExistsStmt = $this->pdo->prepare("SELECT COUNT(*) FROM wallet WHERE identifier = ?");
+        }
+        $this->checkWalletExistsStmt->execute([$identifier]);
+        return $this->checkWalletExistsStmt->fetchColumn(0) == 1;
+    }
+
     public function loadBip44WalletKey(int $walletId): DbKey
     {
         if (null === $this->getBip44WalletKey) {
@@ -339,7 +350,7 @@ class DB
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function createKey(int $walletId, string $path, HierarchicalKey $key, NetworkInterface $network, int $keyIndex, bool $isLeaf): int
+    public function createKey(int $walletId, Base58ExtendedKeySerializer $serializer, string $path, HierarchicalKey $key, NetworkInterface $network, int $keyIndex, bool $isLeaf): int
     {
         if (null === $this->createKeyStmt) {
             $this->createKeyStmt = $this->pdo->prepare("INSERT INTO key (walletId, path, childSequence, depth, key, keyIndex, isLeaf) values (?,?,?,?,?,?,?)");
@@ -347,7 +358,7 @@ class DB
 
         if (!$this->createKeyStmt->execute([
             $walletId, $path, 0, $key->getDepth(),
-            $key->toExtendedPublicKey($network), $keyIndex, $isLeaf,
+            $serializer->serialize($network, $key->withoutPrivateKey()), $keyIndex, $isLeaf,
         ])) {
             throw new \RuntimeException("Failed to create key");
         }

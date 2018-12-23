@@ -6,11 +6,14 @@ namespace BitWasp\Test\Wallet;
 
 use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Chain\ParamsInterface;
+use BitWasp\Bitcoin\Key\Deterministic\Slip132\PrefixRegistry;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Network\Networks\Bitcoin;
 use BitWasp\Bitcoin\Network\Networks\BitcoinRegtest;
 use BitWasp\Bitcoin\Network\Networks\BitcoinTestnet;
+use BitWasp\Bitcoin\Network\Slip132\BitcoinRegistry;
+use BitWasp\Bitcoin\Network\Slip132\BitcoinTestnetRegistry;
 use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\Initializer;
 use BitWasp\Wallet\Params\RegtestParams;
@@ -47,6 +50,11 @@ abstract class DbTestCase extends TestCase
     protected $sessionNetwork;
 
     /**
+     * @var PrefixRegistry
+     */
+    protected $sessionPrefixRegistry;
+
+    /**
      * @var string
      */
     protected $sessionDbFile;
@@ -66,12 +74,15 @@ abstract class DbTestCase extends TestCase
         if ($this->regtest) {
             $this->sessionChainParams = new RegtestParams(new Math());
             $this->sessionNetwork = new BitcoinRegtest();
+            $this->sessionPrefixRegistry = new BitcoinTestnetRegistry();
         } else if ($this->testnet) {
             $this->sessionChainParams = new TestnetParams(new Math());
             $this->sessionNetwork = new BitcoinTestnet();
+            $this->sessionPrefixRegistry = new BitcoinTestnetRegistry();
         } else {
             $this->sessionChainParams = new Params(new Math());
             $this->sessionNetwork = new Bitcoin();
+            $this->sessionPrefixRegistry = new BitcoinRegistry();
         }
 
         $initializer = new Initializer();

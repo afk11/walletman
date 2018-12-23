@@ -25,6 +25,7 @@ use BitWasp\Bitcoin\Networking\Services;
 use BitWasp\Bitcoin\Networking\Structure\Inventory;
 use BitWasp\Bitcoin\Serializer\Block\BlockHeaderSerializer;
 use BitWasp\Bitcoin\Serializer\Block\BlockSerializer;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
@@ -131,7 +132,7 @@ class P2pSyncDaemon
         $this->mempool = $setting;
     }
 
-    public function init()
+    public function init(Base58ExtendedKeySerializer $hdSerializer)
     {
         $dbWallets = $this->db->loadAllWallets();
         $startBlock = null;
@@ -139,7 +140,7 @@ class P2pSyncDaemon
             if ($dbWallet->getType() !== 1) {
                 throw new \RuntimeException("invalid wallet type");
             }
-            $this->wallets[] = new Bip44Wallet($this->db, $dbWallet, $this->db->loadBip44WalletKey($dbWallet->getId()), $this->network, $this->ecAdapter);
+            $this->wallets[] = new Bip44Wallet($this->db, $hdSerializer, $dbWallet, $this->db->loadBip44WalletKey($dbWallet->getId()), $this->network, $this->ecAdapter);
             if ($birthday = $dbWallet->getBirthday()) {
                 if (!($startBlock instanceof BlockRef)) {
                     $startBlock = $dbWallet->getBirthday();
