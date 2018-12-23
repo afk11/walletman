@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet\Wallet;
 
+use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PrivateKeyInterface;
 use BitWasp\Bitcoin\Key\KeyToScript\ScriptAndSignData;
 use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Transaction\Factory\Signer;
@@ -33,6 +34,8 @@ abstract class Wallet implements WalletInterface
         $this->db = $db;
         $this->dbWallet = $dbWallet;
     }
+
+    abstract public function getSigner(string $keyIdentifier): PrivateKeyInterface;
 
     public function getConfirmedBalance(): int
     {
@@ -137,17 +140,21 @@ abstract class Wallet implements WalletInterface
     public function sendAllCoins(ScriptInterface $destination, int $feeRate): PreparedTx
     {
         $utxos = $this->db->getUnspentWalletUtxos($this->dbWallet->getId());
+
+        // shuffle utxos early so everything is randomized
+        shuffle($utxos);
         $txBuilder = new TxBuilder();
         $valueIn = 0;
-        /** @var ScriptAndSignData[] $inputScripts */
-        /** @var DbScript[] $dbScripts */
         $inputScripts = [];
-        $dbScripts = [];
+        $inputKeyIds = [];
+        $inputTxOuts = [];
         foreach ($utxos as $utxo) {
             $txOut = $utxo->getTxOut();
             $txBuilder->spendOutPoint($utxo->getOutPoint());
-            $dbScripts[] = $dbScript = $utxo->getDbScript($this->db);
+            $dbScript = $utxo->getDbScript($this->db);
             $inputScripts[] = new ScriptAndSignData($txOut->getScript(), $dbScript->getSignData());
+            $inputKeyIds[] = $dbScript->getKeyIdentifier();
+            $inputTxOuts[] = $utxo->getTxOut();
             $valueIn += $txOut->getValue();
         }
         $estimatedVsize = SizeEstimation::estimateVsize($inputScripts, [new TransactionOutput(0, $destination)]);
@@ -157,7 +164,7 @@ abstract class Wallet implements WalletInterface
             throw new \RuntimeException("Insufficient funds for fee");
         }
         $txBuilder->output($valueIn - $fee, $destination);
-        return new PreparedTx($txBuilder->get(), $utxos, $dbScripts);
+        return new PreparedTx($txBuilder->get(), $inputTxOuts, $inputScripts, $inputKeyIds);
     }
 
     public function signTx(PreparedTx $prepTx): TransactionInterface

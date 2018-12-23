@@ -44,6 +44,9 @@ abstract class HdWallet extends Wallet
      */
     protected $accountPrivateKey;
 
+    /**
+     * @var Base58ExtendedKeySerializer
+     */
     protected $serializer;
 
     public function __construct(DB $db, Base58ExtendedKeySerializer $serializer, DbWallet $wallet, DbKey $dbKey, NetworkInterface $network, EcAdapterInterface $ecAdapter)
@@ -74,6 +77,14 @@ abstract class HdWallet extends Wallet
         return $this->db->loadScriptByKeyIdentifier($this->dbKey->getWalletId(), $path);
     }
 
+    public function getSigner(string $path): PrivateKeyInterface
+    {
+        if (null === $this->accountPrivateKey) {
+            throw new \RuntimeException("private key not available");
+        }
+        return $this->accountPrivateKey->derivePath(implode("/", array_slice(explode("/", $path), 4)))->getPrivateKey();
+    }
+
     public function unlockWithAccountKey(HierarchicalKey $privAccountKey)
     {
         if (null === $this->accountPrivateKey) {
@@ -93,13 +104,5 @@ abstract class HdWallet extends Wallet
     public function lockWallet()
     {
         $this->accountPrivateKey = null;
-    }
-
-    protected function getSigner(string $path): PrivateKeyInterface
-    {
-        if (null === $this->accountPrivateKey) {
-            throw new \RuntimeException("private key not available");
-        }
-        return $this->accountPrivateKey->derivePath(implode("/", array_slice(explode("/", $path), 4)))->getPrivateKey();
     }
 }
