@@ -293,6 +293,22 @@ class Chain
         }
     }
 
+    public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block, DbHeader &$dbHeader)
+    {
+        $header = $block->getHeader();
+        $prevIdx = $db->getHeader($header->getPrevBlock());
+        if (!$prevIdx) {
+            // no prev block, rabble
+            return false;
+        }
+
+        if (!$this->acceptHeader($db, $hash, $header, $prevIdx)) {
+            // who knows what that was
+            return false;
+        }
+
+
+    }
     public function addNextBlock(DBInterface $db, int $height, BufferInterface $hash, BlockInterface $block)
     {
         if ($height !== 1 + $this->bestBlockHeight) {
