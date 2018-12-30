@@ -253,7 +253,8 @@ class Chain
         return true;
     }
 
-    public function processCandidate(DBInterface $db, ChainCandidate $candidate) {
+    public function processCandidate(DBInterface $db, ChainCandidate $candidate)
+    {
         if (gmp_cmp($candidate->work, $this->bestHeaderWork) > 0) {
             $candidateHashes = [$candidate->dbHeader->getHeight() => $candidate->dbHeader->getHash()->getBinary()];
             $header = $candidate->dbHeader->getHeader();
@@ -306,8 +307,6 @@ class Chain
             // who knows what that was
             return false;
         }
-
-
     }
     public function addNextBlock(DBInterface $db, int $height, BufferInterface $hash, BlockInterface $block)
     {

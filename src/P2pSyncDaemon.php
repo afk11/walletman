@@ -320,9 +320,6 @@ class P2pSyncDaemon
      */
     public function receiveBlock(Peer $peer, \BitWasp\Bitcoin\Networking\Messages\Block $blockMsg)
     {
-        $wakeUp = microtime(true) - $this->blockTime ;
-        echo "receiveBlock woke up after {$wakeUp}\n";
-        $this->blockTime = microtime(true);
         $s = microtime(true);
         $block = $this->blockSerializer->parse($blockMsg->getBlock());
         $e = microtime(true);
@@ -330,9 +327,7 @@ class P2pSyncDaemon
         $this->blockDeserializeTime += $taken;
         echo "deserialization took $taken\n";
         $hash = $block->getHeader()->getHash();
-        echo "block size: {$blockMsg->getBlock()->getSize()}\n";
         //echo "receiveBlock {$hash->getHex()}\n";
-
         if (!array_key_exists($hash->getBinary(), $this->deferred)) {
             throw new \RuntimeException("missing block request {$hash->getHex()}");
         }
@@ -423,7 +418,9 @@ class P2pSyncDaemon
                         $this->blockStatsBegin = microtime(true);
                     }
 
-                    $this->requestBlocks($peer, $deferredFinished);
+                    if (!$hash->equals($this->chain->getBestHeaderHash())) {
+                        $this->requestBlocks($peer, $deferredFinished);
+                    }
                 }, function (\Exception $e) use ($deferredFinished) {
                     $deferredFinished->reject(new \Exception("requestBlockError", 0, $e));
                 })
@@ -446,9 +443,6 @@ class P2pSyncDaemon
         if (count($this->deferred) === 0) {
             $deferredFinished->resolve();
         }
-
-        echo "requestBlocks done, waiting\n\n";
-        $this->blockTime = microtime(true);
     }
 
     public function downloadBlocks(Peer $peer)

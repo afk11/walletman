@@ -10,7 +10,7 @@ namespace BitWasp\Wallet\Console\Command\Db;
  use Symfony\Component\Console\Input\InputInterface;
  use Symfony\Component\Console\Output\OutputInterface;
 
- class Init extends Command
+class Init extends Command
 {
     protected function configure()
     {
