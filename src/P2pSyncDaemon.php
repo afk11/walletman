@@ -320,12 +320,11 @@ class P2pSyncDaemon
      */
     public function receiveBlock(Peer $peer, \BitWasp\Bitcoin\Networking\Messages\Block $blockMsg)
     {
-        $s = microtime(true);
+        $beforeDeserialize = microtime(true);
         $block = $this->blockSerializer->parse($blockMsg->getBlock());
-        $e = microtime(true);
-        $taken = $e-$s;
+        $taken = microtime(true)-$beforeDeserialize;
         $this->blockDeserializeTime += $taken;
-        echo "deserialization took $taken\n";
+        echo "block.deserialize (size={$blockMsg->getBlock()->getSize()}) (time=$taken)\n";
         $hash = $block->getHeader()->getHash();
         //echo "receiveBlock {$hash->getHex()}\n";
         if (!array_key_exists($hash->getBinary(), $this->deferred)) {
@@ -394,7 +393,7 @@ class P2pSyncDaemon
                     }
 
                     $blockProcessTime = microtime(true) - $processStart;
-                    echo "processBlock time: $blockProcessTime\n";
+                    echo "block.process (time=$blockProcessTime)\n";
                     $this->blockProcessTime += $blockProcessTime;
                     $this->blockStatsCount++;
 
@@ -418,9 +417,7 @@ class P2pSyncDaemon
                         $this->blockStatsBegin = microtime(true);
                     }
 
-                    if (!$hash->equals($this->chain->getBestHeaderHash())) {
-                        $this->requestBlocks($peer, $deferredFinished);
-                    }
+                    $this->requestBlocks($peer, $deferredFinished);
                 }, function (\Exception $e) use ($deferredFinished) {
                     $deferredFinished->reject(new \Exception("requestBlockError", 0, $e));
                 })
