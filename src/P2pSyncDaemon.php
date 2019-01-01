@@ -33,6 +33,7 @@ use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\WalletInterface;
+use Psr\Log\LoggerInterface;
 use React\EventLoop\LoopInterface;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
@@ -55,6 +56,11 @@ class P2pSyncDaemon
      * @var EcAdapterInterface
      */
     private $ecAdapter;
+
+    /**
+     * @var LoggerInterface
+     */
+    private $logger;
 
     /**
      * @var Chain
@@ -95,6 +101,10 @@ class P2pSyncDaemon
      */
     private $random;
     /**
+     * @var
+     */
+    private $blockStatsFileHandle;
+    /**
      * @var int
      */
     private $batchSize =  16;
@@ -113,8 +123,16 @@ class P2pSyncDaemon
      */
     private $wallets = [];
 
-    public function __construct(string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DBInterface $db, Random $random, Chain $chain)
+    public function __destruct()
     {
+        if ($this->blockStatsFileHandle) {
+            fclose($this->blockStatsFileHandle);
+        }
+    }
+
+    public function __construct(LoggerInterface $logger, string $host, int $port, EcAdapterInterface $ecAdapter, NetworkInterface $network, Params $params, DBInterface $db, Random $random, Chain $chain)
+    {
+        $this->logger = $logger;
         $this->host = $host;
         $this->port = $port;
         $this->db = $db;
@@ -139,6 +157,17 @@ class P2pSyncDaemon
     public function syncMempool(bool $setting)
     {
         $this->mempool = $setting;
+    }
+
+    public function produceBlockStatsCsv(string $file)
+    {
+        if ($this->blockStatsFileHandle !== null) {
+            throw new \RuntimeException("Already setup block stats logging");
+        }
+        $this->blockStatsFileHandle = fopen($file, "a");
+        if (!$this->blockStatsFileHandle) {
+            throw new \RuntimeException("Failed to open block stats file: {$file}");
+        }
     }
 
     public function init(Base58ExtendedKeySerializer $hdSerializer)
@@ -418,7 +447,20 @@ class P2pSyncDaemon
 
                         $processTime = number_format($this->blockProcessTime, 2);
                         $processPct = number_format($processTime / $totalTime*100, 2);
-                        echo "block process info ({$this->blockStatsWindow} blocks): height {$height} hash {$hash->getHex()} | deserialize {$deserTime} {$deserPct} | downloadtime {$downloadTime} {$downloadPct}, processtime {$processTime} {$processPct}, total {$windowTime}\n";
+                        $this->logger->info("block process info ({$this->blockStatsWindow} blocks): height {$height} hash {$hash->getHex()} | deserialize {$deserTime} {$deserPct} | downloadtime {$downloadTime} {$downloadPct}, processtime {$processTime} {$processPct}, total {$windowTime}");
+                        if ($this->blockStatsFileHandle) {
+                            fwrite($this->blockStatsFileHandle, implode(", ", [
+                                    $height,
+                                    $deserTime,
+                                    $deserPct,
+                                    $downloadTime,
+                                    $downloadPct,
+                                    $processTime,
+                                    $processPct,
+                                    $windowTime,
+                                    count($block->getTransactions()),
+                                ]) . "\n");
+                        }
 
                         $this->blockProcessTime = 0;
                         $this->blockDeserializeTime = 0;

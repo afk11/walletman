@@ -25,6 +25,8 @@ use BitWasp\Wallet\DbManager;
 use BitWasp\Wallet\P2pSyncDaemon;
 use BitWasp\Wallet\Params\RegtestParams;
 use BitWasp\Wallet\Params\TestnetParams;
+use Monolog\Handler\StreamHandler;
+use Monolog\Logger;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -51,6 +53,7 @@ class SyncWallet extends Command
             // sync options
             ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
             ->addOption('debug-db', null, InputOption::VALUE_NONE, "Debug the database usage by printing function calls")
+            ->addOption('blockstats', null, InputOption::VALUE_NONE, "Log block stats to file")
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -63,6 +66,7 @@ class SyncWallet extends Command
         $fIsTestnet = $input->getOption('testnet');
         $fSyncMempool = $input->getOption('mempool');
         $fDebugDb = $input->getOption('debug-db');
+        $fBlockStatsToFile = $input->getOption('blockstats');
         $ip = $this->getStringOption($input, 'ip');
         $path = $this->getStringArgument($input, "database");
 
@@ -101,10 +105,16 @@ class SyncWallet extends Command
             ])
         ])));
 
+        $logger = new Logger('walletman');
+        $logger->pushHandler(new \Monolog\Handler\ErrorLogHandler());
+
         $pow = new ProofOfWork(new Math(), $params);
         $chain = new Chain($pow);
-        $daemon = new P2pSyncDaemon($ip, $port, $ecAdapter, $net, $params, $db, $random, $chain);
+        $daemon = new P2pSyncDaemon($logger, $ip, $port, $ecAdapter, $net, $params, $db, $random, $chain);
         $daemon->syncMempool($fSyncMempool);
+        if ($fBlockStatsToFile) {
+            $daemon->produceBlockStatsCsv(__DIR__ . "/../../../../blockstats");
+        }
         $daemon->init($hdSerializer);
         $daemon->sync($loop);
         $loop->run();
