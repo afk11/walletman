@@ -102,12 +102,12 @@ class P2pSyncDaemon
     private $initialized = false;
     private $mempool = false;
     private $segwit = true;
-    private $blockStatsWindow = 16;
+    private $blockStatsWindow = 64;
     private $blockStatsCount;
     private $blockStatsBegin;
     private $blockProcessTime;
     private $blockDeserializeTime;
-
+    private $perBlockDebug = false;
     /**
      * @var WalletInterface[]
      */
@@ -132,7 +132,10 @@ class P2pSyncDaemon
     {
         $this->blockStatsCount = null;
     }
-
+    public function setPerBlockDebug(bool $setting)
+    {
+        $this->perBlockDebug = $setting;
+    }
     public function syncMempool(bool $setting)
     {
         $this->mempool = $setting;
@@ -324,7 +327,9 @@ class P2pSyncDaemon
         $block = $this->blockSerializer->parse($blockMsg->getBlock());
         $taken = microtime(true)-$beforeDeserialize;
         $this->blockDeserializeTime += $taken;
-        echo "block.deserialize (size={$blockMsg->getBlock()->getSize()}) (time=$taken)\n";
+        if ($this->perBlockDebug) {
+            echo "block.deserialize (size={$blockMsg->getBlock()->getSize()}) (time=$taken)\n";
+        }
         $hash = $block->getHeader()->getHash();
         //echo "receiveBlock {$hash->getHex()}\n";
         if (!array_key_exists($hash->getBinary(), $this->deferred)) {
@@ -377,7 +382,9 @@ class P2pSyncDaemon
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
                 ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
-                    echo "processBlock $height {$hash->getHex()}\n";
+                    if ($this->perBlockDebug) {
+                        echo "processBlock $height {$hash->getHex()}\n";
+                    }
 
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();
@@ -393,9 +400,11 @@ class P2pSyncDaemon
                     }
 
                     $blockProcessTime = microtime(true) - $processStart;
-                    echo "block.process (time=$blockProcessTime)\n";
                     $this->blockProcessTime += $blockProcessTime;
                     $this->blockStatsCount++;
+                    if ($this->perBlockDebug) {
+                        echo "block.process (time=$blockProcessTime)\n";
+                    }
 
                     if ($this->blockStatsCount === $this->blockStatsWindow) {
                         $totalTime = \microtime(true) - $this->blockStatsBegin;
@@ -432,7 +441,6 @@ class P2pSyncDaemon
             $nearTip = count($this->deferred) < $this->batchSize;
             if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
                 $peer->getdata($this->toDownload);
-                echo "requested ".count($this->toDownload)." blocks\n";
                 $this->toDownload = [];
             }
         }
