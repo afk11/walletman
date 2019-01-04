@@ -28,12 +28,17 @@ class Bip44Wallet extends HdWallet
         parent::__construct($db, $serializer, $wallet, $dbKey, $network, $ecAdapter);
     }
 
-    protected function getExternalScriptPath(): string
+    public function getAccountPath(): string
+    {
+        return $this->dbKey->getPath();
+    }
+
+    public function getExternalScriptPath(): string
     {
         return $this->dbKey->getPath() . "/" . self::INDEX_EXTERNAL;
     }
 
-    protected function getChangeScriptPath(): string
+    public function getChangeScriptPath(): string
     {
         return $this->dbKey->getPath() . "/" . self::INDEX_CHANGE;
     }

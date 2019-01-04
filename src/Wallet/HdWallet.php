@@ -40,7 +40,7 @@ abstract class HdWallet extends Wallet
     protected $gapLimit;
 
     /**
-     * @var HierarchicalKey
+     * @var HierarchicalKey|null
      */
     protected $accountPrivateKey;
 
@@ -75,6 +75,15 @@ abstract class HdWallet extends Wallet
     public function getScriptByPath(string $path): ?DbScript
     {
         return $this->db->loadScriptByKeyIdentifier($this->dbKey->getWalletId(), $path);
+    }
+
+    /**
+     * @param string $path
+     * @return DbKey[]
+     */
+    public function getKeysByPath(string $path): array
+    {
+        return $this->db->loadKeysByPath($this->dbKey->getWalletId(), $path);
     }
 
     public function getSigner(string $path): PrivateKeyInterface

@@ -4,21 +4,14 @@ declare(strict_types=1);
 
 namespace BitWasp\Test\Wallet;
 
-use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Chain\ParamsInterface;
 use BitWasp\Bitcoin\Key\Deterministic\Slip132\PrefixRegistry;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkInterface;
-use BitWasp\Bitcoin\Network\Networks\Bitcoin;
-use BitWasp\Bitcoin\Network\Networks\BitcoinRegtest;
-use BitWasp\Bitcoin\Network\Networks\BitcoinTestnet;
-use BitWasp\Bitcoin\Network\Slip132\BitcoinRegistry;
-use BitWasp\Bitcoin\Network\Slip132\BitcoinTestnetRegistry;
-use BitWasp\Wallet\DB\DB;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\Initializer;
-use BitWasp\Wallet\Params\RegtestParams;
-use BitWasp\Wallet\Params\TestnetParams;
+use BitWasp\Wallet\NetworkInfo;
+use BitWasp\Wallet\NetworkName;
 
 abstract class DbTestCase extends TestCase
 {
@@ -58,7 +51,7 @@ abstract class DbTestCase extends TestCase
     /**
      * @var string
      */
-    protected $sessionDbFile;
+    protected $sessionDataDir;
 
     /**
      * @var DBInterface
@@ -67,34 +60,44 @@ abstract class DbTestCase extends TestCase
 
     public function setUp()
     {
-        $this->sessionDbFile = sprintf("%s/%s", sys_get_temp_dir(), $this->overrideTestFile ?: self::FILE_DEFAULT);
-        if (file_exists($this->sessionDbFile)) {
-            unlink($this->sessionDbFile);
+        $this->sessionDataDir = sys_get_temp_dir() . "/test.walletman." . bin2hex(random_bytes(4));
+        if (file_exists($this->sessionDataDir)) {
+            if (file_exists($this->sessionDataDir."/config.json")) {
+                unlink($this->sessionDataDir."/config.json");
+            }
+            if (file_exists($this->sessionDataDir."/db.sqlite3")) {
+                unlink($this->sessionDataDir."/db.sqlite3");
+            }
         }
+        mkdir($this->sessionDataDir);
 
+        $netInfo = new NetworkInfo();
         if ($this->regtest) {
-            $this->sessionChainParams = new RegtestParams(new Math());
-            $this->sessionNetwork = new BitcoinRegtest();
-            $this->sessionPrefixRegistry = new BitcoinTestnetRegistry();
+            $netName = NetworkName::BITCOIN_REGTEST;
         } else if ($this->testnet) {
-            $this->sessionChainParams = new TestnetParams(new Math());
-            $this->sessionNetwork = new BitcoinTestnet();
-            $this->sessionPrefixRegistry = new BitcoinTestnetRegistry();
+            $netName = NetworkName::BITCOIN_TESTNET3;
         } else {
-            $this->sessionChainParams = new Params(new Math());
-            $this->sessionNetwork = new Bitcoin();
-            $this->sessionPrefixRegistry = new BitcoinRegistry();
+            $netName = NetworkName::BITCOIN;
         }
 
+        $this->sessionChainParams = $netInfo->getParams($netName, new Math());
+        $this->sessionNetwork = $netInfo->getNetwork($netName);
+        $this->sessionPrefixRegistry = $netInfo->getSlip132Registry($netName);
         $initializer = new Initializer();
-        $this->sessionDb = $initializer->setup($this->sessionDbFile, $this->sessionChainParams);
+        $this->sessionDb = $initializer->setupDb($this->sessionDataDir);
         parent::setUp();
     }
 
     public function tearDown()
     {
-        if (file_exists($this->sessionDbFile)) {
-            unlink($this->sessionDbFile);
+        if (file_exists($this->sessionDataDir)) {
+            if (file_exists($this->sessionDataDir."/config.json")) {
+                unlink($this->sessionDataDir."/config.json");
+            }
+            if (file_exists($this->sessionDataDir."/db.sqlite3")) {
+                unlink($this->sessionDataDir."/db.sqlite3");
+            }
+            rmdir($this->sessionDataDir);
         }
         parent::tearDown();
     }

@@ -95,7 +95,7 @@ class PreparedTx
         }
         // script might be set, if so return it
         if (array_key_exists($i, $this->inputScriptData)) {
-            return $this->inputScriptData[$i];
+            return $this->inputScriptData[$i]->getSignData();
         }
         return null;
     }

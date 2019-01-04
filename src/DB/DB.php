@@ -21,6 +21,7 @@ class DB implements DBInterface
     private $addWalletStmt;
     private $createKeyStmt;
     private $loadKeyByPathStmt;
+    private $loadKeysByPathStmt;
     private $loadScriptByKeyIdentifierStmt;
     private $loadScriptBySpkStmt;
     private $addHeaderStmt;
@@ -381,6 +382,30 @@ class DB implements DBInterface
         }
 
         return $this->loadKeyByPathStmt->fetchObject(DbKey::class);
+    }
+
+    /**
+     * @param int $walletId
+     * @param string $path
+     * @return array
+     */
+    public function loadKeysByPath(int $walletId, string $path): array
+    {
+        if (null === $this->loadKeyByPathStmt) {
+            $this->loadKeysByPathStmt = $this->pdo->prepare("SELECT * FROM key WHERE walletId = ? AND path = ? ORDER BY keyIndex");
+        }
+
+        if (!$this->loadKeysByPathStmt->execute([
+            $walletId, $path,
+        ])) {
+            throw new \RuntimeException("Failed to find keys");
+        }
+
+        $keys = [];
+        while ($key = $this->loadKeysByPathStmt->fetchObject(DbKey::class)) {
+            $keys[] = $key;
+        }
+        return $keys;
     }
 
     public function loadScriptByKeyIdentifier(int $walletId, string $keyIdentifier): ?DbScript

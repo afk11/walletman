@@ -173,9 +173,13 @@ abstract class Wallet implements WalletInterface
         $txSigner = new Signer($unsignedTx);
         $numInputs = count($unsignedTx->getInputs());
         for ($i = 0; $i < $numInputs; $i++) {
+            $keyIdentifier = $prepTx->getKeyIdentifier($i);
+            if (null === $keyIdentifier) {
+                continue;
+            }
             $txSigner
                 ->input($i, $prepTx->getTxOut($i), $prepTx->getSignData($i))
-                ->sign($this->getSigner($prepTx->getKeyIdentifier($i)))
+                ->sign($this->getSigner($keyIdentifier))
             ;
         }
         return $txSigner->get();

@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet\Console\Command\Db;
 
+ use BitWasp\Bitcoin\Chain\ProofOfWork;
+ use BitWasp\Bitcoin\Math\Math;
+ use BitWasp\Wallet\Chain;
  use BitWasp\Wallet\Console\Command\Command;
  use BitWasp\Wallet\DB\Initializer;
- use Symfony\Component\Console\Input\InputArgument;
+ use BitWasp\Wallet\NetworkInfo;
+ use BitWasp\Wallet\NetworkName;
  use Symfony\Component\Console\Input\InputInterface;
+ use Symfony\Component\Console\Input\InputOption;
  use Symfony\Component\Console\Output\OutputInterface;
 
 class Init extends Command
@@ -19,10 +24,14 @@ class Init extends Command
             ->setName('db:init')
 
             // the short description shown while running "php bin/console list"
-            ->setDescription('Initialize a wallet database')
+            ->setDescription('Initialize a data directory')
 
-            // An identifier is required for this wallet
-            ->addArgument("database", InputArgument::REQUIRED, "Name of database")
+            // Network selection options
+            ->addOption("regtest", "r", InputOption::VALUE_NONE, "Initialize database for regtest chain")
+            ->addOption("testnet", "t", InputOption::VALUE_NONE, "Initialize database for testnet chain")
+
+            // Data directory - defaults to
+            ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -31,11 +40,31 @@ class Init extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $path = $this->getStringArgument($input, "database");
+        $fTestnet = $input->getOption('testnet');
+        $fRegtest = $input->getOption('regtest');
+        $path = $this->loadDataDir($input);
+
+        $math = new Math();
+        if ($fTestnet && $fRegtest) {
+            throw new \RuntimeException("Cannot set both regtest and testnet flags");
+        } else if ($fRegtest) {
+            $networkName = NetworkName::BITCOIN_REGTEST;
+        } else if ($fTestnet) {
+            $networkName = NetworkName::BITCOIN_TESTNET3;
+        } else {
+            $networkName = NetworkName::BITCOIN;
+        }
+
+        $networkInfo = new NetworkInfo();
+        $params = $networkInfo->getParams($networkName, $math);
 
         $initializer = new Initializer();
-        $initializer->setup($path);
+        $initializer->setupConfig($path, $networkName);
+        $db = $initializer->setupDb($path);
 
-        $output->write("<info>Database setup in location: {$path}</info>\n");
+        $chain = new Chain(new ProofOfWork($math, $params));
+        $chain->init($db, $params);
+
+        $output->write("<info>Initialized {$networkName} database: {$path}</info>\n");
     }
 }

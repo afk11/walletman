@@ -6,12 +6,19 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Address\AddressCreator;
 use BitWasp\Bitcoin\Bitcoin;
+use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\GlobalPrefixConfig;
+use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\NetworkConfig;
+use BitWasp\Bitcoin\Key\Deterministic\Slip132\Slip132;
 use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Key\KeyToScript\KeyToScriptHelper;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
 use BitWasp\Bitcoin\Mnemonic\MnemonicFactory;
-use BitWasp\Bitcoin\Network\NetworkFactory;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
+use BitWasp\Wallet\Config;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
+use BitWasp\Wallet\NetworkInfo;
 use BitWasp\Wallet\Wallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\Factory;
 use Symfony\Component\Console\Input\InputArgument;
@@ -38,32 +45,25 @@ class SendAll extends Command
             ->addOption('feerate-custom', null, InputOption::VALUE_REQUIRED, "Provide fee rate in satoshis per kilobyte")
             ->addOption('bip39-passphrase', 'p', InputOption::VALUE_NONE, "Prompt for a BIP39 passphrase")
 
-            ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Start wallet in regtest mode")
-            ->addOption('testnet', 't', InputOption::VALUE_NONE, "Start wallet in testnet mode")
+            ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
 
             ->setHelp('This command will create, sign, and broadcast a transaction emptying the wallet, sending all funds to the provided address');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $fIsRegtest = $input->getOption('regtest');
-        $fIsTestnet = $input->getOption('testnet');
         $fBip39Pass = $input->getOption('bip39-passphrase');
-        $path = $this->getStringArgument($input, 'database');
+        $dataDir = $this->loadDataDir($input);
         $identifier = $this->getStringArgument($input, 'identifier');
         $destAddress = $this->getStringArgument($input, 'address');
 
         $ecAdapter = Bitcoin::getEcAdapter();
+        $config = Config::fromDataDir($dataDir);
         $addrCreator = new AddressCreator();
         $dbMgr = new DbManager();
-
-        if ($fIsRegtest) {
-            $net = NetworkFactory::bitcoinRegtest();
-        } else if ($fIsTestnet) {
-            $net = NetworkFactory::bitcoinTestnet();
-        } else {
-            $net = NetworkFactory::bitcoin();
-        }
+        $netInfo = new NetworkInfo();
+        $net = $netInfo->getNetwork($config->getNetwork());
+        $registry = $netInfo->getSlip132Registry($config->getNetwork());
 
         if (is_string($input->getOption('feerate-custom'))) {
             $customRate = $input->getOption('feerate-custom');
@@ -77,8 +77,17 @@ class SendAll extends Command
 
         $scriptPubKey = $addrCreator->fromString($destAddress, $net)->getScriptPubKey();
 
-        $db = $dbMgr->loadDb($path);
-        $walletFactory = new Factory($db, $net, $ecAdapter);
+        $slip132 = new Slip132(new KeyToScriptHelper($ecAdapter));
+        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter, new GlobalPrefixConfig([
+            new NetworkConfig($net, [
+                $slip132->p2pkh($registry),
+                $slip132->p2wpkh($registry),
+                $slip132->p2shP2wpkh($registry),
+            ])
+        ])));
+
+        $db = $dbMgr->loadDb($config->getDbPath($dataDir));
+        $walletFactory = new Factory($db, $net, $hdSerializer, $ecAdapter);
 
         /** @var Bip44Wallet $bip44Wallet */
         $bip44Wallet = $walletFactory->loadWallet($identifier);

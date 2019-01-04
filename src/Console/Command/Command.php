@@ -33,6 +33,15 @@ abstract class Command extends \Symfony\Component\Console\Command\Command
         return $value;
     }
 
+    protected function loadDataDir(InputInterface $input): string
+    {
+        $dataDir = $input->getOption('datadir');
+        if (is_string($dataDir)) {
+            return $dataDir;
+        }
+        return getenv('HOME') . "/.walletman";
+    }
+
     protected function promptForPassphrase(InputInterface $input, OutputInterface $output): string
     {
         $helper = $this->getHelper('question');

@@ -68,6 +68,13 @@ interface DBInterface
 
     public function loadKeyByPath(int $walletId, string $path, int $keyIndex): DbKey;
 
+    /**
+     * @param int $walletId
+     * @param string $path
+     * @return DbKey[]
+     */
+    public function loadKeysByPath(int $walletId, string $path): array;
+
     public function loadScriptByKeyIdentifier(int $walletId, string $keyIdentifier): ?DbScript;
 
     public function createScript(int $walletId, string $keyIdentifier, string $scriptPubKey, string $redeemScript = null, string $witnessScript = null): int;

@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Bitcoin;
-use BitWasp\Bitcoin\Network\NetworkFactory;
+use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\GlobalPrefixConfig;
+use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\NetworkConfig;
+use BitWasp\Bitcoin\Key\Deterministic\Slip132\Slip132;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
+use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
+use BitWasp\Wallet\Config;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
+use BitWasp\Wallet\NetworkInfo;
 use BitWasp\Wallet\Wallet\Factory;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -26,11 +32,8 @@ class GetBalance extends Command
             ->setDescription('Query balance of the specified wallet')
 
             // mandatory arguments
-            ->addArgument('database', InputArgument::REQUIRED, "Database for wallet services")
             ->addArgument('identifier', InputArgument::REQUIRED, "Search for wallet by identifier")
-
-            ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Start wallet in regtest mode")
-            ->addOption('testnet', 't', InputOption::VALUE_NONE, "Start wallet in testnet mode")
+            ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -39,23 +42,33 @@ class GetBalance extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $database = $this->getStringArgument($input, "database");
         $identifier = $this->getStringArgument($input, "identifier");
-        $fIsRegtest =  $input->getOption('regtest');
-        $fIsTestnet = $input->getOption('testnet');
+        $dataDir = $this->loadDataDir($input);
 
-        $dbMgr = new DbManager();
         $ecAdapter = Bitcoin::getEcAdapter();
-        if ($fIsRegtest) {
-            $net = NetworkFactory::bitcoinRegtest();
-        } else if ($fIsTestnet) {
-            $net = NetworkFactory::bitcoinTestnet();
-        } else {
-            $net = NetworkFactory::bitcoin();
-        }
+        $dbMgr = new DbManager();
+        $networkInfo = new NetworkInfo();
 
-        $db = $dbMgr->loadDb($database);
-        $factory = new Factory($db, $net, $ecAdapter);
+        $config = Config::fromDataDir($dataDir);
+        $db = $dbMgr->loadDb($config->getDbPath($dataDir));
+
+        $net = $networkInfo->getNetwork($config->getNetwork());
+        $registry = $networkInfo->getSlip132Registry($config->getNetwork());
+
+        // init with all prefixes we support
+        $slip132 = new Slip132();
+        $prefixConfig = new GlobalPrefixConfig([
+            new NetworkConfig($net, [
+                $slip132->p2pkh($registry),
+                $slip132->p2wpkh($registry),
+                $slip132->p2shP2wpkh($registry),
+            ])
+        ]);
+
+        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter, $prefixConfig));
+        $net = $networkInfo->getNetwork($config->getNetwork());
+
+        $factory = new Factory($db, $net, $hdSerializer, $ecAdapter);
         $wallet = $factory->loadWallet($identifier);
         $balance = $wallet->getConfirmedBalance();
 

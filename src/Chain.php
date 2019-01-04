@@ -85,6 +85,7 @@ class Chain
         if (!$haveGenesis) {
             $work = $this->proofOfWork->getWork($genesisHeader->getBits());
             $this->acceptHeaderToIndex($db, 0, $work, $genesisHash, $genesisHeader);
+            $this->heightMapToHash[0] = $genesisHash->getBinary();
             $db->setBlockReceived($genesisHash);
             $bestHeader = $genesisHeader;
             $bestHeaderHash = $genesisHash;
@@ -231,6 +232,9 @@ class Chain
         $hashBin = $hash->getBinary();
         if (array_key_exists($hashBin, $this->hashMapToHeight)) {
             $headerIndex = $db->getHeader($hash);
+            if (($headerIndex->getStatus() & DbHeader::HEADER_VALID) == 0) {
+                return false;
+            }
             return true;
         }
 
@@ -294,7 +298,7 @@ class Chain
         }
     }
 
-    public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block, DbHeader &$dbHeader)
+    public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block)
     {
         $header = $block->getHeader();
         $prevIdx = $db->getHeader($header->getPrevBlock());
@@ -303,11 +307,23 @@ class Chain
             return false;
         }
 
-        if (!$this->acceptHeader($db, $hash, $header, $prevIdx)) {
+        if (!$this->acceptHeader($db, $hash, $header, $prevIdx, $headerIdx)) {
             // who knows what that was
             return false;
         }
+
+        /** @var DbHeader $headerIdx */
+        if ($headerIdx->getStatus() == DbHeader::BLOCK_VALID) {
+            return true;
+        }
+
+        $db->setBlockReceived($hash);
+
+        if ($this->heightMapToHash[$headerIdx->getHeight()] == $hash->getBinary()) {
+            $this->bestBlockHeight = $headerIdx->getHeight();
+        }
     }
+
     public function addNextBlock(DBInterface $db, int $height, BufferInterface $hash, BlockInterface $block)
     {
         if ($height !== 1 + $this->bestBlockHeight) {
@@ -333,12 +349,7 @@ class Chain
 
         $this->hashMapToHeight[$hash->getBinary()] = $height;
         // todo: this one needs to be moved, surely?
-        $this->heightMapToHash[$height] = $hash->getBinary();
 
         return $headerIndex;
-    }
-
-    public function processBlock(DBInterface $db, int $height, BufferInterface $hash, BlockInterface $block)
-    {
     }
 }

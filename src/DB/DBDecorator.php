@@ -161,6 +161,12 @@ class DBDecorator implements DBInterface
         return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
     }
 
+    public function loadKeysByPath(int $walletId, string $path): array
+    {
+        echo __FUNCTION__.PHP_EOL;
+        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+    }
+
     public function loadScriptByKeyIdentifier(int $walletId, string $keyIdentifier): ?DbScript
     {
         echo __FUNCTION__.PHP_EOL;

@@ -13,21 +13,26 @@ class InitializerTest extends TestCase
     /**
      * @var string
      */
-    private $sessionDbFile;
+    private $sessionDbDir;
 
     public function setUp()/* The :void return type declaration that should be here would cause a BC issue */
     {
-        $this->sessionDbFile = sys_get_temp_dir()."/walletman-unittest-dbinit.sqlite";
-        if (file_exists($this->sessionDbFile)) {
-            unlink($this->sessionDbFile);
+        $this->sessionDbDir = sys_get_temp_dir() . "/test.walletman." . bin2hex(random_bytes(4));
+        if (file_exists($this->sessionDbDir)) {
+            if (file_exists($this->sessionDbDir."/db.sqlite3")) {
+                unlink($this->sessionDbDir."/db.sqlite3");
+            }
         }
+        mkdir($this->sessionDbDir);
         parent::setUp();
     }
 
     public function tearDown()/* The :void return type declaration that should be here would cause a BC issue */
     {
-        if (file_exists($this->sessionDbFile)) {
-            unlink($this->sessionDbFile);
+        if (file_exists($this->sessionDbDir)) {
+            if (file_exists($this->sessionDbDir."/db.sqlite3")) {
+                unlink($this->sessionDbDir."/db.sqlite3");
+            }
         }
         parent::tearDown();
     }
@@ -46,11 +51,11 @@ class InitializerTest extends TestCase
     public function testInitializer()
     {
         $initializer = new Initializer();
-        $initializer->setup($this->sessionDbFile);
+        $initializer->setupDb($this->sessionDbDir);
 
         // the output of the command in the console
         $dbMan = new DbManager();
-        $db = $dbMan->loadDb($this->sessionDbFile);
+        $db = $dbMan->loadDb($this->sessionDbDir."/db.sqlite3");
         $pdo = $db->getPdo();
         $this->assertTableExists($pdo, "header");
         $this->assertTableExists($pdo, "wallet");

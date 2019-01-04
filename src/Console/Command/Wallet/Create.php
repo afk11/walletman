@@ -9,7 +9,6 @@ use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Crypto\Random\Random;
 use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\GlobalPrefixConfig;
 use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\NetworkConfig;
-use BitWasp\Bitcoin\Key\Deterministic\Slip132\PrefixRegistry;
 use BitWasp\Bitcoin\Key\Deterministic\Slip132\Slip132;
 use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
@@ -17,21 +16,25 @@ use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39WordListInterface;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Wordlist\EnglishWordList;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Wordlist\JapaneseWordList;
 use BitWasp\Bitcoin\Mnemonic\MnemonicFactory;
-use BitWasp\Bitcoin\Network\NetworkFactory;
 use BitWasp\Bitcoin\Network\NetworkInterface;
-use BitWasp\Bitcoin\Network\Slip132\BitcoinRegistry;
-use BitWasp\Bitcoin\Network\Slip132\BitcoinTestnetRegistry;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Buffertools\Buffer;
+use BitWasp\PinEntry\PinEntry;
+use BitWasp\PinEntry\PinRequest;
+use BitWasp\PinEntry\Process\Process;
 use BitWasp\Wallet\BlockRef;
+use BitWasp\Wallet\Config;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
+use BitWasp\Wallet\NetworkInfo;
+use BitWasp\Wallet\Validation\Base58ExtendedKeyValidator;
 use BitWasp\Wallet\Wallet\Factory;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\Question;
 
 class Create extends Command
 {
@@ -44,27 +47,25 @@ class Create extends Command
             ->setDescription('Create a new wallet')
 
             // An identifier is required for this wallet
-            ->addArgument("database", InputArgument::REQUIRED, "Database to use for wallet")
             ->addArgument("identifier", InputArgument::REQUIRED, "Identifier for wallet")
-
-            ->addOption('regtest', 'r', InputOption::VALUE_NONE, "Initialize wallet for regtest network")
-            ->addOption('testnet', 't', InputOption::VALUE_NONE, "Initialize wallet for testnet network")
 
             // wallet setup options
             ->addOption('birthday', null, InputOption::VALUE_REQUIRED, "Initialize wallet with a birthday block hash")
 
+            ->addOption('from-public', null, InputOption::VALUE_NONE, "Setup from public data only")
+
             // key derivation options
             ->addOption('bip44', null, InputOption::VALUE_NONE, "Setup a bip44 wallet account")
-            ->addOption('bip44-account', null, InputOption::VALUE_REQUIRED, "BIP44 'account' value", '0')
-            ->addOption('bip44-cointype', null, InputOption::VALUE_REQUIRED, "BIP44 'cointype' value", '0')
+            ->addOption('bip44-account', null, InputOption::VALUE_REQUIRED, "BIP44 'account' value when creating from a seed", '0')
+            ->addOption('bip44-cointype', null, InputOption::VALUE_REQUIRED, "BIP44 'cointype' value when creating from a seed", '0')
 
             ->addOption('bip49', null, InputOption::VALUE_NONE, "Setup a bip49 wallet account")
-            ->addOption('bip49-account', null, InputOption::VALUE_REQUIRED, "BIP49 'account' value", '0')
-            ->addOption('bip49-cointype', null, InputOption::VALUE_REQUIRED, "BIP49 'cointype' value", '0')
+            ->addOption('bip49-account', null, InputOption::VALUE_REQUIRED, "BIP49 'account' value when creating from a seed", '0')
+            ->addOption('bip49-cointype', null, InputOption::VALUE_REQUIRED, "BIP49 'cointype' value when creating from a seed", '0')
 
             ->addOption('bip84', null, InputOption::VALUE_NONE, "Setup a BIP84 wallet account")
-            ->addOption('bip84-account', null, InputOption::VALUE_REQUIRED, "BIP84 'account' value", '0')
-            ->addOption('bip84-cointype', null, InputOption::VALUE_REQUIRED, "BIP84 'cointype' value", '0')
+            ->addOption('bip84-account', null, InputOption::VALUE_REQUIRED, "BIP84 'account' value when creating from a seed", '0')
+            ->addOption('bip84-cointype', null, InputOption::VALUE_REQUIRED, "BIP84 'cointype' value when creating from a seed", '0')
 
             // settings for bip39 seed generation
             ->addOption('bip39-en', null, InputOption::VALUE_NONE, "Use the english wordlist for BIP39 (default)")
@@ -74,6 +75,10 @@ class Create extends Command
 
             // settings for bip32 derived wallets
             ->addOption('bip32-gaplimit', null, InputOption::VALUE_REQUIRED, "Set a custom gap limit for the wallet", "100")
+            ->addOption('bip32-public', null, InputOption::VALUE_REQUIRED, "Initialize from a public key")
+
+            // Data directory
+            ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -102,6 +107,36 @@ class Create extends Command
         $output->write("<info>Your mnemonic is: $mnemonic</info>\n");
         $output->write("<comment>It is vital that you record your seed now so your wallet can\n" .
             "be recovered in case of hardware failure.</comment>\n");
+        return $mnemonic;
+    }
+
+    private function getAccountKey(InputInterface $input, OutputInterface $output, Base58ExtendedKeySerializer $hdSerializer, NetworkInterface $net): string
+    {
+        $validator = new Base58ExtendedKeyValidator($hdSerializer, $net);
+
+        if (file_exists("/usr/bin/pinentry")) {
+            $request = new PinRequest();
+            $request->withTitle("Import BIP32 Key");
+            $request->withDesc("Enter your xpub to continue");
+
+            $pinEntry = new PinEntry(new Process("/usr/bin/pinentry"));
+
+            $mnemonic = $pinEntry->getPin($request, $validator);
+        } else {
+            $helper = $this->getHelper('question');
+            $question = new Question('Enter you xpub to continue:');
+            $question->setHiddenFallback(false);
+            $question->setValidator(function ($answer) use ($validator) {
+                $error = "";
+                if (!$validator->validate($answer, $error)) {
+                    throw new \RuntimeException($error);
+                }
+                return $answer;
+            });
+            $question->setMaxAttempts(2);
+            $mnemonic = $helper->ask($input, $output, $question);
+        }
+
         return $mnemonic;
     }
 
@@ -151,23 +186,10 @@ class Create extends Command
         return (int) $birthdayValue;
     }
 
-    protected function getPrefixConfig(NetworkInterface $network, Slip132 $slip132, PrefixRegistry $registry): GlobalPrefixConfig
-    {
-        return new GlobalPrefixConfig([
-            new NetworkConfig($network, [
-                $slip132->p2pkh($registry),
-                $slip132->p2wpkh($registry),
-                $slip132->p2shP2wpkh($registry),
-            ])
-        ]);
-    }
-
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $path = $this->getStringArgument($input, 'database');
         $identifier = $this->getStringArgument($input, 'identifier');
-        $fIsRegtest = $input->getOption('regtest');
-        $fIsTestnet = $input->getOption('testnet');
+        $fPublic = $input->getOption('from-public');
         $fUseBip44 = $input->getOption('bip44');
         $fUseBip49 = $input->getOption('bip49');
         $fUseBip84 = $input->getOption('bip84');
@@ -176,60 +198,73 @@ class Create extends Command
         $wordlist = $this->getBip39Wordlist($input);
         $birthday = $this->parseBirthday($input);
 
-        if ($fIsRegtest) {
-            $net = NetworkFactory::bitcoinRegtest();
-            $registry = new BitcoinTestnetRegistry();
-        } else if ($fIsTestnet) {
-            $net = NetworkFactory::bitcoinTestnet();
-            $registry = new BitcoinTestnetRegistry();
-        } else {
-            $net = NetworkFactory::bitcoin();
-            $registry = new BitcoinRegistry();
-        }
-
+        // simple deps
+        $networkInfo = new NetworkInfo();
         $dbMgr = new DbManager();
-        $db = $dbMgr->loadDb($path);
+        $ecAdapter = Bitcoin::getEcAdapter();
+
+        // load config
+        $dataDir = $this->loadDataDir($input);
+        $config = Config::fromDataDir($dataDir);
+        $net = $networkInfo->getNetwork($config->getNetwork());
+        $registry = $networkInfo->getSlip132Registry($config->getNetwork());
+        $db = $dbMgr->loadDb($config->getDbPath($dataDir));
+
+        // check user input
+        if ($db->checkWalletExists($identifier)) {
+            throw new \RuntimeException("Wallet already exists");
+        }
 
         $slip132 = new Slip132();
         if ($fUseBip44) {
             $coinType = $this->parseHardenedBip32Index($input, "bip44-cointype");
             $account = $this->parseHardenedBip32Index($input, "bip44-account");
-            $path = "M/44'/{$coinType}'/{$account}'";
-            $scriptFactory = $slip132->p2pkh($registry)->getScriptDataFactory();
+            $prefix = $slip132->p2pkh($registry);
+            $bip44Purpose = 44;
         } else if ($fUseBip49) {
             $coinType = $this->parseHardenedBip32Index($input, "bip49-cointype");
             $account = $this->parseHardenedBip32Index($input, "bip49-account");
-            $path = "M/49'/{$coinType}'/{$account}'";
-            $scriptFactory = $slip132->p2shP2wpkh($registry)->getScriptDataFactory();
+            $prefix = $slip132->p2shP2wpkh($registry);
+            $bip44Purpose = 49;
         } else if ($fUseBip84) {
             $coinType = $this->parseHardenedBip32Index($input, "bip84-cointype");
             $account = $this->parseHardenedBip32Index($input, "bip84-account");
-            $path = "M/84'/{$coinType}'/{$account}'";
-            $scriptFactory = $slip132->p2wpkh($registry)->getScriptDataFactory();
+            $prefix = $slip132->p2wpkh($registry);
+            $bip44Purpose = 84;
         } else {
             throw new \RuntimeException("A wallet type is required");
         }
 
-        if ($db->checkWalletExists($identifier)) {
-            throw new \RuntimeException("Wallet already exists");
-        }
+        // this config only needs one prefix, ours
+        $prefixConfig = new GlobalPrefixConfig([
+            new NetworkConfig($net, [
+                $prefix,
+            ])
+        ]);
 
-        $mnemonic = $this->getBip39Mnemonic($input, $output, $wordlist);
-        $passphrase = '';
-        if ($fBip39Pass) {
-            $passphrase = $this->promptForPassphrase($input, $output);
-        }
-
-        $seedGenerator = new Bip39SeedGenerator();
-        $seed = $seedGenerator->getSeed($mnemonic, $passphrase);
-
-        $ecAdapter = Bitcoin::getEcAdapter();
-        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter, $this->getPrefixConfig($net, $slip132, $registry)));
+        $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter, $prefixConfig));
         $hdFactory = new HierarchicalKeyFactory($ecAdapter, $hdSerializer);
-        $rootKey = $hdFactory->fromEntropy($seed, $scriptFactory);
-
         $walletFactory = new Factory($db, $net, $hdSerializer, $ecAdapter);
-        $wallet = $walletFactory->createBip44WalletFromRootKey($identifier, $rootKey, $path, $fGapLimit, $birthday);
+        if ($fPublic) {
+            $path = "M/{$bip44Purpose}'/{$coinType}'/{$account}'";
+            $accountXpub = $this->getAccountKey($input, $output, $hdSerializer);
+            $accountKey = $hdFactory->fromExtended($accountXpub, $net);
+            $wallet = $walletFactory->createBip44WalletFromAccountKey($identifier, $accountKey, $path, $fGapLimit, $birthday);
+        } else {
+            $path = "M/{$bip44Purpose}'/{$coinType}'/{$account}'";
+            $mnemonic = $this->getBip39Mnemonic($input, $output, $wordlist);
+            $passphrase = '';
+            if ($fBip39Pass) {
+                $passphrase = $this->promptForPassphrase($input, $output);
+            }
+
+            $seedGenerator = new Bip39SeedGenerator();
+            $seed = $seedGenerator->getSeed($mnemonic, $passphrase);
+            $rootKey = $hdFactory->fromEntropy($seed, $prefix->getScriptDataFactory());
+
+            $wallet = $walletFactory->createBip44WalletFromRootKey($identifier, $rootKey, $path, $fGapLimit, $birthday);
+        }
+
         $dbScript = $wallet->getScriptGenerator()->generate();
 
         $addrCreator = new AddressCreator();
