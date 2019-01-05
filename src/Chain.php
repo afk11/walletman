@@ -63,16 +63,11 @@ class Chain
         $genesisHeader = $params->getGenesisBlockHeader();
         $genesisHash = $db->getBlockHash(0);
         if ($genesisHash instanceof BufferInterface) {
-            $haveGenesis = true;
             if (!$genesisHeader->getHash()->equals($genesisHash)) {
                 throw new \RuntimeException("Database has different genesis hash!");
             }
         } else {
             $genesisHash = $genesisHeader->getHash();
-            $haveGenesis = false;
-        }
-
-        if (!$haveGenesis) {
             $work = $this->proofOfWork->getWork($genesisHeader->getBits());
             $genesisHeight = 0;
             $db->addHeader($genesisHeight, $work, $genesisHash, $genesisHeader, DbHeader::HEADER_VALID | DbHeader::BLOCK_VALID);
