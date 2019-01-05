@@ -322,4 +322,17 @@ class ChainTest extends DbTestCase
         $chain = new Chain($pow);
         $chain->init($this->sessionDb, $this->sessionChainParams);
     }
+
+    /**
+     * @expectedException \RuntimeException
+     * @expectedExceptionMessage No chain header with height 9999
+     */
+    public function testGetBlockHashErrorsIfHeightTooBig()
+    {
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+        $chain->getBlockHash(9999);
+    }
+
 }

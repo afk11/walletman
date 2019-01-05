@@ -176,7 +176,7 @@ class Chain
     public function getBlockHash(int $headerHeight)
     {
         if (!array_key_exists($headerHeight, $this->heightMapToHash)) {
-            throw new \RuntimeException("Failed to find block height {$headerHeight}");
+            throw new \RuntimeException("No chain header with height {$headerHeight}");
         }
         return new Buffer($this->heightMapToHash[$headerHeight]);
     }
