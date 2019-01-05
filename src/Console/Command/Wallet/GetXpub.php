@@ -81,7 +81,10 @@ class GetXpub extends Command
         $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter, $prefixConfig));
         $walletFactory = new Factory($db, $net, $hdSerializer, $ecAdapter);
         $wallet = $walletFactory->loadWallet($identifier);
-        /** @var Bip44Wallet $wallet */
+
+        if (!($wallet instanceof Bip44Wallet)) {
+            throw new \RuntimeException("Wallet must be HD to get xpubs");
+        }
 
         if ($fIsExternal) {
             $path = $wallet->getExternalScriptPath();

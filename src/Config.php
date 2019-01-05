@@ -24,6 +24,9 @@ class Config
         }
 
         $contents = file_get_contents($configPath);
+        if (!$contents) {
+            throw new \RuntimeException("Failed to read config file - check permissions");
+        }
         $decoded = json_decode($contents, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \RuntimeException("config file contained invalid JSON");
