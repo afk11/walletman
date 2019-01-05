@@ -24,6 +24,7 @@ class DB implements DBInterface
     private $loadKeysByPathStmt;
     private $loadScriptByKeyIdentifierStmt;
     private $loadScriptBySpkStmt;
+    private $loadWalletIdsBySpkStmt;
     private $addHeaderStmt;
     private $setBlockReceivedStmt;
     private $getHashesStmt;
@@ -460,6 +461,19 @@ class DB implements DBInterface
             return $result;
         }
         return null;
+    }
+
+    public function loadWalletIDsByScriptPubKey(ScriptInterface $script): array
+    {
+        if (null === $this->loadWalletIdsBySpkStmt) {
+            $this->loadWalletIdsBySpkStmt = $this->pdo->prepare("SELECT walletId from script where scriptPubKey = ?");
+        }
+        if (!$this->loadWalletIdsBySpkStmt->execute([
+            $script->getHex(),
+        ])) {
+            throw new \RuntimeException("Failed to query script");
+        }
+        return $this->loadWalletIdsBySpkStmt->fetchAll(\PDO::FETCH_NUM);
     }
 
     public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx)

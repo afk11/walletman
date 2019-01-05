@@ -81,6 +81,8 @@ interface DBInterface
 
     public function loadScriptByScriptPubKey(int $walletId, ScriptInterface $script): ?DbScript;
 
+    public function loadWalletIDsByScriptPubKey(ScriptInterface $script): array;
+
     public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx);
 
     /**

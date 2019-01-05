@@ -34,7 +34,9 @@ class BlockProcessor
     public function __construct(DBInterface $db, WalletInterface... $wallets)
     {
         $this->db = $db;
-        $this->wallets = $wallets;
+        foreach ($wallets as $wallet) {
+            $this->wallets[$wallet->getDbWallet()->getId()] = $wallet;
+        }
     }
 
     public function processConfirmedTx(BufferInterface $txid, TransactionInterface $tx)
@@ -92,7 +94,12 @@ class BlockProcessor
             $txUtxos = $txWorkload->getOutputs();
             for ($iOut = 0; $iOut < $nOut; $iOut++) {
                 $txOut = $tx->getOutput($iOut);
-                foreach ($this->wallets as $walletIdx => $wallet) {
+                foreach ($this->db->loadWalletIDsByScriptPubKey($txOut->getScript()) as $walletId) {
+                    if (!array_key_exists($walletId, $this->wallets)) {
+                        continue;
+                    }
+
+                    $wallet = $this->wallets[$walletId];
                     $dbWallet = $wallet->getDbWallet();
                     if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
                         echo "wallet({$dbWallet->getId()}).newUtxo {$txId->getHex()} {$iOut}\n";

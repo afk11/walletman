@@ -203,6 +203,11 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
+    public function loadWalletIDsByScriptPubKey(ScriptInterface $script): array
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+
     public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx)
     {
         return $this->call(__FUNCTION__, func_get_args());
