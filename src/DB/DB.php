@@ -10,6 +10,7 @@ use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
+use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\BlockRef;
@@ -513,24 +514,16 @@ class DB implements DBInterface
         return $utxos;
     }
 
-    public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, \BitWasp\Wallet\Block\Utxo $utxo)
+    public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, OutPointInterface $outPoint, TransactionOutputInterface $txOut)
     {
         if (null === $this->createUtxoStmt) {
-            $this->createUtxoStmt = $this->pdo->prepare("INSERT INTO utxo (walletId, scriptId, txid, vout, spentTxid, spentIdx, value, scriptPubKey) values (?, ?, ?, ?, ?, ?, ?, ?)");
-        }
-
-        $spendTxid = null;
-        $spendIdx = null;
-        if ($spendBy = $utxo->getSpentOutPoint()) {
-            $spendTxid = $spendBy->getTxId()->getHex();
-            $spendIdx = $spendBy->getVout();
+            $this->createUtxoStmt = $this->pdo->prepare("INSERT INTO utxo (walletId, scriptId, txid, vout, value, scriptPubKey) values (?, ?, ?, ?, ?, ?, ?, ?)");
         }
 
         if (!$this->createUtxoStmt->execute([
             $dbWallet->getId(), $dbScript->getId(),
-            $utxo->getOutPoint()->getTxId()->getHex(), $utxo->getOutPoint()->getVout(),
-            $spendTxid, $spendIdx,
-            $utxo->getTxOut()->getValue(), $utxo->getTxOut()->getScript()->getHex(),
+            $outPoint->getTxId()->getHex(), $outPoint->getVout(),
+            $txOut->getValue(), $txOut->getScript()->getHex(),
         ])) {
             throw new \RuntimeException("failed to create utxo");
         }

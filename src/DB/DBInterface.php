@@ -14,6 +14,7 @@ use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
+use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\BlockRef;
 
@@ -91,7 +92,7 @@ interface DBInterface
      */
     public function getWalletUtxosWithUnspentUtxo(OutPointInterface $outPoint): array;
 
-    public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, \BitWasp\Wallet\Block\Utxo $utxo);
+    public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, OutPointInterface $outPoint, TransactionOutputInterface $txOut);
 
     public function searchUnspentUtxo(int $walletId, OutPointInterface $outPoint): ?DbUtxo;
 
