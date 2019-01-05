@@ -19,6 +19,10 @@ class DBDecorator implements DBInterface
      * @var DB
      */
     private $db;
+
+    /**
+     * @var \Closure
+     */
     private $writer;
 
     public function __construct(DB $db, callable $writerCallback = null)
