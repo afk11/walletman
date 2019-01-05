@@ -229,9 +229,8 @@ class Chain
 
     public function acceptHeader(DBInterface $db, BufferInterface $hash, BlockHeaderInterface $header, DbHeader $headerPrev, DbHeader &$headerIndex = null)
     {
-        $hashBin = $hash->getBinary();
-        if (array_key_exists($hashBin, $this->hashMapToHeight)) {
-            $headerIndex = $db->getHeader($hash);
+        $headerIndex = $db->getHeader($hash);
+        if ($headerIndex) {
             if (($headerIndex->getStatus() & DbHeader::HEADER_VALID) == 0) {
                 return false;
             }
@@ -271,8 +270,12 @@ class Chain
                 // in candidateHashes because we need to apply them later
                 $candidateHashes[$lastCommonHeight] = $lastCommonHash->getBinary();
 
+                $p = $db->getHeader($lastCommonHash);
+                if (null === $p) {
+                    throw new \RuntimeException("failed to find prevblock");
+                }
                 // need for prevBlock, and arguably status too             }
-                $lastCommonHash = $db->getHeader($lastCommonHash)->getHeader()->getPrevBlock();
+                $lastCommonHash = $p->getHeader()->getPrevBlock();
                 $lastCommonHeight--;
             }
 

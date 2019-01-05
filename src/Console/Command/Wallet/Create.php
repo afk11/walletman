@@ -247,7 +247,7 @@ class Create extends Command
         $walletFactory = new Factory($db, $net, $hdSerializer, $ecAdapter);
         if ($fPublic) {
             $path = "M/{$bip44Purpose}'/{$coinType}'/{$account}'";
-            $accountXpub = $this->getAccountKey($input, $output, $hdSerializer);
+            $accountXpub = $this->getAccountKey($input, $output, $hdSerializer, $net);
             $accountKey = $hdFactory->fromExtended($accountXpub, $net);
             $wallet = $walletFactory->createBip44WalletFromAccountKey($identifier, $accountKey, $path, $fGapLimit, $birthday);
         } else {

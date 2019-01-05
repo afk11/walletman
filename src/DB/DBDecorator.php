@@ -15,106 +15,129 @@ use BitWasp\Wallet\BlockRef;
 
 class DBDecorator implements DBInterface
 {
+    /**
+     * @var DB
+     */
     private $db;
+    private $writer;
 
-    public function __construct(DB $db)
+    public function __construct(DB $db, callable $writerCallback = null)
     {
         $this->db = $db;
+        $this->writer = $writerCallback ?: function (string $input) {
+            echo $input;
+        };
+    }
+
+    private function write(string $input)
+    {
+        call_user_func($this->writer, $input);
+    }
+
+    private function call(string $func, array $args)
+    {
+        $formatValue = function ($arg) {
+            if ($arg instanceof \GMP) {
+                return var_export(gmp_strval($arg, 10), true);
+            } else if ($arg instanceof BufferInterface) {
+                return var_export($arg->getHex(), true);
+            } else if ($arg instanceof ScriptInterface) {
+                return var_export($arg->getHex(), true);
+            }
+            return var_export($arg, true);
+        };
+
+        $strArgs = array_map(
+            $formatValue,
+            $args
+        );
+        if (strpos($func, '::')) {
+            list(, $func) = explode('::', $func);
+        }
+        $this->write($func.'('.implode(', ', $strArgs).')');
+        $res = call_user_func_array([ $this->db, $func ], $args);
+        $this->write(' => ' . $formatValue($res) . PHP_EOL);
+        return $res;
     }
 
     public function getPdo(): \PDO
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createWalletTable()
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createTxTable()
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createUtxoTable()
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        $this->call(__FUNCTION__, func_get_args());
     }
+
     public function createKeyTable()
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createScriptTable()
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createHeaderTable()
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        $this->call(__FUNCTION__, func_get_args());
     }
 
     public function getBlockHash(int $height): ?BufferInterface
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function getTailHashes(int $height): array
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function getHeader(BufferInterface $hash): ?DbHeader
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function getBestHeader(): DbHeader
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function getHeaderCount(): int
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function getBestBlockHeight(): int
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function markBirthdayHistoryValid(int $height)
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function addHeader(int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header, int $status): bool
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function setBlockReceived(BufferInterface $hash): bool
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -122,79 +145,66 @@ class DBDecorator implements DBInterface
      */
     public function loadAllWallets(): array
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
     public function loadWallet(string $identifier): DbWallet
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function checkWalletExists(string $identifier): bool
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function loadBip44WalletKey(int $walletId): DbKey
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createWallet(string $identifier, int $type, ?int $gapLimit, ?BlockRef $birthday): int
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createKey(int $walletId, Base58ExtendedKeySerializer $serializer, string $path, HierarchicalKey $key, NetworkInterface $network, int $keyIndex, bool $isLeaf): int
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function loadKeyByPath(int $walletId, string $path, int $keyIndex): DbKey
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function loadKeysByPath(int $walletId, string $path): array
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function loadScriptByKeyIdentifier(int $walletId, string $keyIdentifier): ?DbScript
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createScript(int $walletId, string $keyIdentifier, string $scriptPubKey, string $redeemScript = null, string $witnessScript = null): int
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function loadScriptByKeyId(int $walletId, string $keyIdentifier): ?DbScript
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function loadScriptByScriptPubKey(int $walletId, ScriptInterface $script): ?DbScript
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx)
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -203,20 +213,17 @@ class DBDecorator implements DBInterface
      */
     public function getWalletUtxosWithUnspentUtxo(OutPointInterface $outPoint): array
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, \BitWasp\Wallet\Block\Utxo $utxo)
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function searchUnspentUtxo(int $walletId, OutPointInterface $outPoint): ?DbUtxo
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -225,25 +232,21 @@ class DBDecorator implements DBInterface
      */
     public function getUnspentWalletUtxos(int $walletId): array
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange)
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function getConfirmedBalance(int $walletId): int
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function getTransactions(int $walletId): \PDOStatement
     {
-        echo __FUNCTION__.PHP_EOL;
-        return call_user_func_array([$this->db, __FUNCTION__], func_get_args());
+        return $this->call(__FUNCTION__, func_get_args());
     }
 }
