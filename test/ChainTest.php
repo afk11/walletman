@@ -23,6 +23,7 @@ use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\Chain;
+use BitWasp\Wallet\DB\DbHeader;
 
 class ChainTest extends DbTestCase
 {
@@ -284,4 +285,41 @@ class ChainTest extends DbTestCase
     }
 
     // todo: write block reorg test
+
+    /**
+     * @expectedException \RuntimeException
+     * @expectedExceptionMessage FATAL: could not find prev block
+     */
+    public function testMissingPrevBlockCausesInitFailure()
+    {
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+
+        $prev = '424a424a424a424a424a424a424a424a424a424a424a424a424a424a424a424a';
+        $merkle = '9292929292929292929292929292929292929292929292929292929292929292';
+        $block = new BlockHeader(
+            1,
+            Buffer::hex($prev),
+            Buffer::hex($merkle),
+            123123123123,
+            0x1d00ffff,
+            1
+        );
+
+        $insertStmt = $this->sessionDb->getPdo()->prepare("INSERT INTO header (status, height, work, hash, version, prevBlock, merkleRoot, time, nbits, nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $insertStmt->execute([
+            DbHeader::HEADER_VALID|DbHeader::HEADER_VALID,
+            1,
+            '2',
+            $block->getHash()->getHex(),
+            $block->getVersion(),
+            $block->getPrevBlock()->getHex(),
+            $block->getMerkleRoot()->getHex(),
+            $block->getTimestamp(),
+            $block->getBits(),
+            $block->getNonce(),
+        ]);
+
+        $chain = new Chain($pow);
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+    }
 }

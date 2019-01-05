@@ -80,9 +80,7 @@ class Chain
 
         // step 1: load (or iterate over) ALL height/hash/headers
         $stmt = $db->getPdo()->prepare("SELECT * FROM header order by height   ASC");
-        if (!$stmt->execute()) {
-            throw new \RuntimeException("Failed to load block / header index");
-        }
+        $stmt->execute();
 
         // tmpPrev; associate hash => [0:prevHash, 1:status]
         // candidates: tip-hash => chain info
