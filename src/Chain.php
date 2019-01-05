@@ -221,7 +221,7 @@ class Chain
                 if (null === $p) {
                     throw new \RuntimeException("failed to find prevblock");
                 }
-                // need for prevBlock, and arguably status too             }
+                // need for prevBlock, and arguably status too
                 $lastCommonHash = $p->getHeader()->getPrevBlock();
                 $lastCommonHeight--;
             }
