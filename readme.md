@@ -1,10 +1,8 @@
 walletman
 ===========
 
-
 configuration:
- - user ui preferences (satoshis, BTC)
-
+ - defaults to $HOME/.walletman, can be set during console command with --datadir=$HOME/anotherdir
 
 ## setup
 
@@ -16,11 +14,7 @@ configuration:
 
 #### create a new wallet
 
- * `wallet db:init <sqlitedb>`
- * `wallet wallet:sync <sqlitedb>`
+ * `bin/wallet db:init`
+ * `bin/wallet wallet:sync --ip=<ip>`
  * wait for initial headers sync and for one block
-
-### blocks
-
-headers  []  ->  [][]  ->  [][]
-blocks   []      []
+ * `bin/wallet wallet:create --bip44 --bip39-custommnemonic <walletidentifier>`
