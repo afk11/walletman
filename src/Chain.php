@@ -128,10 +128,11 @@ class Chain
                     }
                     // reduce bestBlockHeight until that index is BLOCK_VALID
                     $candidate->bestBlockHeight = $row->getHeight();
-                    $bestBlockHash = $row->getHash()->getBinary();
-                    while (($tmpPrev[$bestBlockHash][1] & DbHeader::BLOCK_VALID) == 0) {
+                    for ($blkHash = $row->getHash()->getBinary();
+                         ($tmpPrev[$blkHash][1] & DbHeader::BLOCK_VALID) === 0;
+                         $blkHash = $tmpPrev[$blkHash][0]
+                    ) {
                         $candidate->bestBlockHeight--;
-                        $bestBlockHash = $tmpPrev[$bestBlockHash][0];
                     }
                 }
                 $candidates[$hashKey] = $candidate;
