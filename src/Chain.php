@@ -173,7 +173,7 @@ class Chain
         return new Buffer($this->heightMapToHash[$headerHeight]);
     }
 
-    public function acceptHeader(DBInterface $db, BufferInterface $hash, BlockHeaderInterface $header, DbHeader &$headerIndex = null)
+    public function acceptHeader(DBInterface $db, BufferInterface $hash, BlockHeaderInterface $header, DbHeader &$headerIndex = null): bool
     {
         $headerIndex = $db->getHeader($hash);
         if ($headerIndex) {
@@ -244,7 +244,7 @@ class Chain
         return true;
     }
 
-    public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block)
+    public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block): bool
     {
         $header = $block->getHeader();
         $prevIdx = $db->getHeader($header->getPrevBlock());
@@ -268,23 +268,8 @@ class Chain
         if ($this->heightMapToHash[$headerIdx->getHeight()] == $hash->getBinary()) {
             $this->bestBlockHeight = $headerIdx->getHeight();
         }
-    }
 
-    public function addNextBlock(DBInterface $db, int $height, BufferInterface $hash, BlockInterface $block)
-    {
-        if ($height !== 1 + $this->bestBlockHeight) {
-            throw new \RuntimeException("height $height != 1 + {$this->bestBlockHeight}");
-        }
-        if (!array_key_exists($hash->getBinary(), $this->hashMapToHeight)) {
-            throw new \RuntimeException("block hash doesn't exist in map: {$hash->getHex()}");
-        }
-        if ($this->hashMapToHeight[$hash->getBinary()] !== $height) {
-            throw new \RuntimeException("height for hash {$this->hashMapToHeight[$hash->getBinary()]} != input $height");
-        }
-
-        $this->bestBlockHeight = $height;
-
-        $db->setBlockReceived($hash);
+        return true;
     }
 
     private function acceptHeaderToIndex(DBInterface $db, int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header): DbHeader

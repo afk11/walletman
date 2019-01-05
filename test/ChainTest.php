@@ -100,7 +100,7 @@ class ChainTest extends DbTestCase
         $this->assertTrue($chain->acceptHeader($this->sessionDb, $block1Hash, $block1->getHeader(), $header1));
         $this->assertEquals(1, $chain->getBestHeader()->getHeight());
 
-        $chain->addNextBlock($this->sessionDb, 1, $block1Hash, $block1);
+        $chain->acceptBlock($this->sessionDb, $block1Hash, $block1);
         $this->assertEquals(1, $chain->getBestBlockHeight());
 
         // Add block 2
@@ -111,7 +111,7 @@ class ChainTest extends DbTestCase
         $this->assertTrue($chain->acceptHeader($this->sessionDb, $block2Hash, $block2->getHeader(), $header2));
         $this->assertEquals(2, $chain->getBestHeader()->getHeight());
 
-        $chain->addNextBlock($this->sessionDb, 2, $block2Hash, $block2);
+        $chain->acceptBlock($this->sessionDb, $block2Hash, $block2);
         $this->assertEquals(2, $chain->getBestBlockHeight());
     }
 
@@ -160,7 +160,7 @@ class ChainTest extends DbTestCase
         $chain->acceptHeader($this->sessionDb, $block1Hash, $block1->getHeader(), $header1);
         $this->assertEquals(1, $chain->getBestHeader()->getHeight());
 
-        $chain->addNextBlock($this->sessionDb, 1, $block1Hash, $block1);
+        $chain->acceptBlock($this->sessionDb, $block1Hash, $block1);
         $this->assertEquals(1, $chain->getBestBlockHeight());
 
         // Reload and ensure it's the same
