@@ -8,6 +8,7 @@ use BitWasp\Bitcoin\Block\Block;
 use BitWasp\Bitcoin\Block\BlockHeader;
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Bitcoin\Block\BlockInterface;
+use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Chain\ProofOfWork;
 use BitWasp\Bitcoin\Crypto\Random\Random;
 use BitWasp\Bitcoin\Key\Factory\PrivateKeyFactory;
@@ -343,5 +344,15 @@ class ChainTest extends DbTestCase
         $chain = new Chain($pow);
         $chain->init($this->sessionDb, $this->sessionChainParams);
         $chain->getBlockHash(9999);
+    }
+
+    public function testInitWithWrongGenesisBlockCausesError()
+    {
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage("Database has different genesis hash!");
+        $chain->init($this->sessionDb, new Params(new Math()));
     }
 }

@@ -186,7 +186,6 @@ class Chain
         $prevIndex = $db->getHeader($header->getPrevBlock());
         if ($prevIndex) {
             if (($prevIndex->getStatus() & DbHeader::HEADER_VALID) == 0) {
-                echo "invalid header: check status: {$prevIndex->getStatus()}\n";
                 return false;
             }
         } else {
