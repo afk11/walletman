@@ -234,17 +234,6 @@ class DB implements DBInterface
         return (int) $this->getBlockCountStmt->fetch()['count'];
     }
 
-    public function getBestBlockHeight(): int
-    {
-        if (null === $this->getBestBlockRefStmt) {
-            $this->getBestBlockRefStmt = $this->pdo->prepare("SELECT height from header where status = 2 order by id desc limit 1");
-        }
-        $this->getBestBlockRefStmt->execute();
-
-         $r = $this->getBestBlockRefStmt->fetch();
-         return (int) $r['height'];
-    }
-
     public function markBirthdayHistoryValid(int $height)
     {
         $stmt = $this->pdo->prepare("UPDATE header set status = 2 where status = 1 and height <= ?");
@@ -272,12 +261,12 @@ class DB implements DBInterface
     public function setBlockReceived(BufferInterface $hash): bool
     {
         if (null === $this->setBlockReceivedStmt) {
-            $this->setBlockReceivedStmt = $this->pdo->prepare("UPDATE header set status = ? where hash = ?");
+            $this->setBlockReceivedStmt = $this->pdo->prepare("UPDATE header set status = status | ? where hash = ?");
         }
         if (!$this->setBlockReceivedStmt->execute([
             DbHeader::BLOCK_VALID, $hash->getHex(),
         ])) {
-            throw new \RuntimeException("failed to insert header");
+            throw new \RuntimeException("failed to update index");
         }
         return true;
     }

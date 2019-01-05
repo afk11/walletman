@@ -43,8 +43,6 @@ interface DBInterface
 
     public function getHeaderCount(): int;
 
-    public function getBestBlockHeight(): int;
-
     public function markBirthdayHistoryValid(int $height);
 
     public function addHeader(int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header, int $status): bool;

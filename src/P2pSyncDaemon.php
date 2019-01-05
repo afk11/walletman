@@ -6,7 +6,6 @@ namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\Block;
 use BitWasp\Bitcoin\Chain\BlockLocator;
-use BitWasp\Bitcoin\Chain\Params;
 use BitWasp\Bitcoin\Chain\ParamsInterface;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Crypto\Random\Random;
@@ -212,7 +211,7 @@ class P2pSyncDaemon
         }
 
         $connParams = new ConnectionParams();
-        $connParams->setBestBlockHeight($this->chain->getBestHeaderHeight());
+        $connParams->setBestBlockHeight($this->chain->getBestHeader()->getHeight());
         $connParams->setRequiredServices($requiredServices);
         $connParams->setLocalServices($myServices);
         $connParams->setProtocolVersion(70013); // above this causes problems, todo
@@ -221,7 +220,7 @@ class P2pSyncDaemon
             $connParams->requestTxRelay(true);
         }
 
-        echo "best height {$this->chain->getBestHeaderHeight()}\n";
+        echo "best height {$this->chain->getBestHeader()->getHeight()}\n";
         echo "best block {$this->chain->getBestBlockHeight()}\n";
 
         return $netFactory
@@ -289,25 +288,18 @@ class P2pSyncDaemon
             if (count($headers->getHeaders()) > 0) {
                 $this->db->getPdo()->beginTransaction();
                 try {
-                    /** @var DbHeader $lastHeader */
+                    /** @var DbHeader null|$lastHeader */
                     $lastHeader = null;
-                    $prevIdx = null;
                     foreach ($headers->getHeaders() as $i => $headerData) {
                         $header = $this->headerSerializer->parse($headerData);
-                        if ($lastHeader !== null && !$lastHeader->getHash()->equals($header->getPrevBlock())) {
+                        if ($lastHeader instanceof DbHeader && !$lastHeader->getHash()->equals($header->getPrevBlock())) {
                             throw new \RuntimeException("non continuous headers message");
                         }
 
-                        if (null === $prevIdx) {
-                            $prevIdx = $this->db->getHeader($header->getPrevBlock());
-                            if ($prevIdx === null) {
-                                die("oops, got a block we dunno about");
-                            }
-                        }
-
                         $hash = $header->getHash();
-                        $this->chain->acceptHeader($this->db, $hash, $header, $prevIdx, $lastHeader);
-                        $prevIdx = $lastHeader;
+                        if (!$this->chain->acceptHeader($this->db, $hash, $header, $lastHeader)) {
+                            throw new \RuntimeException("failed to accept header");
+                        }
                     }
                     $this->db->getPdo()->commit();
                 } catch (\Exception $e) {
@@ -322,7 +314,7 @@ class P2pSyncDaemon
                     $peer->getheaders(new BlockLocator([$lastHeader->getHash()], new Buffer('', 32)));
                 }
 
-                echo "processHeaders now at {$this->chain->getBestHeaderHeight()} {$lastHeader->getHash()->getHex()}\n";
+                echo "processHeaders. accepted {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
             }
 
             if (count($headers->getHeaders()) < 2000) {
@@ -334,7 +326,7 @@ class P2pSyncDaemon
             }
         });
 
-        $hash = $this->chain->getBestHeaderHash();
+        $hash = $this->chain->getBestHeader()->getHash();
         echo "requestHeaders {$hash->getHex()}\n";
         $peer->getheaders(new BlockLocator([$hash], new Buffer('', 32)));
         $peer->sendheaders();
@@ -404,7 +396,7 @@ class P2pSyncDaemon
         }
 
         $downloadStartHeight = $this->chain->getBestBlockHeight() + 1;
-        $heightBestHeader = $this->chain->getBestHeaderHeight();
+        $heightBestHeader = $this->chain->getBestHeader()->getHeight();
 
         while (count($this->deferred) < $this->batchSize && $downloadStartHeight + count($this->deferred) <= $heightBestHeader) {
             $height = $downloadStartHeight + count($this->deferred);
@@ -500,7 +492,8 @@ class P2pSyncDaemon
                 $isFirstSetup = true;
                 $startBlock = null;
                 if (count($this->wallets) === 0) {
-                    $startBlock = new BlockRef($this->chain->getBestHeaderHeight(), $this->chain->getBestHeaderHash());
+                    $bestIndex = $this->chain->getBestHeader();
+                    $startBlock = new BlockRef($bestIndex->getHeight(), $bestIndex->getHash());
                 } else {
                     foreach ($this->wallets as $wallet) {
                         $dbWallet = $wallet->getDbWallet();
@@ -530,8 +523,9 @@ class P2pSyncDaemon
                     // finish shortcut for new wallets - mark history before we came online
                     // as valid
                     if ($isFirstSetup) {
-                        echo "mark birthday history as valid {$this->chain->getBestHeaderHeight()}\n";
-                        $this->db->markBirthdayHistoryValid($this->chain->getBestHeaderHeight());
+                        $bestHeaderHeight = $this->chain->getBestHeader()->getHeight();
+                        echo "mark birthday history as valid {$bestHeaderHeight}\n";
+                        $this->db->markBirthdayHistoryValid($bestHeaderHeight);
                     }
                     echo "done syncing\n";
                     $this->downloading = false;
