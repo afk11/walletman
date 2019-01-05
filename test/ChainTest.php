@@ -334,5 +334,4 @@ class ChainTest extends DbTestCase
         $chain->init($this->sessionDb, $this->sessionChainParams);
         $chain->getBlockHash(9999);
     }
-
 }

@@ -9,7 +9,6 @@ use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\GlobalPrefixConfig;
 use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\NetworkConfig;
 use BitWasp\Bitcoin\Key\Deterministic\Slip132\Slip132;
 use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
-use BitWasp\Bitcoin\Network\Slip132\BitcoinTestnetRegistry;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Buffertools\Buffer;
@@ -37,7 +36,7 @@ class Bip32GeneratorTest extends DbTestCase
         $rootKey = $hdFactory->fromEntropy(new Buffer("", 32));
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $serializer, $ecAdapter);
 
-        $gapLimit = 100;
+        $gapLimit = 5;
         $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", $gapLimit, null);
         $this->assertNull($wallet->getScriptByPath("M/44'/0'/0'/0/0"));
 

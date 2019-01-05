@@ -17,7 +17,6 @@ class Chain
 {
     // Blocks
 
-
     /**
      * @var BlockRef
      */
@@ -69,8 +68,7 @@ class Chain
         } else {
             $genesisHash = $genesisHeader->getHash();
             $work = $this->proofOfWork->getWork($genesisHeader->getBits());
-            $genesisHeight = 0;
-            $db->addHeader($genesisHeight, $work, $genesisHash, $genesisHeader, DbHeader::HEADER_VALID | DbHeader::BLOCK_VALID);
+            $db->addHeader(0, $work, $genesisHash, $genesisHeader, DbHeader::HEADER_VALID | DbHeader::BLOCK_VALID);
         }
 
         // step 1: load (or iterate over) ALL height/hash/headers
@@ -123,8 +121,7 @@ class Chain
                     $candidate->bestBlockHeight = $row->getHeight();
                     for ($blkHash = $row->getHash()->getBinary();
                          ($tmpPrev[$blkHash][1] & DbHeader::BLOCK_VALID) === 0;
-                         $blkHash = $tmpPrev[$blkHash][0]
-                    ) {
+                         $blkHash = $tmpPrev[$blkHash][0]) {
                         $candidate->bestBlockHeight--;
                     }
                 }
