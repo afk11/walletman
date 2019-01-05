@@ -55,7 +55,7 @@ class DBDecorator implements DBInterface
             list(, $func) = explode('::', $func);
         }
         $this->write($func.'('.implode(', ', $strArgs).')');
-        $res = call_user_func_array([ $this->db, $func ], $args);
+        $res = call_user_func_array([$this->db, $func], $args);
         $this->write(' => ' . $formatValue($res) . PHP_EOL);
         return $res;
     }
