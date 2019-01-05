@@ -317,8 +317,6 @@ class P2pSyncDaemon
                     throw $e;
                 }
 
-                $this->chain->processCandidate($this->db, ChainCandidate::fromHeader($lastHeader, 0));
-
                 if (count($headers->getHeaders()) === 2000) {
                     echo "requestHeaders starting at {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
                     $peer->getheaders(new BlockLocator([$lastHeader->getHash()], new Buffer('', 32)));

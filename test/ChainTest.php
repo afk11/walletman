@@ -23,7 +23,6 @@ use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\Chain;
-use BitWasp\Wallet\ChainCandidate;
 
 class ChainTest extends DbTestCase
 {
@@ -99,7 +98,6 @@ class ChainTest extends DbTestCase
         $block1Hash = $block1->getHeader()->getHash();
         $header1 = null;
         $chain->acceptHeader($this->sessionDb, $block1Hash, $block1->getHeader(), $prevIdx, $header1);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1, 0));
         $prevIdx = $header1;
         $this->assertEquals(1, $chain->getBestHeaderHeight());
 
@@ -112,7 +110,6 @@ class ChainTest extends DbTestCase
         $block2Hash = $block2->getHeader()->getHash();
         $header2 = null;
         $chain->acceptHeader($this->sessionDb, $block2Hash, $block2->getHeader(), $prevIdx, $header2);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header2, 1));
         $this->assertEquals(2, $chain->getBestHeaderHeight());
 
         $chain->addNextBlock($this->sessionDb, 2, $block2Hash, $block2);
@@ -137,7 +134,6 @@ class ChainTest extends DbTestCase
         $block1Hash = $block1->getHeader()->getHash();
         $header1 = null;
         $chain->acceptHeader($this->sessionDb, $block1Hash, $block1->getHeader(), $prevIdx, $header1);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1, 0));
         $prevIdx = $header1;
         $this->assertEquals(1, $chain->getBestHeaderHeight());
 
@@ -173,7 +169,6 @@ class ChainTest extends DbTestCase
         $block1aHash = $block1a->getHeader()->getHash();
         $header1a = null;
         $chain->acceptHeader($this->sessionDb, $block1aHash, $block1a->getHeader(), $prevIdx, $header1a);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1a, 0));
         $prevIdx = $header1a;
         $this->assertEquals(1, $chain->getBestHeaderHeight());
 
@@ -182,7 +177,6 @@ class ChainTest extends DbTestCase
         $block2aHash = $block2a->getHeader()->getHash();
         $header2a = null;
         $chain->acceptHeader($this->sessionDb, $block2aHash, $block2a->getHeader(), $prevIdx, $header2a);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header2a, 0));
         $prevIdx = $header2a;
         $this->assertEquals(2, $chain->getBestHeaderHeight());
 
@@ -234,7 +228,6 @@ class ChainTest extends DbTestCase
         $block1aHash = $block1a->getHeader()->getHash();
         $header1a = null;
         $chain->acceptHeader($this->sessionDb, $block1aHash, $block1a->getHeader(), $prevIdx, $header1a);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1a, 0));
         $prevIdx = $header1a;
         $this->assertEquals(1, $chain->getBestHeaderHeight());
         $this->assertEquals($block1aHash->getHex(), $chain->getBestHeaderHash()->getHex());
@@ -244,7 +237,6 @@ class ChainTest extends DbTestCase
         $block2aHash = $block2a->getHeader()->getHash();
         $header2a = null;
         $chain->acceptHeader($this->sessionDb, $block2aHash, $block2a->getHeader(), $prevIdx, $header2a);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header2a, 0));
         $prevIdx = $header2a;
         $this->assertEquals(2, $chain->getBestHeaderHeight());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestHeaderHash()->getHex());
@@ -254,7 +246,6 @@ class ChainTest extends DbTestCase
         $block1bHash = $block1b->getHeader()->getHash();
         $header1b = null;
         $chain->acceptHeader($this->sessionDb, $block1bHash, $block1b->getHeader(), $genesisIdx, $header1b);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header1b, 0));
         $prevIdx = $header1b;
         $this->assertEquals(2, $chain->getBestHeaderHeight());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestHeaderHash()->getHex());
@@ -264,7 +255,6 @@ class ChainTest extends DbTestCase
         $block2bHash = $block2b->getHeader()->getHash();
         $header2b = null;
         $chain->acceptHeader($this->sessionDb, $block2bHash, $block2b->getHeader(), $prevIdx, $header2b);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header2b, 0));
         $prevIdx = $header2b;
         $this->assertEquals(2, $chain->getBestHeaderHeight());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestHeaderHash()->getHex());
@@ -274,7 +264,6 @@ class ChainTest extends DbTestCase
         $block3bHash = $block3b->getHeader()->getHash();
         $header3b = null;
         $chain->acceptHeader($this->sessionDb, $block3bHash, $block3b->getHeader(), $prevIdx, $header3b);
-        $chain->processCandidate($this->sessionDb, ChainCandidate::fromHeader($header3b, 0));
         $prevIdx = $header3b;
         $this->assertEquals(3, $chain->getBestHeaderHeight());
         $this->assertEquals($block3bHash->getHex(), $chain->getBestHeaderHash()->getHex());

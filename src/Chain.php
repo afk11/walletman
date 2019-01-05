@@ -84,12 +84,13 @@ class Chain
 
         if (!$haveGenesis) {
             $work = $this->proofOfWork->getWork($genesisHeader->getBits());
-            $this->acceptHeaderToIndex($db, 0, $work, $genesisHash, $genesisHeader);
-            $this->heightMapToHash[0] = $genesisHash->getBinary();
-            $db->setBlockReceived($genesisHash);
+            $genesisHeight = 0;
+            $db->addHeader($genesisHeight, $work, $genesisHash, $genesisHeader, DbHeader::BLOCK_VALID);
+            $this->hashMapToHeight[$genesisHash->getBinary()] = $genesisHeight;
+            $this->heightMapToHash[$genesisHeight] = $genesisHash->getBinary();
             $bestHeader = $genesisHeader;
             $bestHeaderHash = $genesisHash;
-            $bestBlockHeight = 0;
+            $bestBlockHeight = $genesisHeight;
             $bestHeaderWork = $work;
         } else {
             // todo: this just takes the last received header.
@@ -256,51 +257,6 @@ class Chain
         return true;
     }
 
-    public function processCandidate(DBInterface $db, ChainCandidate $candidate)
-    {
-        if (gmp_cmp($candidate->work, $this->bestHeaderWork) > 0) {
-            $candidateHashes = [$candidate->dbHeader->getHeight() => $candidate->dbHeader->getHash()->getBinary()];
-            $header = $candidate->dbHeader->getHeader();
-
-            // Unwind until lastCommonHeight and lastCommonHash are determined.
-            $lastCommonHash = $header->getPrevBlock();
-            $lastCommonHeight = $candidate->dbHeader->getHeight() - 1;
-            while ($lastCommonHeight != 0 && $this->heightMapToHash[$lastCommonHeight] !== $lastCommonHash->getBinary()) {
-                // If the hashes differ, keep our previous attempt
-                // in candidateHashes because we need to apply them later
-                $candidateHashes[$lastCommonHeight] = $lastCommonHash->getBinary();
-
-                $p = $db->getHeader($lastCommonHash);
-                if (null === $p) {
-                    throw new \RuntimeException("failed to find prevblock");
-                }
-                // need for prevBlock, and arguably status too             }
-                $lastCommonHash = $p->getHeader()->getPrevBlock();
-                $lastCommonHeight--;
-            }
-
-            // Delete [lastCommonHeight+1, currentTipHeight]
-            for ($i = $lastCommonHeight + 1; $i <= $this->getBestHeaderHeight(); $i++) {
-                unset($this->heightMapToHash[$i]);
-            }
-
-            // Insert [lastCommonHeight+1, candidateTipHeight]
-            for ($i = $lastCommonHeight + 1; $i <= $candidate->dbHeader->getHeight(); $i++) {
-                $this->heightMapToHash[$i] = $candidateHashes[$i];
-            }
-
-            $this->bestHeaderWork = $candidate->work;
-            $this->bestHeaderHash = $candidate->dbHeader->getHash();
-            $this->bestHeader = $header;
-
-            // reality is we shouldn't have to update this unless
-            // it was between lastCommonHeight and our old tip.
-            if ($this->bestBlockHeight > $lastCommonHeight) {
-                $this->bestBlockHeight = $lastCommonHeight;
-            }
-        }
-    }
-
     public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block)
     {
         $header = $block->getHeader();
@@ -351,7 +307,13 @@ class Chain
         $headerIndex = $db->getHeader($hash);
 
         $this->hashMapToHeight[$hash->getBinary()] = $height;
-        // todo: this one needs to be moved, surely?
+        var_dump($work);
+        var_dump($this->bestHeaderWork);
+        if (gmp_cmp($work, $this->bestHeaderWork) > 0) {
+            $this->bestHeader = $header;
+            $this->bestHeaderHash = $hash;
+            $this->bestHeaderWork = $work;
+        }
 
         return $headerIndex;
     }
