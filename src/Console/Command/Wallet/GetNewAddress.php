@@ -34,6 +34,7 @@ class GetNewAddress extends Command
             // An identifier is required for this wallet
             ->addArgument("identifier", InputArgument::REQUIRED, "Identifier for wallet")
 
+            ->addOption("change", null, InputOption::VALUE_NONE, 'Returns an address to be used as change')
             ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
 
             // the full command description shown when running the command with
@@ -44,6 +45,7 @@ class GetNewAddress extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $identifier = $this->getStringArgument($input, "identifier");
+        $fChange = $input->getOption('change');
         $dataDir = $this->loadDataDir($input);
 
         $ecAdapter = Bitcoin::getEcAdapter();
@@ -69,7 +71,12 @@ class GetNewAddress extends Command
         $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter, $prefixConfig));
         $walletFactory = new Factory($db, $net, $hdSerializer, $ecAdapter);
         $wallet = $walletFactory->loadWallet($identifier);
-        $addrGen = $wallet->getScriptGenerator();
+        if ($fChange) {
+            $addrGen = $wallet->getChangeScriptGenerator();
+        } else {
+            $addrGen = $wallet->getScriptGenerator();
+        }
+
         $dbScript = $addrGen->generate();
         $addrString = $dbScript->getAddress(new AddressCreator())->getAddress($net);
         echo "$addrString\n";
