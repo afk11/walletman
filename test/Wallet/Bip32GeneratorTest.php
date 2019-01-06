@@ -59,7 +59,7 @@ class Bip32GeneratorTest extends DbTestCase
         // test with gap limit 5
         $branchNode = $this->sessionDb->loadKeyByPath($wallet->getDbWallet()->getId(), "M/44'/0'/0'/0", 0);
         $key = $branchNode->getHierarchicalKey($this->sessionNetwork, $ecAdapter);
-        $generator = new Bip32Generator($this->sessionDb, $branchNode, 5, $key);
+        $generator = new Bip32Generator($this->sessionDb, $branchNode, $gapLimit, $key);
         $generator->generate();
         $this->assertNotNull($wallet->getScriptByPath("M/44'/0'/0'/0/3"));
         $this->assertNotNull($wallet->getScriptByPath("M/44'/0'/0'/0/4"));

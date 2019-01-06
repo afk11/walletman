@@ -74,7 +74,7 @@ abstract class HdWallet extends Wallet
 
     public function getScriptByPath(string $path): ?DbScript
     {
-        return $this->db->loadScriptByKeyIdentifier($this->dbKey->getWalletId(), $path);
+        return $this->db->loadScriptByKeyId($this->dbKey->getWalletId(), $path);
     }
 
     /**

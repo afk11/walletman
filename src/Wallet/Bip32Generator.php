@@ -55,6 +55,7 @@ class Bip32Generator implements ScriptGenerator
             if ($this->db->loadScriptByKeyId($this->dbKey->getWalletId(), $gapKeyPath)) {
                 break;
             }
+
             $child = $this->key->deriveChild($preDeriveIdx);
             $scriptAndSignData = $child->getScriptAndSignData();
 
