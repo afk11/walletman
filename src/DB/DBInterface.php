@@ -74,8 +74,6 @@ interface DBInterface
      */
     public function loadKeysByPath(int $walletId, string $path): array;
 
-    public function loadScriptByKeyIdentifier(int $walletId, string $keyIdentifier): ?DbScript;
-
     public function createScript(int $walletId, string $keyIdentifier, string $scriptPubKey, string $redeemScript = null, string $witnessScript = null): int;
 
     public function loadScriptByKeyId(int $walletId, string $keyIdentifier): ?DbScript;

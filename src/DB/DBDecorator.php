@@ -184,11 +184,6 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function loadScriptByKeyIdentifier(int $walletId, string $keyIdentifier): ?DbScript
-    {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
-
     public function createScript(int $walletId, string $keyIdentifier, string $scriptPubKey, string $redeemScript = null, string $witnessScript = null): int
     {
         return $this->call(__FUNCTION__, func_get_args());

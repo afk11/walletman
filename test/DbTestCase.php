@@ -44,6 +44,11 @@ abstract class DbTestCase extends TestCase
     protected $sessionNetwork;
 
     /**
+     * @var string
+     */
+    protected $sessionNetworkName;
+
+    /**
      * @var PrefixRegistry
      */
     protected $sessionPrefixRegistry;
@@ -81,6 +86,7 @@ abstract class DbTestCase extends TestCase
         }
 
         $this->sessionChainParams = $netInfo->getParams($netName, new Math());
+        $this->sessionNetworkName = $netName;
         $this->sessionNetwork = $netInfo->getNetwork($netName);
         $this->sessionPrefixRegistry = $netInfo->getSlip132Registry($netName);
         $initializer = new Initializer();

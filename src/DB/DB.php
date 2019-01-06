@@ -399,25 +399,6 @@ class DB implements DBInterface
         return $keys;
     }
 
-    public function loadScriptByKeyIdentifier(int $walletId, string $keyIdentifier): ?DbScript
-    {
-        if (null === $this->loadScriptByKeyIdentifierStmt) {
-            $this->loadScriptByKeyIdentifierStmt = $this->pdo->prepare("SELECT * FROM script WHERE walletId = ? AND keyIdentifier = ?");
-        }
-
-        if (!$this->loadScriptByKeyIdentifierStmt->execute([
-            $walletId, $keyIdentifier,
-        ])) {
-            throw new \RuntimeException("Failed to execute query");
-        }
-
-        if (!$result = $this->loadScriptByKeyIdentifierStmt->fetchObject(DbScript::class)) {
-            return null;
-        }
-
-        return $result;
-    }
-
     public function createScript(int $walletId, string $keyIdentifier, string $scriptPubKey, string $redeemScript = null, string $witnessScript = null): int
     {
         if (null === $this->createScriptStmt) {
