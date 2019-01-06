@@ -498,7 +498,7 @@ class DB implements DBInterface
     public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, OutPointInterface $outPoint, TransactionOutputInterface $txOut)
     {
         if (null === $this->createUtxoStmt) {
-            $this->createUtxoStmt = $this->pdo->prepare("INSERT INTO utxo (walletId, scriptId, txid, vout, value, scriptPubKey) values (?, ?, ?, ?, ?, ?, ?, ?)");
+            $this->createUtxoStmt = $this->pdo->prepare("INSERT INTO utxo (walletId, scriptId, txid, vout, value, scriptPubKey) values (?, ?, ?, ?, ?, ?)");
         }
 
         if (!$this->createUtxoStmt->execute([
