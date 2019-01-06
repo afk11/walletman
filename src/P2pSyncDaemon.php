@@ -36,6 +36,7 @@ use BitWasp\Wallet\Wallet\WalletInterface;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\LoopInterface;
 use React\Promise\Deferred;
+use React\Promise\FulfilledPromise;
 use React\Promise\PromiseInterface;
 
 class P2pSyncDaemon
@@ -318,11 +319,7 @@ class P2pSyncDaemon
             }
 
             if (count($headers->getHeaders()) < 2000) {
-                try {
-                    $this->downloadBlocks($peer);
-                } catch (\Exception $e) {
-                    echo $e->getMessage().PHP_EOL;
-                }
+                $this->downloadBlocks($peer);
             }
         });
 
@@ -486,54 +483,54 @@ class P2pSyncDaemon
 
     public function downloadBlocks(Peer $peer)
     {
-        if (!$this->downloading) {
-            $isFirstSetup = false;
-            if ($this->chain->getBestBlockHeight() === 0) {
-                $isFirstSetup = true;
-                $startBlock = null;
-                if (count($this->wallets) === 0) {
-                    $bestIndex = $this->chain->getBestHeader();
-                    $startBlock = new BlockRef($bestIndex->getHeight(), $bestIndex->getHash());
-                } else {
-                    foreach ($this->wallets as $wallet) {
-                        $dbWallet = $wallet->getDbWallet();
-                        if ($birthday = $dbWallet->getBirthday()) {
-                            if (!($startBlock instanceof BlockRef)) {
-                                $startBlock = $dbWallet->getBirthday();
-                            } else if ($birthday->getHeight() < $startBlock->getHeight()) {
-                                $startBlock = $dbWallet->getBirthday();
-                            }
+        if ($this->downloading) {
+            return new FulfilledPromise();
+        }
+
+        $isFirstSetup = false;
+        if ($this->chain->getBestBlockHeight() === 0) {
+            $isFirstSetup = true;
+            $startBlock = null;
+            if (count($this->wallets) === 0) {
+                $bestIndex = $this->chain->getBestHeader();
+                $startBlock = new BlockRef($bestIndex->getHeight(), $bestIndex->getHash());
+            } else {
+                foreach ($this->wallets as $wallet) {
+                    $dbWallet = $wallet->getDbWallet();
+                    if ($birthday = $dbWallet->getBirthday()) {
+                        if (!($startBlock instanceof BlockRef)) {
+                            $startBlock = $dbWallet->getBirthday();
+                        } else if ($birthday->getHeight() < $startBlock->getHeight()) {
+                            $startBlock = $dbWallet->getBirthday();
                         }
                     }
                 }
-                if ($startBlock) {
-                    $this->chain->setStartBlock($startBlock);
-                }
             }
-            $this->downloading = true;
-            $peer->on(Message::BLOCK, [$this, 'receiveBlock']);
-
-            $deferred = new Deferred();
-            echo "requesting blocks\n";
-            $this->requestBlocks($peer, $deferred);
-
-            return $deferred
-                ->promise()
-                ->then(function () use ($peer, $isFirstSetup) {
-                    // finish shortcut for new wallets - mark history before we came online
-                    // as valid
-                    if ($isFirstSetup) {
-                        $bestHeaderHeight = $this->chain->getBestHeader()->getHeight();
-                        echo "mark birthday history as valid {$bestHeaderHeight}\n";
-                        $this->db->markBirthdayHistoryValid($bestHeaderHeight);
-                    }
-                    echo "done syncing\n";
-                    $this->downloading = false;
-                    $this->resetBlockStats();
-                    $peer->removeListener(Message::BLOCK, [$this, 'receiveBlock']);
-                });
-        } else {
-            throw new \RuntimeException("already downloading");
+            if ($startBlock) {
+                $this->chain->setStartBlock($startBlock);
+            }
         }
+        $this->downloading = true;
+        $peer->on(Message::BLOCK, [$this, 'receiveBlock']);
+
+        $deferred = new Deferred();
+        echo "requesting blocks\n";
+        $this->requestBlocks($peer, $deferred);
+
+        return $deferred
+            ->promise()
+            ->then(function () use ($peer, $isFirstSetup) {
+                // finish shortcut for new wallets - mark history before we came online
+                // as valid
+                if ($isFirstSetup) {
+                    $bestHeaderHeight = $this->chain->getBestHeader()->getHeight();
+                    echo "mark birthday history as valid {$bestHeaderHeight}\n";
+                    $this->db->markBirthdayHistoryValid($bestHeaderHeight);
+                }
+                echo "done syncing\n";
+                $this->downloading = false;
+                $this->resetBlockStats();
+                $peer->removeListener(Message::BLOCK, [$this, 'receiveBlock']);
+            });
     }
 }

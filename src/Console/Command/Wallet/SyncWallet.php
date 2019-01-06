@@ -44,6 +44,7 @@ class SyncWallet extends Command
             // sync options
             ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
             ->addOption('debug-db', null, InputOption::VALUE_NONE, "Debug the database usage by printing function calls")
+            ->addOption('debug-perblock', null, InputOption::VALUE_NONE, "Debug time taken for all stages while processing all blocks")
             ->addOption('blockstats', null, InputOption::VALUE_NONE, "Log block stats to file")
 
             // the full command description shown when running the command with
@@ -56,6 +57,7 @@ class SyncWallet extends Command
         $fSyncMempool = (bool) $input->getOption('mempool');
         $dataDir = $this->loadDataDir($input);
         $fDebugDb = $input->getOption('debug-db');
+        $fDebugPerBlock = $input->getOption('debug-perblock');
         $fBlockStatsToFile = $input->getOption('blockstats');
         $ip = $this->getStringOption($input, 'ip');
 
@@ -92,6 +94,9 @@ class SyncWallet extends Command
         $chain = new Chain($pow);
         $daemon = new P2pSyncDaemon($logger, $ip, $port, $ecAdapter, $net, $params, $db, $random, $chain);
         $daemon->syncMempool($fSyncMempool);
+        if ($fDebugPerBlock) {
+            $daemon->setPerBlockDebug(true);
+        }
         if ($fBlockStatsToFile) {
             $daemon->produceBlockStatsCsv(__DIR__ . "/../../../../blockstats");
         }

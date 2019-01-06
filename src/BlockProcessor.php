@@ -8,7 +8,6 @@ use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Buffertools\BufferInterface;
-use BitWasp\Wallet\Block\Tx;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\WalletInterface;
 
@@ -18,11 +17,6 @@ class BlockProcessor
      * @var DBInterface
      */
     private $db;
-
-    /**
-     * @var Tx[]
-     */
-    private $txMap = [];
 
     /**
      * @var WalletInterface[]
@@ -39,10 +33,6 @@ class BlockProcessor
 
     public function processConfirmedTx(BufferInterface $txId, TransactionInterface $tx)
     {
-        $thisTxKey = $txId->getBinary();
-        if (array_key_exists($thisTxKey, $this->txMap)) {
-            throw new \LogicException();
-        }
         $nIn = count($tx->getInputs());
         $valueChange = [];
 
