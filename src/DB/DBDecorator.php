@@ -36,23 +36,24 @@ class DBDecorator implements DBInterface
         call_user_func($this->writer, $input);
     }
 
+    private function format($arg)
+    {
+        if ($arg instanceof \GMP) {
+            return var_export(gmp_strval($arg, 10), true);
+        } else if ($arg instanceof BufferInterface) {
+            return var_export($arg->getHex(), true);
+        } else if ($arg instanceof ScriptInterface) {
+            return var_export($arg->getHex(), true);
+        }
+        return var_export($arg, true);
+    }
+
     private function call(string $func, array $args)
     {
-        $formatValue = function ($arg) {
-            if ($arg instanceof \GMP) {
-                return var_export(gmp_strval($arg, 10), true);
-            } else if ($arg instanceof BufferInterface) {
-                return var_export($arg->getHex(), true);
-            } else if ($arg instanceof ScriptInterface) {
-                return var_export($arg->getHex(), true);
-            }
-            return var_export($arg, true);
-        };
-
-        $strArgs = array_map(
-            $formatValue,
-            $args
-        );
+        $strArgs = [];
+        foreach ($args as $arg) {
+            $strArgs[] = $this->format($arg);
+        }
         if (strpos($func, '::')) {
             list(, $func) = explode('::', $func);
         }
@@ -63,7 +64,7 @@ class DBDecorator implements DBInterface
         }
 
         $res = call_user_func_array($callable, $args);
-        $this->write(' => ' . $formatValue($res) . PHP_EOL);
+        $this->write(' => ' . $this->format($res) . PHP_EOL);
         return $res;
     }
 

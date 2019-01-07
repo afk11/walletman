@@ -1,0 +1,37 @@
+language: php
+
+matrix:
+  include:
+    - php: 7.2
+      env: WITH_DEBUG=false PHPUNIT=true
+    - php: 7.3
+      env: COVERAGE=true PHPUNIT=true
+    - php: 7.3
+      env: WITH_DEBUG=false CODE_STYLE=true PHPSTAN=true
+   
+before_install:
+ - sh -c 'if [ "${WITH_DEBUG}" = "false" ]; then phpenv config-rm xdebug.ini && echo "xdebug disabled" || exit 0; fi'
+
+install:
+ - composer install
+
+script:
+ - if [ "${PHPUNIT}" = "true" ]; then
+       if [ "${COVERAGE}" = "true" ]; then
+           vendor/bin/phpunit --coverage-clover=build/coverage.clover;
+       else
+           vendor/bin/phpunit;
+       fi
+   fi
+ - if [ "${PHPSTAN}" = "true" ]; then
+       vendor/bin/phpstan analyse src -l 7;
+   fi
+ - if [ "${CODE_STYLE}" = "true" ]; then
+       vendor/bin/phpcs -n --standard=PSR1,PSR2 src test;
+   fi
+
+after_script:
+ - if [ "${COVERAGE}" = "true" ]; then
+       wget https://scrutinizer-ci.com/ocular.phar;
+       php ocular.phar code-coverage:upload --format=php-clover build/coverage.clover;
+   fi
