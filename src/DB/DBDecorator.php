@@ -57,7 +57,12 @@ class DBDecorator implements DBInterface
             list(, $func) = explode('::', $func);
         }
         $this->write($func.'('.implode(', ', $strArgs).')');
-        $res = call_user_func_array([$this->db, $func], $args);
+        $callable = [$this->db, $func];
+        if (!is_callable($callable)) {
+            throw new \RuntimeException("wut");
+        }
+
+        $res = call_user_func_array($callable, $args);
         $this->write(' => ' . $formatValue($res) . PHP_EOL);
         return $res;
     }
