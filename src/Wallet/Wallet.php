@@ -85,6 +85,8 @@ abstract class Wallet implements WalletInterface
             list ($scriptSig, $witness) = SizeEstimation::estimateUtxoFromScripts($dbScript->getScriptPubKey(), $rs, $ws);
 
             $inputWeight = (32+4+4+$scriptSig) * 4 + $witness;
+            // set markSegwit for this input, but we won't set $segwit
+            // until we're sure we want to use this input.
             $markSegwit = false;
             if ($ws && !$segwit) {
                 $inputWeight += 2 * 4; // two flag bytes
@@ -102,9 +104,15 @@ abstract class Wallet implements WalletInterface
             $dbScripts[] = $dbScript;
             $totalIn += $dbUtxo->getValue();
             $txWeight += $inputWeight;
+
+            // always select enough to produce the change output anyway
+            if ($totalIn > $totalOut + $feeRate * (int)ceil(($txWeight+$changeOutputWeight + 3) / 4)) {
+                break;
+            }
         }
 
         $totalVsize = (int)ceil(($txWeight+$changeOutputWeight + 3) / 4);
+        echo "totalVSize in estimation: $totalVsize\n";
         $change = $totalIn - $totalOut - ($totalVsize * $feeRate);
         $changeOutputFee = (int)ceil(($changeOutputWeight + 3) / 4) * $feeRate;
         if ($change > $changeOutputFee/3) {
