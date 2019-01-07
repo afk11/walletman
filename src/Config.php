@@ -20,7 +20,7 @@ class Config
     {
         $configPath = "$dataDir/config.json";
         if (!file_exists($configPath)) {
-            throw new \RuntimeException("Provided data directory does not exist");
+            throw new \RuntimeException("Config file does not exist in directory");
         }
 
         $contents = file_get_contents($configPath);

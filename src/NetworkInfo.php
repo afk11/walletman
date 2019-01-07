@@ -44,6 +44,7 @@ class NetworkInfo
                 throw new \InvalidArgumentException("unknown network: $networkName");
         }
     }
+
     public function getSlip132Registry(string $networkName): PrefixRegistry
     {
         switch ($networkName) {
@@ -57,6 +58,7 @@ class NetworkInfo
                 throw new \InvalidArgumentException("unknown network: $networkName");
         }
     }
+
     public function getParams(string $networkName, Math $math): ParamsInterface
     {
         switch ($networkName) {

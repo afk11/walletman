@@ -26,12 +26,30 @@ class NetworkInfoTest extends TestCase
         $this->assertInstanceOf(BitcoinRegtest::class, $config->getNetwork(NetworkName::BITCOIN_REGTEST));
     }
 
+    /**
+     * @expectedException \InvalidArgumentException
+     * @expectedExceptionMessage unknown network: abc
+     */
+    public function testUnknownNetwork()
+    {
+        (new NetworkInfo())->getNetwork("abc");
+    }
+
     public function testP2pPort()
     {
         $config = new NetworkInfo();
         $this->assertEquals(8333, $config->getP2pPort(NetworkName::BITCOIN));
         $this->assertEquals(18333, $config->getP2pPort(NetworkName::BITCOIN_TESTNET3));
         $this->assertEquals(18444, $config->getP2pPort(NetworkName::BITCOIN_REGTEST));
+    }
+
+    /**
+     * @expectedException \InvalidArgumentException
+     * @expectedExceptionMessage unknown network: abc
+     */
+    public function testUnknownP2pPort()
+    {
+        (new NetworkInfo())->getP2pPort("abc");
     }
 
     public function testGetSlip132Registry()
@@ -42,6 +60,15 @@ class NetworkInfoTest extends TestCase
         $this->assertInstanceOf(BitcoinTestnetRegistry::class, $config->getSlip132Registry(NetworkName::BITCOIN_REGTEST));
     }
 
+    /**
+     * @expectedException \InvalidArgumentException
+     * @expectedExceptionMessage unknown network: abc
+     */
+    public function testUnknownSlip132Registry()
+    {
+        (new NetworkInfo())->getSlip132Registry("abc");
+    }
+
     public function testParams()
     {
         $config = new NetworkInfo();
@@ -49,5 +76,14 @@ class NetworkInfoTest extends TestCase
         $this->assertInstanceOf(Params::class, $config->getParams(NetworkName::BITCOIN, $math));
         $this->assertInstanceOf(TestnetParams::class, $config->getParams(NetworkName::BITCOIN_TESTNET3, $math));
         $this->assertInstanceOf(RegtestParams::class, $config->getParams(NetworkName::BITCOIN_REGTEST, $math));
+    }
+
+    /**
+     * @expectedException \InvalidArgumentException
+     * @expectedExceptionMessage unknown network: abc
+     */
+    public function testUnknownParams()
+    {
+        (new NetworkInfo())->getParams("abc", new Math());
     }
 }
