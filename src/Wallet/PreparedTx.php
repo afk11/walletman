@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet\Wallet;
 
-use BitWasp\Bitcoin\Key\KeyToScript\ScriptAndSignData;
 use BitWasp\Bitcoin\Transaction\Factory\SignData;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
@@ -29,7 +28,7 @@ class PreparedTx
      * Optional state, containing per-input ScriptAndSignData.
      * Not usually required for partially signed transactions,
      * but IS absolutely necessary to add the first signatures.
-     * @var ScriptAndSignData[]
+     * @var SignData[]
      */
     private $inputScriptData;
 
@@ -51,7 +50,7 @@ class PreparedTx
      * PreparedTx constructor.
      * @param TransactionInterface $tx
      * @param TransactionOutputInterface[] $txOuts
-     * @param ScriptAndSignData[] $scripts
+     * @param SignData[] $scripts
      * @param string[] $keyIdentifiers
      */
     public function __construct(TransactionInterface $tx, array $txOuts, array $scripts, array $keyIdentifiers)
@@ -95,7 +94,7 @@ class PreparedTx
         }
         // script might be set, if so return it
         if (array_key_exists($i, $this->inputScriptData)) {
-            return $this->inputScriptData[$i]->getSignData();
+            return $this->inputScriptData[$i];
         }
         return null;
     }

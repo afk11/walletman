@@ -7,6 +7,7 @@ namespace BitWasp\Wallet\Wallet;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PrivateKeyInterface;
 use BitWasp\Bitcoin\Key\KeyToScript\ScriptAndSignData;
 use BitWasp\Bitcoin\Script\ScriptInterface;
+use BitWasp\Bitcoin\Transaction\Factory\SignData;
 use BitWasp\Bitcoin\Transaction\Factory\Signer;
 use BitWasp\Bitcoin\Transaction\Factory\TxBuilder;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
@@ -171,7 +172,9 @@ abstract class Wallet implements WalletInterface
             throw new \RuntimeException("Insufficient funds for fee");
         }
         $txBuilder->output($valueIn - $fee, $destination);
-        return new PreparedTx($txBuilder->get(), $inputTxOuts, $inputScripts, $inputKeyIds);
+        return new PreparedTx($txBuilder->get(), $inputTxOuts, array_map(function (ScriptAndSignData $scriptAndSignData): SignData {
+            return $scriptAndSignData->getSignData();
+        }, $inputScripts), $inputKeyIds);
     }
 
     public function signTx(PreparedTx $prepTx): TransactionInterface
