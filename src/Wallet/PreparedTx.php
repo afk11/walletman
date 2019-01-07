@@ -60,10 +60,10 @@ class PreparedTx
             throw new \InvalidArgumentException("All input txouts are required");
         }
         if ($this->numInputs < count($scripts)) {
-            throw new \InvalidArgumentException("passed too many scripts");
+            throw new \InvalidArgumentException("Passed too many scripts");
         }
         if ($this->numInputs < count($keyIdentifiers)) {
-            throw new \InvalidArgumentException("passed too many key identifiers");
+            throw new \InvalidArgumentException("Passed too many key identifiers");
         }
 
         $this->tx = $tx;

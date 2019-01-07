@@ -7,7 +7,6 @@ namespace BitWasp\Test\Wallet\Wallet;
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Key\Factory\PrivateKeyFactory;
 use BitWasp\Bitcoin\Key\Factory\PublicKeyFactory;
-use BitWasp\Bitcoin\Key\KeyToScript\ScriptAndSignData;
 use BitWasp\Bitcoin\Script\Script;
 use BitWasp\Bitcoin\Script\ScriptFactory;
 use BitWasp\Bitcoin\Transaction\Factory\SignData;
@@ -104,5 +103,50 @@ class PreparedTxTest extends TestCase
         $this->assertNull($prepared->getSignData(1));
         $this->assertNull($prepared->getKeyIdentifier(0));
         $this->assertNull($prepared->getKeyIdentifier(1));
+
+        $this->assertEquals("All input txouts are required", (function () use ($tx, $txOuts): ?string {
+            try {
+                new PreparedTx($tx, [$txOuts[0]], [], []);
+            } catch (\InvalidArgumentException $e) {
+                return $e->getMessage();
+            }
+            return null;
+        })());
+
+        $this->assertEquals("All input txouts are required", (function () use ($tx, $txOuts): ?string {
+            try {
+                new PreparedTx($tx, [$txOuts[1]], [], []);
+            } catch (\InvalidArgumentException $e) {
+                return $e->getMessage();
+            }
+            return null;
+        })());
+
+        $this->assertEquals("All input txouts are required", (function () use ($tx, $txOuts): ?string {
+            try {
+                new PreparedTx($tx, [$txOuts[0], $txOuts[0], $txOuts[1]], [], []);
+            } catch (\InvalidArgumentException $e) {
+                return $e->getMessage();
+            }
+            return null;
+        })());
+
+        $this->assertEquals("Passed too many scripts", (function () use ($tx, $txOuts): ?string {
+            try {
+                new PreparedTx($tx, $txOuts, [new SignData(),new SignData(),new SignData(),], []);
+            } catch (\InvalidArgumentException $e) {
+                return $e->getMessage();
+            }
+            return null;
+        })());
+
+        $this->assertEquals("Passed too many key identifiers", (function () use ($tx, $txOuts): ?string {
+            try {
+                new PreparedTx($tx, $txOuts, [], ["key1","key2","key3",]);
+            } catch (\InvalidArgumentException $e) {
+                return $e->getMessage();
+            }
+            return null;
+        })());
     }
 }
