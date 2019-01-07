@@ -112,7 +112,6 @@ abstract class Wallet implements WalletInterface
         }
 
         $totalVsize = (int)ceil(($txWeight+$changeOutputWeight + 3) / 4);
-        echo "totalVSize in estimation: $totalVsize\n";
         $change = $totalIn - $totalOut - ($totalVsize * $feeRate);
         $changeOutputFee = (int)ceil(($changeOutputWeight + 3) / 4) * $feeRate;
         if ($change > $changeOutputFee/3) {

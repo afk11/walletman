@@ -270,6 +270,5 @@ class WalletTest extends DbTestCase
 //        $estimatedVsize = SizeEstimation::estimateVsize([$scriptAndSignData, $scriptAndSignData,], [$sendTxOut, new TransactionOutput(0, $wallet->getChangeScriptGenerator()->generate()->getScriptPubKey())]);
 //        echo "estimation in test: $estimatedVsize\n";
 //        $this->assertEquals($totalIn - ($estimatedVsize * $feeRate), $totalOut);
-
     }
 }

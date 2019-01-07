@@ -50,6 +50,9 @@ class Config
 
     public function getDbPath(string $dataDir): string
     {
+        if (substr($dataDir, -1) == "/") {
+            $dataDir = substr($dataDir, 0, -1);
+        }
         return "{$dataDir}/db.sqlite3";
     }
 }
