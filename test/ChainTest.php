@@ -179,6 +179,33 @@ class ChainTest extends DbTestCase
         $this->assertEquals(1, $chain->getBestBlockHeight());
     }
 
+    public function testChainDeterminesHeaderAndBlockChain()
+    {
+        $random = new Random();
+        $privKeyFactory = new PrivateKeyFactory();
+        $cbPrivKey = $privKeyFactory->generateCompressed($random);
+        $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
+
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+        $genesis = $chain->getBestHeader();
+
+        // Add header 1
+        $block1a = $this->makeBlock($genesis->getHeader(), $cbScript);
+        $block1aHash = $block1a->getHeader()->getHash();
+        $header1a = null;
+        $this->assertTrue($chain->acceptHeader($this->sessionDb, $block1aHash, $block1a->getHeader(), $header1a));
+
+        // Reload and ensure it's the same
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+        $this->assertEquals(1, $chain->getBestHeader()->getHeight());
+        $this->assertEquals($block1aHash->getHex(), $chain->getBestHeader()->getHash()->getHex());
+        $this->assertEquals(0, $chain->getBestBlockHeight());
+    }
+
     public function testChainInitDeterminesWork()
     {
         $random = new Random();
