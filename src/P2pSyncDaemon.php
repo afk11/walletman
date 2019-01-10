@@ -417,7 +417,6 @@ class P2pSyncDaemon
                     $this->blockStatsCount++;
 
                     if ($this->perBlockDebug || $this->blockStatsCount === $this->blockStatsWindow) {
-//                        if (true) {
                         $totalTime = \microtime(true) - $this->blockStatsBegin;
                         $windowTime = number_format($totalTime, 2);
 

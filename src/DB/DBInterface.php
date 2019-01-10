@@ -74,6 +74,10 @@ interface DBInterface
 
     public function loadScriptByScriptPubKey(int $walletId, ScriptInterface $script): ?DbScript;
 
+    /**
+     * @param ScriptInterface $script
+     * @return int[]
+     */
     public function loadWalletIDsByScriptPubKey(ScriptInterface $script): array;
 
     public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx);
@@ -93,6 +97,12 @@ interface DBInterface
      * @return DbUtxo[]
      */
     public function getUnspentWalletUtxos(int $walletId): array;
+
+    /**
+     * @param int $walletId
+     * @return string[]
+     */
+    public function getWalletScriptPubKeys(int $walletId): array;
 
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange): bool;
 

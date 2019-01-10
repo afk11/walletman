@@ -242,6 +242,10 @@ class DBDecorator implements DBInterface
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
+    public function getWalletScriptPubKeys(int $walletId): array
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
 
     public function getTransactions(int $walletId): \PDOStatement
     {

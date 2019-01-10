@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\BlockInterface;
+use BitWasp\Bitcoin\Serializer\Transaction\OutPointSerializer;
 use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Buffertools\BufferInterface;
@@ -23,12 +24,19 @@ class BlockProcessor
      */
     private $wallets;
 
+    /**
+     * @var UtxoSet
+     */
+    private $utxoSet;
+
     public function __construct(DBInterface $db, WalletInterface... $wallets)
     {
         $this->db = $db;
         foreach ($wallets as $wallet) {
             $this->wallets[$wallet->getDbWallet()->getId()] = $wallet;
         }
+        //$this->utxoSet = new DbUtxoSet($db, ...$wallets);
+        $this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
     }
 
     public function processConfirmedTx(BufferInterface $txId, TransactionInterface $tx)
@@ -39,13 +47,15 @@ class BlockProcessor
         for ($iIn = 0; $iIn < $nIn; $iIn++) {
             $outPoint = $tx->getInput($iIn)->getOutPoint();
             // load this utxo from wallets, and mark spent
-            $dbUtxos = $this->db->getWalletUtxosWithUnspentUtxo($outPoint);
-            foreach ($dbUtxos as $dbUtxo) {
+            $dbUtxos = $this->utxoSet->getUtxosForOutPoint($outPoint);
+            $nUtxos = count($dbUtxos);
+            for ($i = 0; $i < $nUtxos; $i++) {
+                $dbUtxo = $dbUtxos[$i];
                 if (!array_key_exists($dbUtxo->getWalletId(), $valueChange)) {
                     $valueChange[$dbUtxo->getWalletId()] = 0;
                 }
                 $valueChange[$dbUtxo->getWalletId()] -= $dbUtxo->getValue();
-                $this->db->deleteSpends($dbUtxo->getWalletId(), $outPoint, $txId, $iIn);
+                $this->utxoSet->spendUtxo($dbUtxo->getWalletId(), $outPoint, $txId, $iIn);
                 echo "wallet({$dbUtxo->getWalletId()}).utxoSpent {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}\n";
             }
         }
@@ -53,7 +63,10 @@ class BlockProcessor
         $nOut = count($tx->getOutputs());
         for ($iOut = 0; $iOut < $nOut; $iOut++) {
             $txOut = $tx->getOutput($iOut);
-            foreach ($this->db->loadWalletIDsByScriptPubKey($txOut->getScript()) as $walletId) {
+            $walletIds = $this->utxoSet->getWalletsForScriptPubKey($txOut->getScript());
+            $numIds = count($walletIds);
+            for ($i = 0; $i < $numIds; $i++) {
+                $walletId = $walletIds[$i];
                 if (!array_key_exists($walletId, $this->wallets)) {
                     continue;
                 }
@@ -62,7 +75,7 @@ class BlockProcessor
                 $dbWallet = $wallet->getDbWallet();
                 if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
                     echo "wallet({$dbWallet->getId()}).newUtxo {$txId->getHex()} {$iOut}\n";
-                    $this->db->createUtxo($dbWallet, $script, new OutPoint($txId, $iOut), $txOut);
+                    $this->utxoSet->createUtxo($dbWallet, $script, new OutPoint($txId, $iOut), $txOut);
                     if (!array_key_exists($dbWallet->getId(), $valueChange)) {
                         $valueChange[$dbWallet->getId()] = 0;
                     }

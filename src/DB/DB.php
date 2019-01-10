@@ -44,6 +44,7 @@ class DB implements DBInterface
     private $createUtxoStmt;
     private $findWalletsWithUtxoStmt;
     private $searchUnspentUtxoStmt;
+    private $getWalletScriptPubKeysStmt;
 
     public function __construct(string $dsn)
     {
@@ -483,7 +484,20 @@ class DB implements DBInterface
         }
         return null;
     }
-
+    public function getWalletScriptPubKeys(int $walletId): array
+    {
+        if (null === $this->getWalletScriptPubKeysStmt) {
+            $this->getWalletScriptPubKeysStmt = $this->pdo->prepare("SELECT scriptPubKey from script where walletId = ?");
+        }
+        if (!$this->getWalletScriptPubKeysStmt->execute([$walletId])) {
+            throw new \RuntimeException("Failed to query utxos");
+        }
+        $scriptPubKey = [];
+        while ($utxo = $this->getWalletUtxosStmt->fetchColumn(0)) {
+            $scriptPubKey[] = $utxo;
+        }
+        return $scriptPubKey;
+    }
     /**
      * @param int $walletId
      * @return DbUtxo[]
