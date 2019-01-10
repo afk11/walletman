@@ -233,10 +233,6 @@ class Chain
         $headerIndex = $this->acceptHeaderToIndex($db, $height, $work, $hash, $header);
 
         if (gmp_cmp($work, $prevTip->getWork()) > 0) {
-            if (!$header->getPrevBlock()->equals($prevTip->getHash())) {
-                echo "activating NEW HEADER TIP\n";
-                echo "new work: {$work}, prev tip work: {$prevTip->getWork()}\n";
-            }
             $candidateHashes = [$headerIndex->getHeight() => $headerIndex->getHash()->getBinary()];
 
             // Unwind until lastCommonHeight and lastCommonHash are determined.
@@ -302,12 +298,6 @@ class Chain
         $db->setBlockReceived($hash);
 
         if (gmp_cmp($headerIdx->getWork(), $this->bestBlockIndex->getWork()) > 0) {
-            if (!$header->getPrevBlock()->equals($this->bestBlockIndex->getHash())) {
-                echo "activating NEW BLOCK CHAIN\n";
-                echo "new work: {$headerIdx->getWork()}, prev tip work: {$this->bestBlockIndex->getWork()}\n";
-            }
-
-            // Updates bestHeaderIndex
             $this->bestBlockIndex = $headerIdx;
         }
 
