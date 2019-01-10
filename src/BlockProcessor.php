@@ -86,6 +86,9 @@ class BlockProcessor
                 $txId = $tx->getTxId();
                 $this->processConfirmedTx($txId, $tx);
             }
+//            if ($height === 181) {
+//                die("bail");
+//            }
         } catch (\Error $e) {
             echo $e->getMessage().PHP_EOL;
             echo $e->getTraceAsString().PHP_EOL;

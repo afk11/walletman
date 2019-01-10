@@ -238,7 +238,7 @@ class DB implements DBInterface
 
     public function markBirthdayHistoryValid(int $height)
     {
-        $stmt = $this->pdo->prepare("UPDATE header set status = 2 where status = 1 and height <= ?");
+        $stmt = $this->pdo->prepare("UPDATE header set status = 3 where status = 1 and height <= ?");
         $stmt->execute([
             $height,
         ]);
@@ -455,7 +455,7 @@ class DB implements DBInterface
         ])) {
             throw new \RuntimeException("Failed to query script");
         }
-        return $this->loadWalletIdsBySpkStmt->fetchAll(\PDO::FETCH_NUM);
+        return $this->loadWalletIdsBySpkStmt->fetchAll(\PDO::FETCH_COLUMN);
     }
 
     public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx)

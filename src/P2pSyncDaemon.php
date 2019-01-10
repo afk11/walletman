@@ -296,11 +296,11 @@ class P2pSyncDaemon
                         if ($lastHeader instanceof DbHeader && !$lastHeader->getHash()->equals($header->getPrevBlock())) {
                             throw new \RuntimeException("non continuous headers message");
                         }
-
                         $hash = $header->getHash();
                         if (!$this->chain->acceptHeader($this->db, $hash, $header, $lastHeader)) {
                             throw new \RuntimeException("failed to accept header");
                         }
+                        echo "processed new header: {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
                     }
                     $this->db->getPdo()->commit();
                 } catch (\Exception $e) {
@@ -349,7 +349,7 @@ class P2pSyncDaemon
             echo "block.deserialize (size={$blockMsg->getBlock()->getSize()}) (time=$taken)\n";
         }
         $hash = $block->getHeader()->getHash();
-        //echo "receiveBlock {$hash->getHex()}\n";
+        echo "receiveBlock {$hash->getHex()}\n";
         if (!array_key_exists($hash->getBinary(), $this->deferred)) {
             throw new \RuntimeException("missing block request {$hash->getHex()}");
         }
@@ -371,7 +371,7 @@ class P2pSyncDaemon
      */
     public function requestBlock(Peer $peer, BufferInterface $hash): PromiseInterface
     {
-        //echo "requestBlock: {$hash->getHex()}\n";
+        echo "requestBlock: {$hash->getHex()}\n";
         if ($this->segwit) {
             $this->toDownload[] = Inventory::witnessBlock($hash);
         } else {
@@ -408,14 +408,16 @@ class P2pSyncDaemon
                     $this->db->getPdo()->beginTransaction();
                     try {
                         $this->chain->acceptBlock($this->db, $hash, $block);
-                        $processor = new BlockProcessor($this->db, ...$this->wallets);
-                        $processor->process($height, $block);
                         $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
                         echo $e->getMessage().PHP_EOL;
                         $this->db->getPdo()->rollBack();
                         throw $e;
                     }
+
+
+                    $processor = new BlockProcessor($this->db, ...$this->wallets);
+                    $processor->process($height, $block);
 
                     $blockProcessTime = microtime(true) - $processStart;
                     $this->blockProcessTime += $blockProcessTime;
@@ -507,7 +509,7 @@ class P2pSyncDaemon
                 }
             }
             if ($startBlock) {
-                $this->chain->setStartBlock($startBlock);
+                //$this->chain->setStartBlock($startBlock);
             }
         }
         $this->downloading = true;

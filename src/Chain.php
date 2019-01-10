@@ -30,6 +30,11 @@ class Chain
     private $bestHeaderIndex;
 
     /**
+     * @var DbHeader
+     */
+    private $bestBlockIndex;
+
+    /**
      * Initialized in init
      * @var int
      */
@@ -94,23 +99,26 @@ class Chain
             $tmpPrev[$hashKey] = [$header->getPrevBlock()->getBinary(), $row->getStatus()];
 
             if ($height === 0) {
-                $candidate = new ChainCandidate();
-                $candidate->dbHeader = $row;
-                $candidate->bestBlockHeight = 0;
-                $candidates[$hashKey] = $candidate;
+                echo "found genesis, add to set\n";
+                $candidates[$hashKey] = $row;
             } else if (($row->getStatus() & DbHeader::HEADER_VALID) != 0) {
                 $prevKey = $header->getPrevBlock()->getBinary();
-                $candidate = new ChainCandidate();
-                $candidate->dbHeader = $row;
                 if (array_key_exists($prevKey, $candidates)) {
-                    /** @var ChainCandidate $prevTip */
+                    echo "found block with prev as tip\n";
+                    /** @var DbHeader $prevTip */
                     $prevTip = $candidates[$prevKey];
-                    if (($row->getStatus() & DbHeader::BLOCK_VALID) != 0) {
-                        $candidate->bestBlockHeight = $row->getHeight();
+                    if (($prevTip->getStatus() & DbHeader::BLOCK_VALID) == 0) {
+                        // prevTip doesn't have block, so there's no reason to
+                        // keep it now since $row replaces it
+                        unset($candidates[$prevKey]);
+                    } else if (($row->getStatus() & DbHeader::BLOCK_VALID) != 0) {
+                        // prevTip does have a block, row has a block. delete.
+                        unset($candidates[$prevKey]);
                     } else {
-                        $candidate->bestBlockHeight = $prevTip->bestBlockHeight;
+                        echo "leave it there\n";
                     }
-                    unset($candidates[$prevKey]);
+                    // only leaves prevTip in candidates if prev is BLOCK_VALID
+                    // but $row is not.
                 } else {
                     // prev is not already a tip.
                     $prev = $db->getHeader($header->getPrevBlock());
@@ -118,25 +126,43 @@ class Chain
                         throw new \RuntimeException("FATAL: could not find prev block");
                     }
                     // reduce bestBlockHeight until that index is BLOCK_VALID
-                    $candidate->bestBlockHeight = $row->getHeight();
+                    $bestBlockHeight = $row->getHeight();
                     for ($blkHash = $row->getHash()->getBinary();
                          ($tmpPrev[$blkHash][1] & DbHeader::BLOCK_VALID) === 0;
                          $blkHash = $tmpPrev[$blkHash][0]) {
-                        $candidate->bestBlockHeight--;
+                        $bestBlockHeight--;
+                    }
+
+                    // don't already have an entry for the best block, add it
+                    if (!array_key_exists($blkHash, $candidates)) {
+                        $candidates[$blkHash] = $db->getHeader(new Buffer($blkHash));
                     }
                 }
-                $candidates[$hashKey] = $candidate;
+                $candidates[$hashKey] = $row;
             }
         }
 
-        // Sort for greatest work candidate
-        usort($candidates, function (ChainCandidate $a, ChainCandidate $b): int {
-            return gmp_cmp($a->dbHeader->getWork(), $b->dbHeader->getWork());
-        });
+        $headerTips = [];
+        $blockTips = [];
+        foreach ($candidates as $hash => $headerIndex) {
+            if (($headerIndex->getStatus() & DbHeader::BLOCK_VALID)) {
+                $blockTips[] = $headerIndex;
+            }
+            $headerTips[] = $headerIndex;
+        }
 
-        $best = $candidates[count($candidates) - 1];
-        $bestKey = $best->dbHeader->getHash()->getBinary();
-        $height = $best->dbHeader->getHeight();
+        $sort = function (DbHeader $a, DbHeader $b): int {
+            return gmp_cmp($a->getWork(), $b->getWork());
+        };
+
+        // Sort for greatest work candidate
+        usort($headerTips, $sort);
+        usort($blockTips, $sort);
+
+        $bestHeader = $headerTips[count($headerTips) - 1];
+        $bestBlock = $blockTips[count($blockTips) - 1];
+        $bestKey = $bestHeader->getHash()->getBinary();
+        $height = $bestHeader->getHeight();
 
         // build up our view of the best chain
         while (array_key_exists($bestKey, $tmpPrev)) {
@@ -145,8 +171,8 @@ class Chain
             $height--;
         }
 
-        $this->bestHeaderIndex = $best->dbHeader;
-        $this->bestBlockHeight = $best->bestBlockHeight;
+        $this->bestHeaderIndex = $bestHeader;
+        $this->bestBlockIndex = $bestBlock;
     }
 
     public function setStartBlock(BlockRef $blockRef)
@@ -155,9 +181,14 @@ class Chain
         $this->bestBlockHeight = $blockRef->getHeight();
     }
 
+    public function getBestBlock(): DbHeader
+    {
+        return $this->bestBlockIndex;
+    }
+
     public function getBestBlockHeight(): int
     {
-        return $this->bestBlockHeight;
+        return $this->getBestBlock()->getHeight();
     }
 
     public function getBestHeader(): DbHeader
@@ -178,17 +209,22 @@ class Chain
         $headerIndex = $db->getHeader($hash);
         if ($headerIndex) {
             if (($headerIndex->getStatus() & DbHeader::HEADER_VALID) == 0) {
+                echo "header known. not valid. return false\n";
+                print_r($headerIndex);
                 return false;
             }
+            echo "header known. valid. return true\n";
             return true;
         }
 
         $prevIndex = $db->getHeader($header->getPrevBlock());
         if ($prevIndex) {
             if (($prevIndex->getStatus() & DbHeader::HEADER_VALID) == 0) {
+                echo "prev known. not valid. return false\n";
                 return false;
             }
         } else {
+            echo "prev not known. return false\n";
             // prev header not known
             return false;
         }
@@ -207,6 +243,10 @@ class Chain
         $headerIndex = $this->acceptHeaderToIndex($db, $height, $work, $hash, $header);
 
         if (gmp_cmp($work, $prevTip->getWork()) > 0) {
+            if (!$header->getPrevBlock()->equals($prevTip->getHash())) {
+                echo "activating NEW HEADER TIP\n";
+                echo "new work: {$work}, prev tip work: {$prevTip->getWork()}\n";
+            }
             $candidateHashes = [$headerIndex->getHeight() => $headerIndex->getHash()->getBinary()];
 
             // Unwind until lastCommonHeight and lastCommonHash are determined.
@@ -227,16 +267,19 @@ class Chain
 
             // Delete [lastCommonHeight+1, currentTipHeight] from the header chain
             for ($i = $lastCommonHeight + 1; $i <= $this->getBestHeader()->getHeight(); $i++) {
+                echo "removing header from header chain @ $i " . bin2hex($this->heightMapToHash[$i]) . PHP_EOL;
                 unset($this->heightMapToHash[$i]);
             }
 
             // Insert [lastCommonHeight+1, candidateTipHeight] to the header chain
             for ($i = $lastCommonHeight + 1; $i <= $headerIndex->getHeight(); $i++) {
+                echo "add header to header chain @ $i " . bin2hex($candidateHashes[$i]) . PHP_EOL;
                 $this->heightMapToHash[$i] = $candidateHashes[$i];
             }
 
             // Updates bestHeaderIndex
             $this->bestHeaderIndex = $headerIndex;
+            echo "new best header " . $headerIndex->getHash()->getHex() . PHP_EOL;
 
             // todo: this will need to be checked, maybe chain init unexpected new candidate code
             if ($this->bestBlockHeight > $lastCommonHeight) {
@@ -250,15 +293,18 @@ class Chain
     public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block): bool
     {
         $header = $block->getHeader();
-        $prevIdx = $db->getHeader($header->getPrevBlock());
-        if (!$prevIdx) {
-            // no prev block, rabble
-            return false;
-        }
 
         if (!$this->acceptHeader($db, $hash, $header, $headerIdx)) {
             // who knows what that was
             return false;
+        }
+
+        $prevIdx = $db->getHeader($header->getPrevBlock());
+        if ($prevIdx) {
+            if (($prevIdx->getStatus() & DbHeader::BLOCK_VALID) == 0) {
+                echo "prev known. block not valid. return false\n";
+                return false;
+            }
         }
 
         /** @var DbHeader $headerIdx */
@@ -268,9 +314,17 @@ class Chain
 
         $db->setBlockReceived($hash);
 
-        if ($this->heightMapToHash[$headerIdx->getHeight()] == $hash->getBinary()) {
-            $this->bestBlockHeight = $headerIdx->getHeight();
+        if (gmp_cmp($headerIdx->getWork(), $this->bestBlockIndex->getWork()) > 0) {
+            if (!$header->getPrevBlock()->equals($this->bestBlockIndex->getHash())) {
+                echo "activating NEW BLOCK CHAIN\n";
+                echo "new work: {$headerIdx->getWork()}, prev tip work: {$this->bestBlockIndex->getWork()}\n";
+            }
+
+            // Updates bestHeaderIndex
+            $this->bestBlockIndex = $headerIdx;
+            echo "new best block " . $headerIdx->getHash()->getHex() . PHP_EOL;
         }
+
 
         return true;
     }
