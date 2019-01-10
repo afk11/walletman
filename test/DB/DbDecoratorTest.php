@@ -10,6 +10,7 @@ class DbDecoratorTest extends DBTest
     public function __construct(?string $name = null, array $data = [], string $dataName = '')
     {
         parent::__construct($name, $data, $dataName);
-        $this->dbWriter = function () {};
+        $this->dbWriter = function () {
+        };
     }
 }
