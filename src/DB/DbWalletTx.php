@@ -16,6 +16,10 @@ class DbWalletTx
     {
         return Buffer::hex($this->txid, 32);
     }
+    public function getWalletId(): int
+    {
+        return (int) $this->walletId;
+    }
     public function getValueChange(): int
     {
         return (int) $this->valueChange;

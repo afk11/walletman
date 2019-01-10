@@ -103,16 +103,6 @@ class DBDecorator implements DBInterface
         $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function getBlockHash(int $height): ?BufferInterface
-    {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
-
-    public function getTailHashes(int $height): array
-    {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
-
     public function getHeader(BufferInterface $hash): ?DbHeader
     {
         return $this->call(__FUNCTION__, func_get_args());
@@ -123,7 +113,7 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function getHeaderCount(): int
+    public function getGenesisHeader(): ?DbHeader
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
@@ -243,7 +233,7 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange)
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange): bool
     {
         return $this->call(__FUNCTION__, func_get_args());
     }

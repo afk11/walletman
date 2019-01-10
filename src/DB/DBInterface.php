@@ -34,15 +34,9 @@ interface DBInterface
 
     public function createHeaderTable();
 
-    public function getBlockHash(int $height): ?BufferInterface;
-
-    public function getTailHashes(int $height): array;
-
     public function getHeader(BufferInterface $hash): ?DbHeader;
 
-    public function getBestHeader(): DbHeader;
-
-    public function getHeaderCount(): int;
+    public function getGenesisHeader(): ?DbHeader;
 
     public function markBirthdayHistoryValid(int $height);
 
@@ -100,7 +94,7 @@ interface DBInterface
      */
     public function getUnspentWalletUtxos(int $walletId): array;
 
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange);
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange): bool;
 
     public function getConfirmedBalance(int $walletId): int;
 

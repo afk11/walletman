@@ -29,9 +29,9 @@ class DbHeader
     {
         return (int) $this->status;
     }
-    public function getWork(): string
+    public function getWork(): \GMP
     {
-        return (string) $this->work;
+        return gmp_init($this->work, 10);
     }
     public function getHeight(): int
     {

@@ -65,15 +65,14 @@ class Chain
     public function init(DBInterface $db, ParamsInterface $params)
     {
         $genesisHeader = $params->getGenesisBlockHeader();
-        $genesisHash = $db->getBlockHash(0);
-        if ($genesisHash instanceof BufferInterface) {
-            if (!$genesisHeader->getHash()->equals($genesisHash)) {
+        $genesisIdx = $db->getGenesisHeader();
+        if ($genesisIdx instanceof DbHeader) {
+            if (!$genesisHeader->getHash()->equals($genesisIdx->getHash())) {
                 throw new \RuntimeException("Database has different genesis hash!");
             }
         } else {
-            $genesisHash = $genesisHeader->getHash();
             $work = $this->proofOfWork->getWork($genesisHeader->getBits());
-            $db->addHeader(0, $work, $genesisHash, $genesisHeader, DbHeader::HEADER_VALID | DbHeader::BLOCK_VALID);
+            $db->addHeader(0, $work, $genesisHeader->getHash(), $genesisHeader, DbHeader::HEADER_VALID | DbHeader::BLOCK_VALID);
         }
 
         // step 1: load (or iterate over) ALL height/hash/headers
@@ -227,7 +226,7 @@ class Chain
             }
         }
 
-        $work = gmp_add(gmp_init($prevIndex->getWork(), 10), $this->proofOfWork->getWork($header->getBits()));
+        $work = gmp_add($prevIndex->getWork(), $this->proofOfWork->getWork($header->getBits()));
         $prevTip = $this->getBestHeader();
 
         $headerIndex = $this->acceptHeaderToIndex($db, $height, $work, $hash, $header);
