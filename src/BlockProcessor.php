@@ -8,7 +8,6 @@ use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Serializer\Transaction\OutPointSerializer;
 use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
-use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\WalletInterface;
 
@@ -35,12 +34,20 @@ class BlockProcessor
         foreach ($wallets as $wallet) {
             $this->wallets[$wallet->getDbWallet()->getId()] = $wallet;
         }
-        //$this->utxoSet = new DbUtxoSet($db, ...$wallets);
-        $this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
+        $this->utxoSet = new DbUtxoSet($db, ...$wallets);
+        //$this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
     }
 
-    public function processConfirmedTx(BufferInterface $txId, TransactionInterface $tx)
+    public function processConfirmedTx(TransactionInterface $tx)
     {
+        $txId = null;
+        $getTxid = function () use (&$txId, $tx) {
+            if (null === $txId) {
+                $txId = $tx->getTxId();
+            }
+            return $txId;
+        };
+
         $nIn = count($tx->getInputs());
         $valueChange = [];
 
@@ -55,7 +62,7 @@ class BlockProcessor
                     $valueChange[$dbUtxo->getWalletId()] = 0;
                 }
                 $valueChange[$dbUtxo->getWalletId()] -= $dbUtxo->getValue();
-                $this->utxoSet->spendUtxo($dbUtxo->getWalletId(), $outPoint, $txId, $iIn);
+                $this->utxoSet->spendUtxo($dbUtxo->getWalletId(), $outPoint, $getTxid(), $iIn);
                 echo "wallet({$dbUtxo->getWalletId()}).utxoSpent {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}\n";
             }
         }
@@ -74,6 +81,7 @@ class BlockProcessor
                 $wallet = $this->wallets[$walletId];
                 $dbWallet = $wallet->getDbWallet();
                 if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
+                    $txId = $getTxid();
                     echo "wallet({$dbWallet->getId()}).newUtxo {$txId->getHex()} {$iOut}\n";
                     $this->utxoSet->createUtxo($dbWallet, $script, new OutPoint($txId, $iOut), $txOut);
                     if (!array_key_exists($dbWallet->getId(), $valueChange)) {
@@ -96,8 +104,7 @@ class BlockProcessor
             $nTx = count($block->getTransactions());
             for ($iTx = 0; $iTx < $nTx; $iTx++) {
                 $tx = $block->getTransaction($iTx);
-                $txId = $tx->getTxId();
-                $this->processConfirmedTx($txId, $tx);
+                $this->processConfirmedTx($tx);
             }
 //            if ($height === 181) {
 //                die("bail");
