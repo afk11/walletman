@@ -202,14 +202,14 @@ class Chain
         }
 
         $work = gmp_add(gmp_init($prevIndex->getWork(), 10), $this->proofOfWork->getWork($header->getBits()));
-        $chainWork = $this->getBestHeader()->getWork();
+        $prevTip = $this->getBestHeader();
 
         $headerIndex = $this->acceptHeaderToIndex($db, $height, $work, $hash, $header);
 
-        if (gmp_cmp($work, $chainWork) > 0) {
+        if (gmp_cmp($work, $prevTip->getWork()) > 0) {
             $candidateHashes = [$headerIndex->getHeight() => $headerIndex->getHash()->getBinary()];
-            // Unwind until lastCommonHeight and lastCommonHash are determined.
 
+            // Unwind until lastCommonHeight and lastCommonHash are determined.
             $lastCommonHash = $header->getPrevBlock();
             $lastCommonHeight = $headerIndex->getHeight() - 1;
             while ($lastCommonHeight != 0 && $this->heightMapToHash[$lastCommonHeight] !== $lastCommonHash->getBinary()) {
@@ -224,17 +224,21 @@ class Chain
                 $lastCommonHash = $p->getHeader()->getPrevBlock();
                 $lastCommonHeight--;
             }
-            // Delete [lastCommonHeight+1, currentTipHeight]
+
+            // Delete [lastCommonHeight+1, currentTipHeight] from the header chain
             for ($i = $lastCommonHeight + 1; $i <= $this->getBestHeader()->getHeight(); $i++) {
                 unset($this->heightMapToHash[$i]);
             }
-            // Insert [lastCommonHeight+1, candidateTipHeight]
+
+            // Insert [lastCommonHeight+1, candidateTipHeight] to the header chain
             for ($i = $lastCommonHeight + 1; $i <= $headerIndex->getHeight(); $i++) {
                 $this->heightMapToHash[$i] = $candidateHashes[$i];
             }
+
+            // Updates bestHeaderIndex
             $this->bestHeaderIndex = $headerIndex;
-            // reality is we shouldn't have to update this unless
-            // it was between lastCommonHeight and our old tip.
+
+            // todo: this will need to be checked, maybe chain init unexpected new candidate code
             if ($this->bestBlockHeight > $lastCommonHeight) {
                 $this->bestBlockHeight = $lastCommonHeight;
             }
@@ -274,14 +278,10 @@ class Chain
     private function acceptHeaderToIndex(DBInterface $db, int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header): DbHeader
     {
         $db->addHeader($height, $work, $hash, $header, DbHeader::HEADER_VALID);
-        /** @var DbHeader $headerIndex */
-
-        $headerIndex = $db->getHeader($hash);
-
         $this->hashMapToHeight[$hash->getBinary()] = $height;
-        if (gmp_cmp($work, $this->bestHeaderIndex->getWork()) > 0) {
-            $this->bestHeaderIndex = $headerIndex;
-        }
+
+        /** @var DbHeader $headerIndex */
+        $headerIndex = $db->getHeader($hash);
 
         return $headerIndex;
     }
