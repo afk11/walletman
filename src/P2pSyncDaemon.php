@@ -300,7 +300,7 @@ class P2pSyncDaemon
                         if (!$this->chain->acceptHeader($this->db, $hash, $header, $lastHeader)) {
                             throw new \RuntimeException("failed to accept header");
                         }
-                        echo "processed new header: {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
+                        //echo "processed new header: {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
                     }
                     $this->db->getPdo()->commit();
                 } catch (\Exception $e) {
@@ -314,8 +314,6 @@ class P2pSyncDaemon
                     echo "requestHeaders starting at {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
                     $peer->getheaders(new BlockLocator([$lastHeader->getHash()], new Buffer('', 32)));
                 }
-
-                echo "processHeaders. accepted {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
             }
 
             if (count($headers->getHeaders()) < 2000) {
@@ -349,7 +347,7 @@ class P2pSyncDaemon
             echo "block.deserialize (size={$blockMsg->getBlock()->getSize()}) (time=$taken)\n";
         }
         $hash = $block->getHeader()->getHash();
-        echo "receiveBlock {$hash->getHex()}\n";
+        // echo "receiveBlock {$hash->getHex()}\n";
         if (!array_key_exists($hash->getBinary(), $this->deferred)) {
             throw new \RuntimeException("missing block request {$hash->getHex()}");
         }
@@ -371,7 +369,7 @@ class P2pSyncDaemon
      */
     public function requestBlock(Peer $peer, BufferInterface $hash): PromiseInterface
     {
-        echo "requestBlock: {$hash->getHex()}\n";
+        // echo "requestBlock: {$hash->getHex()}\n";
         if ($this->segwit) {
             $this->toDownload[] = Inventory::witnessBlock($hash);
         } else {

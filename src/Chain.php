@@ -99,12 +99,10 @@ class Chain
             $tmpPrev[$hashKey] = [$header->getPrevBlock()->getBinary(), $row->getStatus()];
 
             if ($height === 0) {
-                echo "found genesis, add to set\n";
                 $candidates[$hashKey] = $row;
             } else if (($row->getStatus() & DbHeader::HEADER_VALID) != 0) {
                 $prevKey = $header->getPrevBlock()->getBinary();
                 if (array_key_exists($prevKey, $candidates)) {
-                    echo "found block with prev as tip\n";
                     /** @var DbHeader $prevTip */
                     $prevTip = $candidates[$prevKey];
                     if (($prevTip->getStatus() & DbHeader::BLOCK_VALID) == 0) {
@@ -114,11 +112,8 @@ class Chain
                     } else if (($row->getStatus() & DbHeader::BLOCK_VALID) != 0) {
                         // prevTip does have a block, row has a block. delete.
                         unset($candidates[$prevKey]);
-                    } else {
-                        echo "leave it there\n";
                     }
-                    // only leaves prevTip in candidates if prev is BLOCK_VALID
-                    // but $row is not.
+                    // only leave prevTip if it's BLOCK_VALID but row isn't
                 } else {
                     // prev is not already a tip.
                     $prev = $db->getHeader($header->getPrevBlock());
@@ -209,22 +204,17 @@ class Chain
         $headerIndex = $db->getHeader($hash);
         if ($headerIndex) {
             if (($headerIndex->getStatus() & DbHeader::HEADER_VALID) == 0) {
-                echo "header known. not valid. return false\n";
-                print_r($headerIndex);
                 return false;
             }
-            echo "header known. valid. return true\n";
             return true;
         }
 
         $prevIndex = $db->getHeader($header->getPrevBlock());
         if ($prevIndex) {
             if (($prevIndex->getStatus() & DbHeader::HEADER_VALID) == 0) {
-                echo "prev known. not valid. return false\n";
                 return false;
             }
         } else {
-            echo "prev not known. return false\n";
             // prev header not known
             return false;
         }
@@ -267,19 +257,16 @@ class Chain
 
             // Delete [lastCommonHeight+1, currentTipHeight] from the header chain
             for ($i = $lastCommonHeight + 1; $i <= $this->getBestHeader()->getHeight(); $i++) {
-                echo "removing header from header chain @ $i " . bin2hex($this->heightMapToHash[$i]) . PHP_EOL;
                 unset($this->heightMapToHash[$i]);
             }
 
             // Insert [lastCommonHeight+1, candidateTipHeight] to the header chain
             for ($i = $lastCommonHeight + 1; $i <= $headerIndex->getHeight(); $i++) {
-                echo "add header to header chain @ $i " . bin2hex($candidateHashes[$i]) . PHP_EOL;
                 $this->heightMapToHash[$i] = $candidateHashes[$i];
             }
 
             // Updates bestHeaderIndex
             $this->bestHeaderIndex = $headerIndex;
-            echo "new best header " . $headerIndex->getHash()->getHex() . PHP_EOL;
 
             // todo: this will need to be checked, maybe chain init unexpected new candidate code
             if ($this->bestBlockHeight > $lastCommonHeight) {
