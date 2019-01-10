@@ -22,7 +22,8 @@ class DBTest extends DbTestCase
         $work = $pow->getWork($genesisHeader->getBits());
 
         $insertBlock = $this->sessionDb->getPdo()->prepare(
-            "INSERT INTO header (status, height, work, hash, version, prevBlock, merkleRoot, time, nbits, nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            "INSERT INTO header (status, height, work, hash, version, prevBlock, merkleRoot, time, nbits, nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
 
         $merkle = $genesisHeader->getMerkleRoot()->getHex();
         $prevHash = $genesisHeader->getPrevBlock()->getHex();
@@ -55,7 +56,8 @@ class DBTest extends DbTestCase
         $work = $pow->getWork($genesisHeader->getBits());
 
         $insertBlock = $this->sessionDb->getPdo()->prepare(
-            "INSERT INTO header (status, height, work, hash, version, prevBlock, merkleRoot, time, nbits, nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            "INSERT INTO header (status, height, work, hash, version, prevBlock, merkleRoot, time, nbits, nonce) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
 
         $merkle = $genesisHeader->getMerkleRoot()->getHex();
         $prevHash = $genesisHeader->getPrevBlock()->getHex();
@@ -156,7 +158,7 @@ class DBTest extends DbTestCase
         $walletId = 1;
         $txid = new Buffer("txid", 32);
         $valueChange = -100000000;
-        $this->assertTrue($this->sessionDb->createTx($walletId, $txid,  $valueChange));
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txid, $valueChange));
 
         $stmt = $this->sessionDb->getTransactions($walletId);
         $tx = $stmt->fetchObject(DbWalletTx::class);
