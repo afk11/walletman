@@ -118,6 +118,8 @@ class P2pSyncDaemon
     private $blockStatsBegin;
     private $blockProcessTime;
     private $blockDeserializeTime;
+    private $blockDeserializeBytes;
+    private $blockDeserializeNTx;
     private $perBlockDebug = false;
     /**
      * @var WalletInterface[]
@@ -174,6 +176,7 @@ class P2pSyncDaemon
 
     public function init(Base58ExtendedKeySerializer $hdSerializer)
     {
+        $this->logger->debug("Loading wallets...");
         $dbWallets = $this->db->loadAllWallets();
         $startBlock = null;
         foreach ($dbWallets as $dbWallet) {
@@ -190,11 +193,12 @@ class P2pSyncDaemon
             }
         }
 
+        $this->logger->debug("Initializing chain...");
         $this->chain->init($this->db, $this->params);
 
         // would normally come from wallet birthday
         $this->initialized = true;
-        echo "DONE!\n";
+        $this->logger->info("Initialized. Best block: {$this->chain->getBestBlock()->getHeight()}. Best header: {$this->chain->getBestBlock()->getHeight()}");
     }
 
     public function sync(LoopInterface $loop)
@@ -221,9 +225,6 @@ class P2pSyncDaemon
             $connParams->requestTxRelay(true);
         }
 
-        echo "best height {$this->chain->getBestHeader()->getHeight()}\n";
-        echo "best block {$this->chain->getBestBlockHeight()}\n";
-
         return $netFactory
             ->getConnector($connParams)
             ->connect($netFactory->getAddress(new Ipv4($this->host), $this->port))
@@ -232,7 +233,7 @@ class P2pSyncDaemon
                 $pingLastNonce = null;
 
                 $peer->on('close', function (Peer $peer) {
-                    throw new \RuntimeException("peer closed connection\n");
+                    throw new \RuntimeException("peer closed connection");
                 });
                 $loop->addPeriodicTimer(60, function () use ($peer, &$timeLastPing, &$pingLastNonce) {
                     if ($timeLastPing === null) {
@@ -300,7 +301,6 @@ class P2pSyncDaemon
                         if (!$this->chain->acceptHeader($this->db, $hash, $header, $lastHeader)) {
                             throw new \RuntimeException("failed to accept header");
                         }
-                        //echo "processed new header: {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
                     }
                     $this->db->getPdo()->commit();
                 } catch (\Exception $e) {
@@ -343,9 +343,8 @@ class P2pSyncDaemon
         $block = $this->blockSerializer->parse($blockMsg->getBlock());
         $taken = microtime(true)-$beforeDeserialize;
         $this->blockDeserializeTime += $taken;
-        if ($this->perBlockDebug) {
-            echo "block.deserialize (size={$blockMsg->getBlock()->getSize()}) (time=$taken)\n";
-        }
+        $this->blockDeserializeBytes += $blockMsg->getBlock()->getSize();
+        $this->blockDeserializeNTx += count($block->getTransactions());
         $hash = $block->getHeader()->getHash();
         // echo "receiveBlock {$hash->getHex()}\n";
         if (!array_key_exists($hash->getBinary(), $this->deferred)) {
@@ -386,6 +385,8 @@ class P2pSyncDaemon
         if (null === $this->blockStatsCount) {
             $this->blockProcessTime = 0;
             $this->blockDeserializeTime = 0;
+            $this->blockDeserializeBytes = 0;
+            $this->blockDeserializeNTx = 0;
             $this->blockStatsCount = 0;
             $this->blockStatsBegin = \microtime(true);
         }
@@ -398,14 +399,12 @@ class P2pSyncDaemon
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
                 ->then(function (Block $block) use ($peer, $height, $hash, $deferredFinished) {
-                    if ($this->perBlockDebug) {
-                        echo "processBlock $height {$hash->getHex()}\n";
-                    }
-
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();
                     try {
                         $this->chain->acceptBlock($this->db, $hash, $block);
+                        $processor = new BlockProcessor($this->db, ...$this->wallets);
+                        $processor->process($height, $block);
                         $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
                         echo $e->getMessage().PHP_EOL;
@@ -413,30 +412,28 @@ class P2pSyncDaemon
                         throw $e;
                     }
 
-
-                    $processor = new BlockProcessor($this->db, ...$this->wallets);
-                    $processor->process($height, $block);
-
                     $blockProcessTime = microtime(true) - $processStart;
                     $this->blockProcessTime += $blockProcessTime;
                     $this->blockStatsCount++;
-                    if ($this->perBlockDebug) {
-                        echo "block.process (time=$blockProcessTime)\n";
-                    }
 
-                    if ($this->blockStatsCount === $this->blockStatsWindow) {
+                    if ($this->perBlockDebug || $this->blockStatsCount === $this->blockStatsWindow) {
+//                        if (true) {
                         $totalTime = \microtime(true) - $this->blockStatsBegin;
                         $windowTime = number_format($totalTime, 2);
-
-                        $downloadTime = number_format($totalTime - $this->blockProcessTime, 2);
-                        $downloadPct = number_format($downloadTime / $totalTime*100, 2);
 
                         $deserTime = number_format($this->blockDeserializeTime, 2);
                         $deserPct = number_format($deserTime / $totalTime*100, 2);
 
+                        $deserBytes = number_format($this->blockDeserializeBytes / 1e6, 3);
+
+                        $downloadTime = number_format($totalTime - $this->blockProcessTime - $this->blockDeserializeTime, 2);
+                        $downloadPct = number_format($downloadTime / $totalTime*100, 2);
+
                         $processTime = number_format($this->blockProcessTime, 2);
                         $processPct = number_format($processTime / $totalTime*100, 2);
-                        $this->logger->info("block process info ({$this->blockStatsWindow} blocks): height {$height} hash {$hash->getHex()} | deserialize {$deserTime} {$deserPct} | downloadtime {$downloadTime} {$downloadPct}, processtime {$processTime} {$processPct}, total {$windowTime}");
+
+                        $windowNumBlocks = $this->perBlockDebug ? 1 : $this->blockStatsWindow;
+                        $this->logger->info("processed $windowNumBlocks blocks, ntx: {$this->blockDeserializeNTx}. $deserBytes MB): height {$height} hash {$hash->getHex()} | deserialize {$deserTime}s {$deserPct}% | downloadtime {$downloadTime}s {$downloadPct}% | processtime {$processTime}s {$processPct}% | total {$windowTime}s");
                         if (null !== $this->blockStatsFileHandle) {
                             fwrite($this->blockStatsFileHandle, implode(", ", [
                                     $height,
@@ -453,6 +450,8 @@ class P2pSyncDaemon
 
                         $this->blockProcessTime = 0;
                         $this->blockDeserializeTime = 0;
+                        $this->blockDeserializeBytes = 0;
+                        $this->blockDeserializeNTx = 0;
                         $this->blockStatsCount = 0;
                         $this->blockStatsBegin = microtime(true);
                     }

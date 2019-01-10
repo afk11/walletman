@@ -309,9 +309,7 @@ class Chain
 
             // Updates bestHeaderIndex
             $this->bestBlockIndex = $headerIdx;
-            echo "new best block " . $headerIdx->getHash()->getHex() . PHP_EOL;
         }
-
 
         return true;
     }
