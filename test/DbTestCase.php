@@ -8,6 +8,8 @@ use BitWasp\Bitcoin\Chain\ParamsInterface;
 use BitWasp\Bitcoin\Key\Deterministic\Slip132\PrefixRegistry;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Network\NetworkInterface;
+use BitWasp\Wallet\DB\DB;
+use BitWasp\Wallet\DB\DBDecorator;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\Initializer;
 use BitWasp\Wallet\NetworkInfo;
@@ -26,6 +28,16 @@ abstract class DbTestCase extends TestCase
      * @var bool
      */
     protected $testnet = false;
+
+    /**
+     * @var bool
+     */
+    protected $dbDebug = false;
+
+    /**
+     * @var null|\Closure
+     */
+    protected $dbWriter;
 
     /**
      * Can be overridden to force the tests filename
@@ -90,7 +102,14 @@ abstract class DbTestCase extends TestCase
         $this->sessionNetwork = $netInfo->getNetwork($netName);
         $this->sessionPrefixRegistry = $netInfo->getSlip132Registry($netName);
         $initializer = new Initializer();
-        $this->sessionDb = $initializer->setupDb($this->sessionDataDir);
+        $db = $initializer->setupDb($this->sessionDataDir);
+        if ($this->dbDebug) {
+            /** @var DB $db */
+            $this->sessionDb = new DBDecorator($db, $this->dbWriter);
+        } else {
+            $this->sessionDb = $db;
+        }
+
         parent::setUp();
     }
 
