@@ -43,7 +43,6 @@ class Init extends Command
         $fTestnet = $input->getOption('testnet');
         $fRegtest = $input->getOption('regtest');
         $path = $this->loadDataDir($input);
-
         $math = new Math();
         if ($fTestnet && $fRegtest) {
             throw new \RuntimeException("Cannot set both regtest and testnet flags");
@@ -53,6 +52,10 @@ class Init extends Command
             $networkName = NetworkName::BITCOIN_TESTNET3;
         } else {
             $networkName = NetworkName::BITCOIN;
+        }
+
+        if (file_exists($path)) {
+            throw new \RuntimeException("datadir exists, delete and try again");
         }
 
         $networkInfo = new NetworkInfo();
