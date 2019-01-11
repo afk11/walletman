@@ -35,7 +35,7 @@ class Init extends Command
 
             // the full command description shown when running the command with
             // the "--help" option
-            ->setHelp('');
+            ->setHelp('Initializes a data directory for the wallet. The directory must not exist when calling this command.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)

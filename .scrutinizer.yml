@@ -57,7 +57,7 @@ build_failure_conditions:
     - 'issues.severity(>= CRITICAL).new.exists'
 
     # Code Coverage drops below 60%
-    - 'project.metric("scrutinizer.test_coverage", < 0.80)'
+    - 'project.metric("scrutinizer.test_coverage", < 0.35)'
 
     # Code Coverage decreased from previous inspection by more than 1%
     - 'project.metric_change("scrutinizer.test_coverage", < -0.01)'
