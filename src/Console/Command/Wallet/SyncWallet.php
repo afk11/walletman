@@ -54,6 +54,14 @@ class SyncWallet extends Command
             ->setHelp('This command starts the wallet. Some configuration parameters can be provided as options, overriding default or configuration file values');
     }
 
+    protected function parseBlockWindow(InputInterface $input): int
+    {
+        $blockWindow = $input->getOption("debug-blockwindow");
+        if (!is_string($blockWindow)) {
+            throw new \RuntimeException("Invalid value provided for debug-blockwindow");
+        }
+        return (int) $blockWindow;
+    }
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $fSyncMempool = (bool) $input->getOption('mempool');
@@ -61,7 +69,7 @@ class SyncWallet extends Command
         $fDebugDb = $input->getOption('debug-db');
         $fDebugPerBlock = $input->getOption('debug-perblock');
         $fBlockStatsToFile = $input->getOption('blockstats');
-        $fBlockWindow = $input->getOption('debug-blockwindow');
+        $fBlockWindow = $this->parseBlockWindow($input);
         $ip = $this->getStringOption($input, 'ip');
 
         $ecAdapter = Bitcoin::getEcAdapter();
@@ -101,7 +109,7 @@ class SyncWallet extends Command
             $daemon->setPerBlockDebug(true);
         }
         if ($fBlockWindow) {
-            $daemon->setBlockStatsWindow((int) $fBlockWindow);
+            $daemon->setBlockStatsWindow($fBlockWindow);
         }
         if ($fBlockStatsToFile) {
             $daemon->produceBlockStatsCsv(__DIR__ . "/../../../../blockstats");
