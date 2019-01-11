@@ -36,8 +36,8 @@ class BlockProcessor
         foreach ($wallets as $wallet) {
             $this->wallets[$wallet->getDbWallet()->getId()] = $wallet;
         }
-        $this->utxoSet = new DbUtxoSet($db, ...$wallets);
-        //$this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
+        //$this->utxoSet = new DbUtxoSet($db, ...$wallets);
+        $this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
     }
 
     public function processConfirmedTx(string $rawTxBin, TransactionInterface $tx)
