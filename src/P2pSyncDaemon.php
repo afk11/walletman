@@ -157,6 +157,10 @@ class P2pSyncDaemon
     {
         $this->perBlockDebug = $setting;
     }
+    public function setBlockStatsWindow(int $numBlocks)
+    {
+        $this->blockStatsWindow = $numBlocks;
+    }
     public function syncMempool(bool $setting)
     {
         $this->mempool = $setting;

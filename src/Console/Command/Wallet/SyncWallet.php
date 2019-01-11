@@ -41,6 +41,8 @@ class SyncWallet extends Command
 
             ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
 
+            ->addOption('debug-blockwindow', null, InputOption::VALUE_REQUIRED, "Number of blocks to wait before printing debug info", 64)
+
             // sync options
             ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
             ->addOption('debug-db', null, InputOption::VALUE_NONE, "Debug the database usage by printing function calls")
@@ -59,6 +61,7 @@ class SyncWallet extends Command
         $fDebugDb = $input->getOption('debug-db');
         $fDebugPerBlock = $input->getOption('debug-perblock');
         $fBlockStatsToFile = $input->getOption('blockstats');
+        $fBlockWindow = $input->getOption('debug-blockwindow');
         $ip = $this->getStringOption($input, 'ip');
 
         $ecAdapter = Bitcoin::getEcAdapter();
@@ -96,6 +99,9 @@ class SyncWallet extends Command
         $daemon->syncMempool($fSyncMempool);
         if ($fDebugPerBlock) {
             $daemon->setPerBlockDebug(true);
+        }
+        if ($fBlockWindow) {
+            $daemon->setBlockStatsWindow((int) $fBlockWindow);
         }
         if ($fBlockStatsToFile) {
             $daemon->produceBlockStatsCsv(__DIR__ . "/../../../../blockstats");

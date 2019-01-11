@@ -45,7 +45,7 @@ class BlockProcessor
         $txId = null;
         $getTxid = function () use (&$txId, $rawTxBin) {
             if (null === $txId) {
-                $txId = Hash::sha256d(new Buffer($rawTxBin));;
+                $txId = Hash::sha256d(new Buffer($rawTxBin));
             }
             return $txId;
         };

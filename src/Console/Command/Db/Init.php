@@ -54,12 +54,16 @@ class Init extends Command
             $networkName = NetworkName::BITCOIN;
         }
 
-        if (file_exists($path)) {
-            throw new \RuntimeException("datadir exists, delete and try again");
-        }
-
         $networkInfo = new NetworkInfo();
         $params = $networkInfo->getParams($networkName, $math);
+
+
+        if (\file_exists($path)) {
+            throw new \RuntimeException("datadir exists, delete and try again: $path");
+        }
+        if (!\mkdir($path)) {
+            throw new \RuntimeException("unable to create datadir: $path");
+        }
 
         $initializer = new Initializer();
         $initializer->setupConfig($path, $networkName);
