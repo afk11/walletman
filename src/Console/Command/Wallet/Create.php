@@ -143,7 +143,7 @@ class Create extends Command
     private function parseHardenedBip32Index(InputInterface $input, string $optionName): int
     {
         $indexValue = $input->getOption($optionName);
-        if (!is_string($indexValue)) {
+        if (!\is_string($indexValue)) {
             throw new \RuntimeException("Invalid value provided for {$optionName}");
         }
         if ($indexValue != (string)(int)$indexValue) {
@@ -159,20 +159,20 @@ class Create extends Command
     private function parseBirthday(InputInterface $input): ?BlockRef
     {
         $birthdayValue = $input->getOption('birthday');
-        if (!is_string($birthdayValue)) {
+        if (!\is_string($birthdayValue)) {
             return null;
         }
 
-        if (substr_count($birthdayValue, ",") !== 1) {
+        if (\substr_count($birthdayValue, ",") !== 1) {
             throw new \RuntimeException("Invalid birthday, should be [height],[hash]");
         }
 
-        list ($height, $hash) = explode(",", $birthdayValue);
+        list ($height, $hash) = \explode(",", $birthdayValue);
         if ($height !== (string)(int)$height) {
             throw new \RuntimeException("Invalid height");
         }
 
-        if (!is_string($hash) || strlen($hash) !== 64) {
+        if (!\is_string($hash) || \strlen($hash) !== 64) {
             throw new \RuntimeException("Invalid hash for birthday");
         }
 
