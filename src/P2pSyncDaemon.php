@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet;
 
-use BitWasp\Bitcoin\Block\Block;
 use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Chain\BlockLocator;
 use BitWasp\Bitcoin\Chain\ParamsInterface;
@@ -294,9 +293,10 @@ class P2pSyncDaemon
         $peer->on(Message::HEADERS, function (Peer $peer, Headers $headers) {
             if (count($headers->getHeaders()) > 0) {
                 $this->db->getPdo()->beginTransaction();
+                /** @var DbHeader null|$lastHeader */
+                $lastHeader = null;
+
                 try {
-                    /** @var DbHeader null|$lastHeader */
-                    $lastHeader = null;
                     foreach ($headers->getHeaders() as $i => $headerData) {
                         $header = $this->headerSerializer->parse($headerData);
                         if ($lastHeader instanceof DbHeader && !$lastHeader->getHash()->equals($header->getPrevBlock())) {
@@ -315,20 +315,27 @@ class P2pSyncDaemon
                     throw $e;
                 }
 
+                $newTip = $lastHeader->getHash()->equals($this->chain->getBestHeader()->getHash());
+                $this->logger->info(sprintf(
+                    "processed %d headers up to " . ($newTip ? "new tip" : "") . " %d %s",
+                    count($headers->getHeaders()), $lastHeader->getHeight(), $lastHeader->getHash()->getHex())
+                );
+
                 if (count($headers->getHeaders()) === 2000) {
-                    echo "requestHeaders starting at {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}\n";
+                    $this->logger->info("request headers from {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}");
                     $peer->getheaders(new BlockLocator([$lastHeader->getHash()], new Buffer('', 32)));
                 }
             }
 
             if (count($headers->getHeaders()) < 2000) {
+                $this->logger->info("headers download complete");
                 $this->downloadBlocks($peer);
             }
         });
 
-        $hash = $this->chain->getBestHeader()->getHash();
-        echo "requestHeaders {$hash->getHex()}\n";
-        $peer->getheaders(new BlockLocator([$hash], new Buffer('', 32)));
+        $bestHeader = $this->chain->getBestHeader();
+        $this->logger->info("requestHeaders starting at {$bestHeader->getHeight()} {$bestHeader->getHash()->getHex()}");
+        $peer->getheaders(new BlockLocator([$bestHeader->getHash()], new Buffer('', 32)));
         $peer->sendheaders();
     }
 
@@ -404,7 +411,7 @@ class P2pSyncDaemon
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
                 ->then(function (BlockInterface $block) use ($peer, $height, $hash, $deferredFinished) {
-
+                    // todo: move this to receiveBlock
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();
                     try {
@@ -519,7 +526,9 @@ class P2pSyncDaemon
         $peer->on(Message::BLOCK, [$this, 'receiveBlock']);
 
         $deferred = new Deferred();
-        echo "requesting blocks\n";
+        $bestBlock = $this->chain->getBestBlock();
+        $this->logger->info("requesting blocks from {$bestBlock->getHeight()} {$bestBlock->getHash()->getHex()}");
+
         $this->requestBlocks($peer, $deferred);
 
         return $deferred

@@ -109,16 +109,16 @@
         },
         {
             "name": "bitwasp/bitcoin-p2p",
-            "version": "v1.0.1",
+            "version": "v1.0.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Bit-Wasp/bitcoin-p2p-php.git",
-                "reference": "22dc462eb5f7c26045e6615c5ad4e50a681fc3f8"
+                "reference": "8f2d00c3c8a062cdd017d06939386aa8423e39ac"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Bit-Wasp/bitcoin-p2p-php/zipball/22dc462eb5f7c26045e6615c5ad4e50a681fc3f8",
-                "reference": "22dc462eb5f7c26045e6615c5ad4e50a681fc3f8",
+                "url": "https://api.github.com/repos/Bit-Wasp/bitcoin-p2p-php/zipball/8f2d00c3c8a062cdd017d06939386aa8423e39ac",
+                "reference": "8f2d00c3c8a062cdd017d06939386aa8423e39ac",
                 "shasum": ""
             },
             "require": {
@@ -152,7 +152,7 @@
             ],
             "description": "Implementation of the bitcoin protocol using ReactPHP",
             "homepage": "https://github.com/bit-wasp/node-php",
-            "time": "2018-12-22T18:00:38+00:00"
+            "time": "2019-01-13T13:41:08+00:00"
         },
         {
             "name": "bitwasp/buffertools",
@@ -1430,16 +1430,16 @@
         },
         {
             "name": "infection/infection",
-            "version": "0.11.4",
+            "version": "0.11.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/infection/infection.git",
-                "reference": "f71d7af4332e0c3760aab45c16a6f750db1475a6"
+                "reference": "20c87babc55e7b49bf2b8410fc1dd1fa87177824"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/infection/infection/zipball/f71d7af4332e0c3760aab45c16a6f750db1475a6",
-                "reference": "f71d7af4332e0c3760aab45c16a6f750db1475a6",
+                "url": "https://api.github.com/repos/infection/infection/zipball/20c87babc55e7b49bf2b8410fc1dd1fa87177824",
+                "reference": "20c87babc55e7b49bf2b8410fc1dd1fa87177824",
                 "shasum": ""
             },
             "require": {
@@ -1516,7 +1516,7 @@
                 "testing",
                 "unit testing"
             ],
-            "time": "2018-12-09T15:26:00+00:00"
+            "time": "2019-01-13T06:56:41+00:00"
         },
         {
             "name": "jean85/pretty-package-versions",
@@ -2162,16 +2162,16 @@
         },
         {
             "name": "nikic/php-parser",
-            "version": "v4.1.1",
+            "version": "v4.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nikic/PHP-Parser.git",
-                "reference": "8aae5b59b83bb4d0dbf07b0a835f2680a658f610"
+                "reference": "594bcae1fc0bccd3993d2f0d61a018e26ac2865a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nikic/PHP-Parser/zipball/8aae5b59b83bb4d0dbf07b0a835f2680a658f610",
-                "reference": "8aae5b59b83bb4d0dbf07b0a835f2680a658f610",
+                "url": "https://api.github.com/repos/nikic/PHP-Parser/zipball/594bcae1fc0bccd3993d2f0d61a018e26ac2865a",
+                "reference": "594bcae1fc0bccd3993d2f0d61a018e26ac2865a",
                 "shasum": ""
             },
             "require": {
@@ -2187,7 +2187,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-master": "4.1-dev"
+                    "dev-master": "4.2-dev"
                 }
             },
             "autoload": {
@@ -2209,7 +2209,7 @@
                 "parser",
                 "php"
             ],
-            "time": "2018-12-26T11:32:39+00:00"
+            "time": "2019-01-12T16:31:37+00:00"
         },
         {
             "name": "ocramius/package-versions",
