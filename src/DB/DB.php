@@ -11,7 +11,6 @@ use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
-use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\BlockRef;
 
@@ -27,8 +26,6 @@ class DB implements DBInterface
     private $loadWalletIdsBySpkStmt;
     private $addHeaderStmt;
     private $setBlockReceivedStmt;
-    private $getHashesStmt;
-    private $getBestHeaderStmt;
     private $getHeaderStmt;
     private $getBlockHashStmt;
     private $createScriptStmt;
@@ -37,7 +34,6 @@ class DB implements DBInterface
     private $checkWalletExistsStmt;
     private $allWalletsStmt;
     private $getBip44WalletKey;
-    private $getBlockCountStmt;
     private $getWalletUtxosStmt;
     private $createTxStmt;
     private $getConfirmedBalanceStmt;
