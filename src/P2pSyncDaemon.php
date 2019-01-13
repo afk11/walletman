@@ -438,7 +438,8 @@ class P2pSyncDaemon
                         $processPct = number_format($processTime / $totalTime*100, 2);
 
                         $windowNumBlocks = $this->perBlockDebug ? 1 : $this->blockStatsWindow;
-                        $this->logger->info("processed $windowNumBlocks blocks, ntx: {$this->blockDeserializeNTx}, $deserBytes MB): height {$height} hash {$hash->getHex()} | deserialize {$deserTime}s {$deserPct}% | downloadtime {$downloadTime}s {$downloadPct}% | processtime {$processTime}s {$processPct}% | total {$windowTime}s");
+                        $avgPerBlock = number_format($totalTime / $windowNumBlocks, 2);
+                        $this->logger->info("processed $windowNumBlocks blocks, ntx: {$this->blockDeserializeNTx}, $deserBytes MB): height {$height} hash {$hash->getHex()} | deserialize {$deserTime}s {$deserPct}% | downloadtime {$downloadTime}s {$downloadPct}% | processtime {$processTime}s {$processPct}% | total {$windowTime}s, avg {$avgPerBlock}s");
                         if (null !== $this->blockStatsFileHandle) {
                             fwrite($this->blockStatsFileHandle, implode(", ", [
                                     $height,
