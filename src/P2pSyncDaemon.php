@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\Block;
+use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Chain\BlockLocator;
 use BitWasp\Bitcoin\Chain\ParamsInterface;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
@@ -344,8 +345,7 @@ class P2pSyncDaemon
     public function receiveBlock(Peer $peer, \BitWasp\Bitcoin\Networking\Messages\Block $blockMsg)
     {
         $beforeDeserialize = microtime(true);
-        $blockSer = new TxPreservingBlockSerializer(new Math(), $this->headerSerializer, $this->txSerializer);
-        $block = $blockSer->parse($blockMsg->getBlock());
+        $block = $this->blockSerializer->parse($blockMsg->getBlock());
         $taken = microtime(true)-$beforeDeserialize;
         $this->blockDeserializeTime += $taken;
         $this->blockDeserializeBytes += $blockMsg->getBlock()->getSize();
@@ -357,7 +357,7 @@ class P2pSyncDaemon
         }
         $deferred = $this->deferred[$hash->getBinary()];
         unset($this->deferred[$hash->getBinary()]);
-        $deferred->resolve([$block, $blockSer->getTxs()]);
+        $deferred->resolve($block);
     }
 
     /**
@@ -403,14 +403,14 @@ class P2pSyncDaemon
             $height = $downloadStartHeight + count($this->deferred);
             $hash = $this->chain->getBlockHash($height);
             $this->requestBlock($peer, $hash)
-                ->then(function (array $blockAndRawTxs) use ($peer, $height, $hash, $deferredFinished) {
-                    list ($block, $rawTxs) = $blockAndRawTxs;
+                ->then(function (BlockInterface $block) use ($peer, $height, $hash, $deferredFinished) {
+
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();
                     try {
                         $this->chain->acceptBlock($this->db, $hash, $block);
                         $processor = new BlockProcessor($this->db, ...$this->wallets);
-                        $processor->process($height, $block, $rawTxs);
+                        $processor->process($height, $block);
                         $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
                         echo $e->getMessage().PHP_EOL;
