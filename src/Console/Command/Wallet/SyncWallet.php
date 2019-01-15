@@ -41,7 +41,7 @@ class SyncWallet extends Command
 
             ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
 
-            ->addOption('debug-blockwindow', null, InputOption::VALUE_REQUIRED, "Number of blocks to wait before printing debug info", 64)
+            ->addOption('debug-blockwindow', null, InputOption::VALUE_REQUIRED, "Number of blocks to wait before printing debug info", '64')
 
             // sync options
             ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
@@ -119,7 +119,10 @@ class SyncWallet extends Command
             $daemon->produceBlockStatsCsv(__DIR__ . "/../../../../blockstats");
         }
         $daemon->init($hdSerializer);
-        $daemon->sync($loop);
+        $daemon->sync($loop)
+            ->then(null, function (\Exception $e) {
+                echo "error received all the way back here\n";
+            });
         $loop->run();
     }
 }

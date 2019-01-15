@@ -186,7 +186,13 @@ class Chain
         return $this->bestHeaderIndex;
     }
 
-    public function getBlockHash(int $headerHeight)
+    /**
+     * Returns the header chain block hash at the $headerHeight
+     * @param int $headerHeight
+     * @return BufferInterface
+     * @throws \Exception
+     */
+    public function getBlockHash(int $headerHeight): BufferInterface
     {
         if (!array_key_exists($headerHeight, $this->heightMapToHash)) {
             throw new \RuntimeException("No chain header with height {$headerHeight}");
@@ -268,11 +274,11 @@ class Chain
         return true;
     }
 
-    public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block): bool
+    public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block, DbHeader &$headerIndex = null): bool
     {
         $header = $block->getHeader();
 
-        if (!$this->acceptHeader($db, $hash, $header, $headerIdx)) {
+        if (!$this->acceptHeader($db, $hash, $header, $headerIndex)) {
             // who knows what that was
             return false;
         }
@@ -286,14 +292,14 @@ class Chain
         }
 
         /** @var DbHeader $headerIdx */
-        if ($headerIdx->getStatus() == DbHeader::BLOCK_VALID) {
+        if ($headerIndex->getStatus() == DbHeader::BLOCK_VALID) {
             return true;
         }
 
         $db->setBlockReceived($hash);
 
-        if (gmp_cmp($headerIdx->getWork(), $this->bestBlockIndex->getWork()) > 0) {
-            $this->bestBlockIndex = $headerIdx;
+        if (gmp_cmp($headerIndex->getWork(), $this->bestBlockIndex->getWork()) > 0) {
+            $this->bestBlockIndex = $headerIndex;
         }
 
         return true;

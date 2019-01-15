@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet;
 
-use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Chain\BlockLocator;
 use BitWasp\Bitcoin\Chain\ParamsInterface;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
@@ -14,6 +13,7 @@ use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Networking\Factory;
 use BitWasp\Bitcoin\Networking\Ip\Ipv4;
 use BitWasp\Bitcoin\Networking\Message;
+use BitWasp\Bitcoin\Networking\Messages\Block;
 use BitWasp\Bitcoin\Networking\Messages\Headers;
 use BitWasp\Bitcoin\Networking\Messages\Inv;
 use BitWasp\Bitcoin\Networking\Messages\Ping;
@@ -28,7 +28,6 @@ use BitWasp\Bitcoin\Serializer\Block\BlockSerializer;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
 use BitWasp\Buffertools\Buffer;
-use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\Bip44Wallet;
@@ -36,8 +35,6 @@ use BitWasp\Wallet\Wallet\WalletInterface;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\LoopInterface;
 use React\Promise\Deferred;
-use React\Promise\FulfilledPromise;
-use React\Promise\PromiseInterface;
 
 class P2pSyncDaemon
 {
@@ -92,9 +89,10 @@ class P2pSyncDaemon
     private $downloading = false;
 
     /**
-     * @var Deferred[]
+     * map [blockHash: 1]
+     * @var int[]
      */
-    private $deferred = [];
+    private $requested = [];
 
     private $toDownload = [];
     /**
@@ -282,147 +280,76 @@ class P2pSyncDaemon
                     }
                     $peer->getdata($txs);
                 });
-                $this->downloadHeaders($peer);
-            }, function (\Exception $e) {
-                echo "error: {$e->getMessage()}\n";
-            });
-    }
+                $peer->on(Message::HEADERS, function (Peer $peer, Headers $headers) {
+                    if (count($headers->getHeaders()) > 0) {
+                        $this->db->getPdo()->beginTransaction();
+                        /** @var DbHeader null|$lastHeader */
+                        $lastHeader = null;
 
-    public function downloadHeaders(Peer $peer)
-    {
-        $peer->on(Message::HEADERS, function (Peer $peer, Headers $headers) {
-            if (count($headers->getHeaders()) > 0) {
-                $this->db->getPdo()->beginTransaction();
-                /** @var DbHeader null|$lastHeader */
-                $lastHeader = null;
-
-                try {
-                    foreach ($headers->getHeaders() as $i => $headerData) {
-                        $header = $this->headerSerializer->parse($headerData);
-                        if ($lastHeader instanceof DbHeader && !$lastHeader->getHash()->equals($header->getPrevBlock())) {
-                            throw new \RuntimeException("non continuous headers message");
+                        try {
+                            foreach ($headers->getHeaders() as $i => $headerData) {
+                                $header = $this->headerSerializer->parse($headerData);
+                                if ($lastHeader instanceof DbHeader && !$lastHeader->getHash()->equals($header->getPrevBlock())) {
+                                    throw new \RuntimeException("non continuous headers message");
+                                }
+                                $hash = $header->getHash();
+                                if (!$this->chain->acceptHeader($this->db, $hash, $header, $lastHeader)) {
+                                    throw new \RuntimeException("failed to accept header");
+                                }
+                            }
+                            $this->db->getPdo()->commit();
+                        } catch (\Exception $e) {
+                            $this->db->getPdo()->rollBack();
+                            throw $e;
                         }
-                        $hash = $header->getHash();
-                        if (!$this->chain->acceptHeader($this->db, $hash, $header, $lastHeader)) {
-                            throw new \RuntimeException("failed to accept header");
+
+                        $newTip = $lastHeader->getHash()->equals($this->chain->getBestHeader()->getHash());
+                        $this->logger->info(sprintf(
+                            "processed %d headers up to " . ($newTip ? "new tip" : "") . " %d %s",
+                            count($headers->getHeaders()),
+                            $lastHeader->getHeight(),
+                            $lastHeader->getHash()->getHex()
+                        ));
+
+                        if (count($headers->getHeaders()) === 2000) {
+                            $this->logger->info("request headers from {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}");
+                            $peer->getheaders(new BlockLocator([$lastHeader->getHash()], new Buffer('', 32)));
                         }
                     }
-                    $this->db->getPdo()->commit();
-                } catch (\Exception $e) {
-                    echo "error: {$e->getMessage()}\n";
-                    echo "error: {$e->getTraceAsString()}\n";
-                    $this->db->getPdo()->rollBack();
-                    throw $e;
-                }
 
-                $newTip = $lastHeader->getHash()->equals($this->chain->getBestHeader()->getHash());
-                $this->logger->info(sprintf(
-                    "processed %d headers up to " . ($newTip ? "new tip" : "") . " %d %s",
-                    count($headers->getHeaders()),
-                    $lastHeader->getHeight(),
-                    $lastHeader->getHash()->getHex()
-                ));
+                    if (count($headers->getHeaders()) < 2000) {
+                        $this->downloadBlocks($peer);
+                    }
+                });
 
-                if (count($headers->getHeaders()) === 2000) {
-                    $this->logger->info("request headers from {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}");
-                    $peer->getheaders(new BlockLocator([$lastHeader->getHash()], new Buffer('', 32)));
-                }
-            }
+                $peer->on(Message::BLOCK, function (Peer $peer, Block $blockMsg) {
+                    $beforeDeserialize = microtime(true);
+                    $block = $this->blockSerializer->parse($blockMsg->getBlock());
+                    $taken = microtime(true)-$beforeDeserialize;
 
-            if (count($headers->getHeaders()) < 2000) {
-                $this->logger->info("headers download complete");
-                $this->downloadBlocks($peer);
-            }
-        });
+                    $this->blockDeserializeTime += $taken;
+                    $this->blockDeserializeBytes += $blockMsg->getBlock()->getSize();
+                    $this->blockDeserializeNTx += count($block->getTransactions());
 
-        $bestHeader = $this->chain->getBestHeader();
-        $this->logger->info("requestHeaders starting at {$bestHeader->getHeight()} {$bestHeader->getHash()->getHex()}");
-        $peer->getheaders(new BlockLocator([$bestHeader->getHash()], new Buffer('', 32)));
-        $peer->sendheaders();
-    }
+                    $hash = $block->getHeader()->getHash();
+                    // echo "receiveBlock {$hash->getHex()}\n";
+                    if (!array_key_exists($hash->getBinary(), $this->requested)) {
+                        throw new \RuntimeException("missing block request {$hash->getHex()}");
+                    }
+                    unset($this->requested[$hash->getBinary()]);
 
-    /**
-     * receiveBlock processes a block we requested. it will
-     * resolve the promise returned by the corresponding
-     * requestBlock call.
-     *
-     * @todo: error if unrequested
-     *
-     * @param Peer $peer
-     * @param \BitWasp\Bitcoin\Networking\Messages\Block $blockMsg
-     */
-    public function receiveBlock(Peer $peer, \BitWasp\Bitcoin\Networking\Messages\Block $blockMsg)
-    {
-        $beforeDeserialize = microtime(true);
-        $block = $this->blockSerializer->parse($blockMsg->getBlock());
-        $taken = microtime(true)-$beforeDeserialize;
-        $this->blockDeserializeTime += $taken;
-        $this->blockDeserializeBytes += $blockMsg->getBlock()->getSize();
-        $this->blockDeserializeNTx += count($block->getTransactions());
-        $hash = $block->getHeader()->getHash();
-        // echo "receiveBlock {$hash->getHex()}\n";
-        if (!array_key_exists($hash->getBinary(), $this->deferred)) {
-            throw new \RuntimeException("missing block request {$hash->getHex()}");
-        }
-        $deferred = $this->deferred[$hash->getBinary()];
-        unset($this->deferred[$hash->getBinary()]);
-        $deferred->resolve($block);
-    }
-
-    /**
-     * Requests block using $hash from the peer, returning a
-     * promise, which will resolve with the Block Message
-     *
-     * This function queues hashes, to be sent as getdata messages
-     * later
-     *
-     * @param Peer $peer
-     * @param BufferInterface $hash
-     * @return PromiseInterface
-     */
-    public function requestBlock(Peer $peer, BufferInterface $hash): PromiseInterface
-    {
-        // echo "requestBlock: {$hash->getHex()}\n";
-        if ($this->segwit) {
-            $this->toDownload[] = Inventory::witnessBlock($hash);
-        } else {
-            $this->toDownload[] = Inventory::block($hash);
-        }
-
-        $deferred = new Deferred();
-        $this->deferred[$hash->getBinary()] = $deferred;
-        return $deferred->promise();
-    }
-
-    public function requestBlocks(Peer $peer, Deferred $deferredFinished)
-    {
-        if (null === $this->blockStatsCount) {
-            $this->blockProcessTime = 0;
-            $this->blockDeserializeTime = 0;
-            $this->blockDeserializeBytes = 0;
-            $this->blockDeserializeNTx = 0;
-            $this->blockStatsCount = 0;
-            $this->blockStatsBegin = \microtime(true);
-        }
-
-        $downloadStartHeight = $this->chain->getBestBlockHeight() + 1;
-        $heightBestHeader = $this->chain->getBestHeader()->getHeight();
-
-        while (count($this->deferred) < $this->batchSize && $downloadStartHeight + count($this->deferred) <= $heightBestHeader) {
-            $height = $downloadStartHeight + count($this->deferred);
-            $hash = $this->chain->getBlockHash($height);
-            $this->requestBlock($peer, $hash)
-                ->then(function (BlockInterface $block) use ($peer, $height, $hash, $deferredFinished) {
-                    // todo: move this to receiveBlock
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();
                     try {
-                        $this->chain->acceptBlock($this->db, $hash, $block);
+                        $headerIndex = null;
+                        if (!$this->chain->acceptBlock($this->db, $hash, $block, $headerIndex)) {
+                            throw new \RuntimeException("Failed to process block");
+                        }
+                        /** @var DbHeader $headerIndex */
                         $processor = new BlockProcessor($this->db, ...$this->wallets);
-                        $processor->process($height, $hash, $block);
+                        $processor->process($headerIndex->getHeight(), $hash, $block);
                         $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
-                        echo $e->getMessage().PHP_EOL;
                         $this->db->getPdo()->rollBack();
                         throw $e;
                     }
@@ -448,10 +375,10 @@ class P2pSyncDaemon
 
                         $windowNumBlocks = $this->perBlockDebug ? 1 : $this->blockStatsWindow;
                         $avgPerBlock = number_format($totalTime / $windowNumBlocks, 2);
-                        $this->logger->info("processed $windowNumBlocks blocks, ntx: {$this->blockDeserializeNTx}, $deserBytes MB): height {$height} hash {$hash->getHex()} | deserialize {$deserTime}s {$deserPct}% | downloadtime {$downloadTime}s {$downloadPct}% | processtime {$processTime}s {$processPct}% | total {$windowTime}s, avg {$avgPerBlock}s");
+                        $this->logger->info("processed $windowNumBlocks blocks, ntx: {$this->blockDeserializeNTx}, $deserBytes MB): height {$headerIndex->getHeight()} hash {$hash->getHex()} | deserialize {$deserTime}s {$deserPct}% | downloadtime {$downloadTime}s {$downloadPct}% | processtime {$processTime}s {$processPct}% | total {$windowTime}s, avg {$avgPerBlock}s");
                         if (null !== $this->blockStatsFileHandle) {
                             fwrite($this->blockStatsFileHandle, implode(", ", [
-                                    $height,
+                                    $headerIndex->getHeight(),
                                     $deserTime,
                                     $deserPct,
                                     $downloadTime,
@@ -471,85 +398,119 @@ class P2pSyncDaemon
                         $this->blockStatsBegin = microtime(true);
                     }
 
-                    $this->requestBlocks($peer, $deferredFinished);
-                }, function (\Exception $e) use ($deferredFinished) {
-                    $deferredFinished->reject(new \Exception("requestBlockError", 0, $e));
-                })
-                ->then(null, function (\Exception $e) use ($deferredFinished) {
-                    $deferredFinished->reject(new \Exception("processBlockError", 0, $e));
+                    if ($headerIndex->getHash()->equals($this->chain->getBestHeader()->getHash())) {
+                        // finish shortcut for new wallets - mark history before we came online
+                        // as valid
+//                        if ($isFirstSetup) {
+//                            $bestHeaderHeight = $this->chain->getBestHeader()->getHeight();
+//                            echo "mark birthday history as valid {$bestHeaderHeight}\n";
+//                            $this->db->markBirthdayHistoryValid($bestHeaderHeight);
+//                        }
+
+                        $bestBlock = $this->chain->getBestBlock();
+                        $this->logger->info("done syncing blocks to tip: {$bestBlock->getHeight()} {$bestBlock->getHash()->getHex()}");
+
+                        $this->downloading = false;
+                        $this->resetBlockStats();
+                    } else {
+                        $this->requestBlocks($peer);
+                    }
                 });
+
+                $bestHeader = $this->chain->getBestHeader();
+                $this->logger->info("requestHeaders starting at {$bestHeader->getHeight()} {$bestHeader->getHash()->getHex()}");
+                $peer->getheaders(new BlockLocator([$bestHeader->getHash()], new Buffer('', 32)));
+                $peer->sendheaders();
+            }, function (\Exception $e) {
+                throw $e;
+            });
+    }
+
+    /**
+     * Request blocks from a Peer, by adding hashes to
+     * $this->toDownload until we have enough of a batch.
+     * It traces the existing 'best header' chain
+     * @param Peer $peer
+     */
+    public function requestBlocks(Peer $peer)
+    {
+        if (null === $this->blockStatsCount) {
+            $this->blockProcessTime = 0;
+            $this->blockDeserializeTime = 0;
+            $this->blockDeserializeBytes = 0;
+            $this->blockDeserializeNTx = 0;
+            $this->blockStatsCount = 0;
+            $this->blockStatsBegin = \microtime(true);
         }
+
+        $downloadStartHeight = $this->chain->getBestBlockHeight() + 1;
+        $heightBestHeader = $this->chain->getBestHeader()->getHeight();
+        $toDownload = [];
+
+        while (count($this->requested) < $this->batchSize && $downloadStartHeight + count($this->requested) <= $heightBestHeader) {
+            $height = $downloadStartHeight + count($this->requested);
+            $hash = $this->chain->getBlockHash($height);
+            if ($this->segwit) {
+                $toDownload[] = Inventory::witnessBlock($hash);
+            } else {
+                $toDownload[] = Inventory::block($hash);
+            }
+
+            $this->requested[$hash->getBinary()] = 1;
+        }
+
+        $this->toDownload = array_merge($this->toDownload, $toDownload);
 
         if (count($this->toDownload) > 0) {
             // if nearTip don't bother sending a batch request, submit immediately
             // otherwise, send when we have batch/2 or batch items
-            $nearTip = count($this->deferred) < $this->batchSize;
+            $nearTip = count($this->requested) < $this->batchSize;
             if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
                 $peer->getdata($this->toDownload);
                 $this->toDownload = [];
             }
         }
-
-        if (count($this->deferred) === 0) {
-            $deferredFinished->resolve();
-        }
     }
 
+    /**
+     * This function triggers block downloading in response to a new header.
+     * It outputs the log and triggers downloading only if we are not currently
+     * downloading, as blocks being received continue the process.
+     * @param Peer $peer
+     */
     public function downloadBlocks(Peer $peer)
     {
         if ($this->downloading) {
-            return new FulfilledPromise();
+            return;
         }
 
-        $isFirstSetup = false;
-        if ($this->chain->getBestBlockHeight() === 0) {
-            $isFirstSetup = true;
-            $startBlock = null;
-            if (count($this->wallets) === 0) {
-                $bestIndex = $this->chain->getBestHeader();
-                $startBlock = new BlockRef($bestIndex->getHeight(), $bestIndex->getHash());
-            } else {
-                foreach ($this->wallets as $wallet) {
-                    $dbWallet = $wallet->getDbWallet();
-                    if ($birthday = $dbWallet->getBirthday()) {
-                        if (!($startBlock instanceof BlockRef)) {
-                            $startBlock = $dbWallet->getBirthday();
-                        } else if ($birthday->getHeight() < $startBlock->getHeight()) {
-                            $startBlock = $dbWallet->getBirthday();
-                        }
-                    }
-                }
-            }
-            if ($startBlock) {
-                //$this->chain->setStartBlock($startBlock);
-            }
-        }
+//        if ($this->chain->getBestBlockHeight() === 0) {
+//            $this->firstHeaderSync = true;
+//            $startBlock = null;
+//            if (count($this->wallets) === 0) {
+//                $bestIndex = $this->chain->getBestHeader();
+//                $startBlock = new BlockRef($bestIndex->getHeight(), $bestIndex->getHash());
+//            } else {
+//                foreach ($this->wallets as $wallet) {
+//                    $dbWallet = $wallet->getDbWallet();
+//                    if ($birthday = $dbWallet->getBirthday()) {
+//                        if (!($startBlock instanceof BlockRef)) {
+//                            $startBlock = $dbWallet->getBirthday();
+//                        } else if ($birthday->getHeight() < $startBlock->getHeight()) {
+//                            $startBlock = $dbWallet->getBirthday();
+//                        }
+//                    }
+//                }
+//            }
+//            if ($startBlock) {
+//             //   $this->chain->setStartBlock($startBlock);
+//            }
+//        }
+
         $this->downloading = true;
-        $peer->on(Message::BLOCK, [$this, 'receiveBlock']);
-
-        $deferred = new Deferred();
         $bestBlock = $this->chain->getBestBlock();
         $this->logger->info("requesting blocks from {$bestBlock->getHeight()} {$bestBlock->getHash()->getHex()}");
 
-        $this->requestBlocks($peer, $deferred);
-
-        return $deferred
-            ->promise()
-            ->then(function () use ($peer, $isFirstSetup) {
-                // finish shortcut for new wallets - mark history before we came online
-                // as valid
-                if ($isFirstSetup) {
-                    $bestHeaderHeight = $this->chain->getBestHeader()->getHeight();
-                    echo "mark birthday history as valid {$bestHeaderHeight}\n";
-                    $this->db->markBirthdayHistoryValid($bestHeaderHeight);
-                }
-
-                $bestBlock = $this->chain->getBestBlock();
-                $this->logger->info("done syncing blocks to tip: {$bestBlock->getHeight()} {$bestBlock->getHash()->getHex()}");
-
-                $this->downloading = false;
-                $this->resetBlockStats();
-                $peer->removeListener(Message::BLOCK, [$this, 'receiveBlock']);
-            });
+        $this->requestBlocks($peer);
     }
 }
