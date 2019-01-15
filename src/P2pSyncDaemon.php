@@ -541,7 +541,10 @@ class P2pSyncDaemon
                     echo "mark birthday history as valid {$bestHeaderHeight}\n";
                     $this->db->markBirthdayHistoryValid($bestHeaderHeight);
                 }
-                echo "done syncing\n";
+
+                $bestBlock = $this->chain->getBestBlock();
+                $this->logger->info("done syncing blocks to tip: {$bestBlock->getHeight()} {$bestBlock->getHash()->getHex()}");
+
                 $this->downloading = false;
                 $this->resetBlockStats();
                 $peer->removeListener(Message::BLOCK, [$this, 'receiveBlock']);
