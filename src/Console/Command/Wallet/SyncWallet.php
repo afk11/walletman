@@ -56,12 +56,16 @@ class SyncWallet extends Command
 
     protected function parseBlockWindow(InputInterface $input): int
     {
-        $blockWindow = $input->getOption("debug-blockwindow");
-        if (is_int($blockWindow)) {
-            return $blockWindow;
+        $indexValue = $input->getOption("debug-blockwindow");
+        if (!\is_string($indexValue)) {
+            throw new \RuntimeException("Invalid value provided for debug-blockwindow");
         }
-        throw new \RuntimeException("Invalid value provided for debug-blockwindow");
+        if ($indexValue != (string)(int)$indexValue) {
+            throw new \RuntimeException("invalid value for debug-blockwindow");
+        }
+        return (int) $indexValue;
     }
+
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $fSyncMempool = (bool) $input->getOption('mempool');
