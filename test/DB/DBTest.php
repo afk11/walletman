@@ -158,7 +158,7 @@ class DBTest extends DbTestCase
         $walletId = 1;
         $txid = new Buffer("txid", 32);
         $valueChange = -100000000;
-        $this->assertTrue($this->sessionDb->createTx($walletId, $txid, $valueChange));
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txid, $valueChange, DbWalletTx::STATUS_UNCONFIRMED, null, null));
 
         $stmt = $this->sessionDb->getTransactions($walletId);
         $tx = $stmt->fetchObject(DbWalletTx::class);
@@ -167,5 +167,8 @@ class DBTest extends DbTestCase
         $this->assertEquals($walletId, $tx->getWalletId());
         $this->assertEquals($txid->getHex(), $tx->getTxId()->getHex());
         $this->assertEquals($valueChange, $tx->getValueChange());
+        $this->assertEquals(DbWalletTx::STATUS_UNCONFIRMED, $tx->getStatus());
+        $this->assertNull($tx->getConfirmedHash());
+        $this->assertNull($tx->getConfirmedHeight());
     }
 }

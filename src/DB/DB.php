@@ -72,7 +72,10 @@ class DB implements DBInterface
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `walletId`     INTEGER NOT NULL,
             `valueChange`  INTEGER NOT NULL,
-            `txid`         TEXT NOT NULL
+            `status`       INTEGER NOT NULL,
+            `txid`         TEXT NOT NULL,
+            `confirmedHash`    TEXT,
+            `confirmedHeight`  TEXT
         );")) {
             throw new \RuntimeException("failed to create tx table");
         }
@@ -513,13 +516,14 @@ class DB implements DBInterface
         return $utxos;
     }
 
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange): bool
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool
     {
         if (null === $this->createTxStmt) {
-            $this->createTxStmt = $this->pdo->prepare("INSERT INTO tx (walletId, txid, valueChange) values (?, ?, ?)");
+            $this->createTxStmt = $this->pdo->prepare("INSERT INTO tx (walletId, txid, valueChange, status, confirmedHash, confirmedHeight) values (?, ?, ?, ?, ?, ?)");
         }
         return $this->createTxStmt->execute([
-            $walletId, $txid->getHex(), $valueChange
+            $walletId, $txid->getHex(), $valueChange,
+            $status, $blockHashHex, $blockHeight,
         ]);
     }
 

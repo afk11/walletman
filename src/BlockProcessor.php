@@ -8,7 +8,9 @@ use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Serializer\Transaction\OutPointSerializer;
 use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
+use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DBInterface;
+use BitWasp\Wallet\DB\DbWalletTx;
 use BitWasp\Wallet\Wallet\WalletInterface;
 
 class BlockProcessor
@@ -38,7 +40,7 @@ class BlockProcessor
         $this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
     }
 
-    public function processConfirmedTx(TransactionInterface $tx)
+    public function processConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx)
     {
         $txId = null;
         $getTxid = function () use (&$txId, $tx) {
@@ -93,18 +95,20 @@ class BlockProcessor
         }
 
         foreach ($valueChange as $walletId => $change) {
-            $this->db->createTx($walletId, $txId, $change);
+            $this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_CONFIRMED, $blockHashHex, $blockHeight);
         }
     }
 
-    public function process(int $height, BlockInterface $block)
+    public function process(int $height, BufferInterface $blockHash, BlockInterface $block)
     {
+        $blockHashHex = $blockHash->getHex();
+
         // 1. receive only wallet
         try {
             $nTx = count($block->getTransactions());
             for ($iTx = 0; $iTx < $nTx; $iTx++) {
                 $tx = $block->getTransaction($iTx);
-                $this->processConfirmedTx($tx);
+                $this->processConfirmedTx($height, $blockHashHex, $tx);
             }
 //            if ($height === 181) {
 //                die("bail");

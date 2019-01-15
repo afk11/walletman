@@ -104,7 +104,7 @@ interface DBInterface
      */
     public function getWalletScriptPubKeys(int $walletId): array;
 
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange): bool;
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool;
 
     public function getConfirmedBalance(int $walletId): int;
 

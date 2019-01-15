@@ -419,7 +419,7 @@ class P2pSyncDaemon
                     try {
                         $this->chain->acceptBlock($this->db, $hash, $block);
                         $processor = new BlockProcessor($this->db, ...$this->wallets);
-                        $processor->process($height, $block);
+                        $processor->process($height, $hash, $block);
                         $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
                         echo $e->getMessage().PHP_EOL;

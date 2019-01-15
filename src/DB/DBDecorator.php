@@ -233,7 +233,7 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange): bool
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
