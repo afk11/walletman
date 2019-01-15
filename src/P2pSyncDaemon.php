@@ -34,11 +34,15 @@ use BitWasp\Wallet\Wallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\WalletInterface;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\LoopInterface;
-use React\Promise\Deferred;
 
 class P2pSyncDaemon
 {
     const PING_TIMEOUT = 1200;
+
+    /**
+     * @var LoggerInterface
+     */
+    private $logger;
 
     /**
      * @var string
@@ -51,19 +55,14 @@ class P2pSyncDaemon
     private $port;
 
     /**
+     * @var DBInterface
+     */
+    private $db;
+
+    /**
      * @var EcAdapterInterface
      */
     private $ecAdapter;
-
-    /**
-     * @var LoggerInterface
-     */
-    private $logger;
-
-    /**
-     * @var Chain
-     */
-    private $chain;
 
     /**
      * @var NetworkInterface
@@ -71,17 +70,58 @@ class P2pSyncDaemon
     private $network;
 
     /**
-     * @var DBInterface
-     */
-    private $db;
-
-    /**
      * @var ParamsInterface
      */
     private $params;
+
+    /**
+     * @var Random
+     */
+    private $random;
+
+    /**
+     * @var Chain
+     */
+    private $chain;
+
+    /**
+     * @var BlockHeaderSerializer
+     */
     private $headerSerializer;
+
+    /**
+     * @var BlockSerializer
+     */
     private $blockSerializer;
+
+    /**
+     * @var TransactionSerializer
+     */
     private $txSerializer;
+
+    // Cli related state
+
+    /**
+     * @var bool
+     */
+    private $perBlockDebug = false;
+
+    /**
+     * @var bool
+     */
+    private $mempool = false;
+
+    /**
+     * @var bool
+     */
+    private $segwit = true;
+
+    /**
+     * @var int
+     */
+    private $blockStatsWindow = 64;
+
+    // The nodes state
 
     /**
      * @var bool
@@ -94,31 +134,59 @@ class P2pSyncDaemon
      */
     private $requested = [];
 
-    private $toDownload = [];
     /**
-     * @var Random
+     * @var Inventory[]
      */
-    private $random;
+    private $toDownload = [];
+
     /**
      * @var resource
      */
     private $blockStatsFileHandle;
+
     /**
+     * Max number of blocks to download at once
      * @var int
      */
     private $batchSize =  16;
 
+    /**
+     * @var bool
+     */
     private $initialized = false;
-    private $mempool = false;
-    private $segwit = true;
-    private $blockStatsWindow = 64;
+
+    /**
+     * This is set to null by resetBlockStats so the next
+     * requestBlocks call initializes everything to zero
+     * @var null|int
+     */
     private $blockStatsCount;
+
+    /**
+     * @var float
+     */
     private $blockStatsBegin;
+
+    /**
+     * @var float
+     */
     private $blockProcessTime;
+
+    /**
+     * @var float
+     */
     private $blockDeserializeTime;
+
+    /**
+     * @var int
+     */
     private $blockDeserializeBytes;
+
+    /**
+     * @var int
+     */
     private $blockDeserializeNTx;
-    private $perBlockDebug = false;
+
     /**
      * @var WalletInterface[]
      */
