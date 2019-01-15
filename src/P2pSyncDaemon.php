@@ -318,8 +318,10 @@ class P2pSyncDaemon
                 $newTip = $lastHeader->getHash()->equals($this->chain->getBestHeader()->getHash());
                 $this->logger->info(sprintf(
                     "processed %d headers up to " . ($newTip ? "new tip" : "") . " %d %s",
-                    count($headers->getHeaders()), $lastHeader->getHeight(), $lastHeader->getHash()->getHex())
-                );
+                    count($headers->getHeaders()),
+                    $lastHeader->getHeight(),
+                    $lastHeader->getHash()->getHex()
+                ));
 
                 if (count($headers->getHeaders()) === 2000) {
                     $this->logger->info("request headers from {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}");

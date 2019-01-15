@@ -119,7 +119,7 @@ class Chain
                     }
                     // reduce bestBlockHeight until that index is BLOCK_VALID
                     $bestBlock = $row;
-                    while(($bestBlock->getStatus() & DbHeader::BLOCK_VALID) === 0) {
+                    while (($bestBlock->getStatus() & DbHeader::BLOCK_VALID) === 0) {
                         $bestBlock = $db->getHeader($bestBlock->getHeader()->getPrevBlock());
                         if (!$bestBlock) {
                             throw new \RuntimeException("FATAL: could not find prev block");
@@ -159,7 +159,7 @@ class Chain
         $this->bestBlockIndex = $bestBlock;
 
         // build up our view of the best chain
-        while($bestHeader !== null && $bestHeader->getHeight() >= 0) {
+        while ($bestHeader !== null && $bestHeader->getHeight() >= 0) {
             $this->heightMapToHash[$bestHeader->getHeight()] = $bestHeader->getHash()->getBinary();
             $bestHeader = $db->getHeader($bestHeader->getHeader()->getPrevBlock());
         }
