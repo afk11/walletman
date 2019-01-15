@@ -35,7 +35,7 @@ class Init extends Command
 
             // the full command description shown when running the command with
             // the "--help" option
-            ->setHelp('');
+            ->setHelp('Initializes a data directory for the wallet. The directory must not exist when calling this command.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
@@ -43,7 +43,6 @@ class Init extends Command
         $fTestnet = $input->getOption('testnet');
         $fRegtest = $input->getOption('regtest');
         $path = $this->loadDataDir($input);
-
         $math = new Math();
         if ($fTestnet && $fRegtest) {
             throw new \RuntimeException("Cannot set both regtest and testnet flags");
@@ -57,6 +56,14 @@ class Init extends Command
 
         $networkInfo = new NetworkInfo();
         $params = $networkInfo->getParams($networkName, $math);
+
+
+        if (\file_exists($path)) {
+            throw new \RuntimeException("datadir exists, delete and try again: $path");
+        }
+        if (!\mkdir($path)) {
+            throw new \RuntimeException("unable to create datadir: $path");
+        }
 
         $initializer = new Initializer();
         $initializer->setupConfig($path, $networkName);

@@ -23,6 +23,7 @@ use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\DB\DbWallet;
+use BitWasp\Wallet\DB\DbWalletTx;
 use BitWasp\Wallet\NetworkInfo;
 use BitWasp\Wallet\Wallet\Factory;
 use BitWasp\Wallet\Wallet\HdWallet;
@@ -32,11 +33,12 @@ class WalletTest extends DbTestCase
 {
     protected $regtest = true;
 
-    private function insertTx(\PDO $pdo, DbWallet $dbWallet, string $txid, int $valueChange)
+    private function insertTx(\PDO $pdo, DbWallet $dbWallet, string $txid, int $valueChange, int $status, string $blockHash, int $blockHeight): bool
     {
-        $stmt = $pdo->prepare("INSERT INTO tx (walletId, txid, valueChange) VALUES (?, ?, ?)");
-        $stmt->execute([
+        $stmt = $pdo->prepare("INSERT INTO tx (walletId, txid, valueChange, status, confirmedHash, confirmedHeight) VALUES (?, ?, ?, ?, ?, ?)");
+        return $stmt->execute([
             $dbWallet->getId(), $txid, $valueChange,
+            $status, $blockHash, $blockHeight,
         ]);
     }
 
@@ -54,7 +56,15 @@ class WalletTest extends DbTestCase
         $this->assertEquals(0, $wallet->getConfirmedBalance());
 
         $oneBtc = 100000000;
-        $this->insertTx($pdo, $wallet->getDbWallet(), "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234", $oneBtc);
+        $this->assertTrue($this->insertTx(
+            $pdo,
+            $wallet->getDbWallet(),
+            "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+            $oneBtc,
+            DbWalletTx::STATUS_CONFIRMED,
+            "0000000090909090909090909090909090909090909090909090909090909090",
+            1
+        ));
 
         $wallet = $walletFactory->loadWallet("wallet-identifier");
         $this->assertEquals($oneBtc, $wallet->getConfirmedBalance());

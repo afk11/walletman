@@ -11,7 +11,6 @@ use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
-use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\BlockRef;
 
@@ -23,13 +22,10 @@ class DB implements DBInterface
     private $createKeyStmt;
     private $loadKeyByPathStmt;
     private $loadKeysByPathStmt;
-    private $loadScriptByKeyIdentifierStmt;
     private $loadScriptBySpkStmt;
     private $loadWalletIdsBySpkStmt;
     private $addHeaderStmt;
     private $setBlockReceivedStmt;
-    private $getHashesStmt;
-    private $getBestHeaderStmt;
     private $getHeaderStmt;
     private $getBlockHashStmt;
     private $createScriptStmt;
@@ -38,14 +34,13 @@ class DB implements DBInterface
     private $checkWalletExistsStmt;
     private $allWalletsStmt;
     private $getBip44WalletKey;
-    private $getBlockCountStmt;
-    private $getBestBlockRefStmt;
     private $getWalletUtxosStmt;
     private $createTxStmt;
     private $getConfirmedBalanceStmt;
     private $createUtxoStmt;
     private $findWalletsWithUtxoStmt;
     private $searchUnspentUtxoStmt;
+    private $getWalletScriptPubKeysStmt;
 
     public function __construct(string $dsn)
     {
@@ -77,7 +72,10 @@ class DB implements DBInterface
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `walletId`     INTEGER NOT NULL,
             `valueChange`  INTEGER NOT NULL,
-            `txid`         TEXT NOT NULL
+            `status`       INTEGER NOT NULL,
+            `txid`         TEXT NOT NULL,
+            `confirmedHash`    TEXT,
+            `confirmedHeight`  TEXT
         );")) {
             throw new \RuntimeException("failed to create tx table");
         }
@@ -170,38 +168,18 @@ class DB implements DBInterface
             `nonce`	INTEGER
         );");
     }
-
-    public function getBlockHash(int $height): ?BufferInterface
+    public function getGenesisHeader(): ?DbHeader
     {
         if (null === $this->getBlockHashStmt) {
-            $this->getBlockHashStmt = $this->pdo->prepare("SELECT hash from header where height = ?");
+            $this->getBlockHashStmt = $this->pdo->prepare("SELECT * from header where height = 0");
         }
-        if (!$this->getBlockHashStmt->execute([
-            $height
-        ])) {
+        if (!$this->getBlockHashStmt->execute()) {
             throw new \RuntimeException("getblockhash query failed");
         }
-        $hash = $this->getBlockHashStmt->fetch()['hash'];
-        if (null === $hash) {
-            return null;
+        if ($header = $this->getBlockHashStmt->fetchObject(DbHeader::class)) {
+            return $header;
         }
-        return Buffer::hex($hash);
-    }
-
-    public function getTailHashes(int $height): array
-    {
-        if (null === $this->getHashesStmt) {
-            $this->getHashesStmt = $this->pdo->prepare("SELECT hash from header where height < ? order by id ASC");
-        }
-        $this->getHashesStmt->execute([
-            $height
-        ]);
-        $hashes = $this->getHashesStmt->fetchAll(\PDO::FETCH_COLUMN);
-        $num = count($hashes);
-        for ($i = 0; $i < $num; $i++) {
-            $hashes[$i] = pack("H*", $hashes[$i]);
-        }
-        return $hashes;
+        return null;
     }
 
     public function getHeader(BufferInterface $hash): ?DbHeader
@@ -218,27 +196,9 @@ class DB implements DBInterface
         return null;
     }
 
-    public function getBestHeader(): DbHeader
-    {
-        if (null === $this->getBestHeaderStmt) {
-            $this->getBestHeaderStmt = $this->pdo->prepare("SELECT id, height, hash, version, prevBlock, merkleRoot, merkleRoot, time, nbits, nonce from header order by id desc limit 1");
-        }
-        $this->getBestHeaderStmt->execute();
-        return $this->getBestHeaderStmt->fetchObject(DbHeader::class);
-    }
-
-    public function getHeaderCount(): int
-    {
-        if (null === $this->getBlockCountStmt) {
-            $this->getBlockCountStmt = $this->pdo->prepare("SELECT count(*) as count from header");
-        }
-        $this->getBlockCountStmt->execute();
-        return (int) $this->getBlockCountStmt->fetch()['count'];
-    }
-
     public function markBirthdayHistoryValid(int $height)
     {
-        $stmt = $this->pdo->prepare("UPDATE header set status = 2 where status = 1 and height <= ?");
+        $stmt = $this->pdo->prepare("UPDATE header set status = 3 where status = 1 and height <= ?");
         $stmt->execute([
             $height,
         ]);
@@ -455,7 +415,7 @@ class DB implements DBInterface
         ])) {
             throw new \RuntimeException("Failed to query script");
         }
-        return $this->loadWalletIdsBySpkStmt->fetchAll(\PDO::FETCH_NUM);
+        return $this->loadWalletIdsBySpkStmt->fetchAll(\PDO::FETCH_COLUMN);
     }
 
     public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx)
@@ -523,7 +483,20 @@ class DB implements DBInterface
         }
         return null;
     }
-
+    public function getWalletScriptPubKeys(int $walletId): array
+    {
+        if (null === $this->getWalletScriptPubKeysStmt) {
+            $this->getWalletScriptPubKeysStmt = $this->pdo->prepare("SELECT scriptPubKey from script where walletId = ?");
+        }
+        if (!$this->getWalletScriptPubKeysStmt->execute([$walletId])) {
+            throw new \RuntimeException("Failed to query utxos");
+        }
+        $scriptPubKey = [];
+        while ($utxo = $this->getWalletUtxosStmt->fetchColumn(0)) {
+            $scriptPubKey[] = $utxo;
+        }
+        return $scriptPubKey;
+    }
     /**
      * @param int $walletId
      * @return DbUtxo[]
@@ -543,13 +516,14 @@ class DB implements DBInterface
         return $utxos;
     }
 
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange)
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool
     {
         if (null === $this->createTxStmt) {
-            $this->createTxStmt = $this->pdo->prepare("INSERT INTO tx (walletId, txid, valueChange) values (?, ?, ?)");
+            $this->createTxStmt = $this->pdo->prepare("INSERT INTO tx (walletId, txid, valueChange, status, confirmedHash, confirmedHeight) values (?, ?, ?, ?, ?, ?)");
         }
-        $this->createTxStmt->execute([
-            $walletId, $txid->getHex(), $valueChange
+        return $this->createTxStmt->execute([
+            $walletId, $txid->getHex(), $valueChange,
+            $status, $blockHashHex, $blockHeight,
         ]);
     }
 

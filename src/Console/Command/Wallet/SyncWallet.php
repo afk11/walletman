@@ -41,6 +41,8 @@ class SyncWallet extends Command
 
             ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
 
+            ->addOption('debug-blockwindow', null, InputOption::VALUE_REQUIRED, "Number of blocks to wait before printing debug info", '64')
+
             // sync options
             ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
             ->addOption('debug-db', null, InputOption::VALUE_NONE, "Debug the database usage by printing function calls")
@@ -52,6 +54,18 @@ class SyncWallet extends Command
             ->setHelp('This command starts the wallet. Some configuration parameters can be provided as options, overriding default or configuration file values');
     }
 
+    protected function parseBlockWindow(InputInterface $input): int
+    {
+        $indexValue = $input->getOption("debug-blockwindow");
+        if (!\is_string($indexValue)) {
+            throw new \RuntimeException("Invalid value provided for debug-blockwindow");
+        }
+        if ($indexValue != (string)(int)$indexValue) {
+            throw new \RuntimeException("invalid value for debug-blockwindow");
+        }
+        return (int) $indexValue;
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $fSyncMempool = (bool) $input->getOption('mempool');
@@ -59,6 +73,7 @@ class SyncWallet extends Command
         $fDebugDb = $input->getOption('debug-db');
         $fDebugPerBlock = $input->getOption('debug-perblock');
         $fBlockStatsToFile = $input->getOption('blockstats');
+        $fBlockWindow = $this->parseBlockWindow($input);
         $ip = $this->getStringOption($input, 'ip');
 
         $ecAdapter = Bitcoin::getEcAdapter();
@@ -97,11 +112,17 @@ class SyncWallet extends Command
         if ($fDebugPerBlock) {
             $daemon->setPerBlockDebug(true);
         }
+        if ($fBlockWindow) {
+            $daemon->setBlockStatsWindow($fBlockWindow);
+        }
         if ($fBlockStatsToFile) {
             $daemon->produceBlockStatsCsv(__DIR__ . "/../../../../blockstats");
         }
         $daemon->init($hdSerializer);
-        $daemon->sync($loop);
+        $daemon->sync($loop)
+            ->then(null, function (\Exception $e) {
+                echo "error received all the way back here\n";
+            });
         $loop->run();
     }
 }

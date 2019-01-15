@@ -30,6 +30,11 @@ class Chain
     private $bestHeaderIndex;
 
     /**
+     * @var DbHeader
+     */
+    private $bestBlockIndex;
+
+    /**
      * Initialized in init
      * @var int
      */
@@ -60,15 +65,14 @@ class Chain
     public function init(DBInterface $db, ParamsInterface $params)
     {
         $genesisHeader = $params->getGenesisBlockHeader();
-        $genesisHash = $db->getBlockHash(0);
-        if ($genesisHash instanceof BufferInterface) {
-            if (!$genesisHeader->getHash()->equals($genesisHash)) {
+        $genesisIdx = $db->getGenesisHeader();
+        if ($genesisIdx instanceof DbHeader) {
+            if (!$genesisHeader->getHash()->equals($genesisIdx->getHash())) {
                 throw new \RuntimeException("Database has different genesis hash!");
             }
         } else {
-            $genesisHash = $genesisHeader->getHash();
             $work = $this->proofOfWork->getWork($genesisHeader->getBits());
-            $db->addHeader(0, $work, $genesisHash, $genesisHeader, DbHeader::HEADER_VALID | DbHeader::BLOCK_VALID);
+            $db->addHeader(0, $work, $genesisHeader->getHash(), $genesisHeader, DbHeader::HEADER_VALID | DbHeader::BLOCK_VALID);
         }
 
         // step 1: load (or iterate over) ALL height/hash/headers
@@ -80,7 +84,6 @@ class Chain
         // tmpPrev allows us to build up heightMapToHash, ie, bestChain
         // by linking hash => hashPrev. it contains links from all chains
         // genesis hash points to \x00 * 32. with status, we can determine lastBlock
-        $tmpPrev = [];
         $candidates = [];
         while ($row = $stmt->fetchObject(DbHeader::class)) {
             /** @var DbHeader $row */
@@ -91,26 +94,23 @@ class Chain
 
             // every header is added to hashMapToHeight
             $this->hashMapToHeight[$hashKey] = $height;
-            $tmpPrev[$hashKey] = [$header->getPrevBlock()->getBinary(), $row->getStatus()];
 
             if ($height === 0) {
-                $candidate = new ChainCandidate();
-                $candidate->dbHeader = $row;
-                $candidate->bestBlockHeight = 0;
-                $candidates[$hashKey] = $candidate;
+                $candidates[$hashKey] = $row;
             } else if (($row->getStatus() & DbHeader::HEADER_VALID) != 0) {
                 $prevKey = $header->getPrevBlock()->getBinary();
-                $candidate = new ChainCandidate();
-                $candidate->dbHeader = $row;
                 if (array_key_exists($prevKey, $candidates)) {
-                    /** @var ChainCandidate $prevTip */
+                    /** @var DbHeader $prevTip */
                     $prevTip = $candidates[$prevKey];
-                    if (($row->getStatus() & DbHeader::BLOCK_VALID) != 0) {
-                        $candidate->bestBlockHeight = $row->getHeight();
-                    } else {
-                        $candidate->bestBlockHeight = $prevTip->bestBlockHeight;
+                    if (($prevTip->getStatus() & DbHeader::BLOCK_VALID) == 0) {
+                        // prevTip doesn't have block, so there's no reason to
+                        // keep it now since $row replaces it
+                        unset($candidates[$prevKey]);
+                    } else if (($row->getStatus() & DbHeader::BLOCK_VALID) != 0) {
+                        // prevTip does have a block, row has a block. delete.
+                        unset($candidates[$prevKey]);
                     }
-                    unset($candidates[$prevKey]);
+                    // only leave prevTip if it's BLOCK_VALID but row isn't
                 } else {
                     // prev is not already a tip.
                     $prev = $db->getHeader($header->getPrevBlock());
@@ -118,35 +118,51 @@ class Chain
                         throw new \RuntimeException("FATAL: could not find prev block");
                     }
                     // reduce bestBlockHeight until that index is BLOCK_VALID
-                    $candidate->bestBlockHeight = $row->getHeight();
-                    for ($blkHash = $row->getHash()->getBinary();
-                         ($tmpPrev[$blkHash][1] & DbHeader::BLOCK_VALID) === 0;
-                         $blkHash = $tmpPrev[$blkHash][0]) {
-                        $candidate->bestBlockHeight--;
+                    $bestBlock = $row;
+                    while (($bestBlock->getStatus() & DbHeader::BLOCK_VALID) === 0) {
+                        $bestBlock = $db->getHeader($bestBlock->getHeader()->getPrevBlock());
+                        if (!$bestBlock) {
+                            throw new \RuntimeException("FATAL: could not find prev block");
+                        }
+                    }
+
+                    // don't already have an entry for the best block, add it
+                    if (!array_key_exists($bestBlock->getHash()->getBinary(), $candidates)) {
+                        $candidates[$bestBlock->getHash()->getBinary()] = $bestBlock;
                     }
                 }
-                $candidates[$hashKey] = $candidate;
+                $candidates[$hashKey] = $row;
             }
         }
 
-        // Sort for greatest work candidate
-        usort($candidates, function (ChainCandidate $a, ChainCandidate $b): int {
-            return gmp_cmp($a->dbHeader->getWork(), $b->dbHeader->getWork());
-        });
-
-        $best = $candidates[count($candidates) - 1];
-        $bestKey = $best->dbHeader->getHash()->getBinary();
-        $height = $best->dbHeader->getHeight();
-
-        // build up our view of the best chain
-        while (array_key_exists($bestKey, $tmpPrev)) {
-            $this->heightMapToHash[$height] = $bestKey;
-            $bestKey = $tmpPrev[$bestKey][0];
-            $height--;
+        $headerTips = [];
+        $blockTips = [];
+        foreach ($candidates as $hash => $headerIndex) {
+            if (($headerIndex->getStatus() & DbHeader::BLOCK_VALID)) {
+                $blockTips[] = $headerIndex;
+            }
+            $headerTips[] = $headerIndex;
         }
 
-        $this->bestHeaderIndex = $best->dbHeader;
-        $this->bestBlockHeight = $best->bestBlockHeight;
+        $sort = function (DbHeader $a, DbHeader $b): int {
+            return gmp_cmp($a->getWork(), $b->getWork());
+        };
+
+        // Sort for greatest work candidate
+        usort($headerTips, $sort);
+        usort($blockTips, $sort);
+
+        $bestHeader = $headerTips[count($headerTips) - 1];
+        $bestBlock = $blockTips[count($blockTips) - 1];
+
+        $this->bestHeaderIndex = $bestHeader;
+        $this->bestBlockIndex = $bestBlock;
+
+        // build up our view of the best chain
+        while ($bestHeader !== null && $bestHeader->getHeight() >= 0) {
+            $this->heightMapToHash[$bestHeader->getHeight()] = $bestHeader->getHash()->getBinary();
+            $bestHeader = $db->getHeader($bestHeader->getHeader()->getPrevBlock());
+        }
     }
 
     public function setStartBlock(BlockRef $blockRef)
@@ -155,9 +171,14 @@ class Chain
         $this->bestBlockHeight = $blockRef->getHeight();
     }
 
+    public function getBestBlock(): DbHeader
+    {
+        return $this->bestBlockIndex;
+    }
+
     public function getBestBlockHeight(): int
     {
-        return $this->bestBlockHeight;
+        return $this->getBestBlock()->getHeight();
     }
 
     public function getBestHeader(): DbHeader
@@ -165,7 +186,13 @@ class Chain
         return $this->bestHeaderIndex;
     }
 
-    public function getBlockHash(int $headerHeight)
+    /**
+     * Returns the header chain block hash at the $headerHeight
+     * @param int $headerHeight
+     * @return BufferInterface
+     * @throws \Exception
+     */
+    public function getBlockHash(int $headerHeight): BufferInterface
     {
         if (!array_key_exists($headerHeight, $this->heightMapToHash)) {
             throw new \RuntimeException("No chain header with height {$headerHeight}");
@@ -201,15 +228,15 @@ class Chain
             }
         }
 
-        $work = gmp_add(gmp_init($prevIndex->getWork(), 10), $this->proofOfWork->getWork($header->getBits()));
-        $chainWork = $this->getBestHeader()->getWork();
+        $work = gmp_add($prevIndex->getWork(), $this->proofOfWork->getWork($header->getBits()));
+        $prevTip = $this->getBestHeader();
 
         $headerIndex = $this->acceptHeaderToIndex($db, $height, $work, $hash, $header);
 
-        if (gmp_cmp($work, $chainWork) > 0) {
+        if (gmp_cmp($work, $prevTip->getWork()) > 0) {
             $candidateHashes = [$headerIndex->getHeight() => $headerIndex->getHash()->getBinary()];
-            // Unwind until lastCommonHeight and lastCommonHash are determined.
 
+            // Unwind until lastCommonHeight and lastCommonHash are determined.
             $lastCommonHash = $header->getPrevBlock();
             $lastCommonHeight = $headerIndex->getHeight() - 1;
             while ($lastCommonHeight != 0 && $this->heightMapToHash[$lastCommonHeight] !== $lastCommonHash->getBinary()) {
@@ -224,17 +251,21 @@ class Chain
                 $lastCommonHash = $p->getHeader()->getPrevBlock();
                 $lastCommonHeight--;
             }
-            // Delete [lastCommonHeight+1, currentTipHeight]
+
+            // Delete [lastCommonHeight+1, currentTipHeight] from the header chain
             for ($i = $lastCommonHeight + 1; $i <= $this->getBestHeader()->getHeight(); $i++) {
                 unset($this->heightMapToHash[$i]);
             }
-            // Insert [lastCommonHeight+1, candidateTipHeight]
+
+            // Insert [lastCommonHeight+1, candidateTipHeight] to the header chain
             for ($i = $lastCommonHeight + 1; $i <= $headerIndex->getHeight(); $i++) {
                 $this->heightMapToHash[$i] = $candidateHashes[$i];
             }
+
+            // Updates bestHeaderIndex
             $this->bestHeaderIndex = $headerIndex;
-            // reality is we shouldn't have to update this unless
-            // it was between lastCommonHeight and our old tip.
+
+            // todo: this will need to be checked, maybe chain init unexpected new candidate code
             if ($this->bestBlockHeight > $lastCommonHeight) {
                 $this->bestBlockHeight = $lastCommonHeight;
             }
@@ -243,29 +274,32 @@ class Chain
         return true;
     }
 
-    public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block): bool
+    public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block, DbHeader &$headerIndex = null): bool
     {
         $header = $block->getHeader();
-        $prevIdx = $db->getHeader($header->getPrevBlock());
-        if (!$prevIdx) {
-            // no prev block, rabble
-            return false;
-        }
 
-        if (!$this->acceptHeader($db, $hash, $header, $headerIdx)) {
+        if (!$this->acceptHeader($db, $hash, $header, $headerIndex)) {
             // who knows what that was
             return false;
         }
 
+        $prevIdx = $db->getHeader($header->getPrevBlock());
+        if ($prevIdx) {
+            if (($prevIdx->getStatus() & DbHeader::BLOCK_VALID) == 0) {
+                echo "prev known. block not valid. return false\n";
+                return false;
+            }
+        }
+
         /** @var DbHeader $headerIdx */
-        if ($headerIdx->getStatus() == DbHeader::BLOCK_VALID) {
+        if ($headerIndex->getStatus() == DbHeader::BLOCK_VALID) {
             return true;
         }
 
         $db->setBlockReceived($hash);
 
-        if ($this->heightMapToHash[$headerIdx->getHeight()] == $hash->getBinary()) {
-            $this->bestBlockHeight = $headerIdx->getHeight();
+        if (gmp_cmp($headerIndex->getWork(), $this->bestBlockIndex->getWork()) > 0) {
+            $this->bestBlockIndex = $headerIndex;
         }
 
         return true;
@@ -274,14 +308,10 @@ class Chain
     private function acceptHeaderToIndex(DBInterface $db, int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header): DbHeader
     {
         $db->addHeader($height, $work, $hash, $header, DbHeader::HEADER_VALID);
-        /** @var DbHeader $headerIndex */
-
-        $headerIndex = $db->getHeader($hash);
-
         $this->hashMapToHeight[$hash->getBinary()] = $height;
-        if (gmp_cmp($work, $this->bestHeaderIndex->getWork()) > 0) {
-            $this->bestHeaderIndex = $headerIndex;
-        }
+
+        /** @var DbHeader $headerIndex */
+        $headerIndex = $db->getHeader($hash);
 
         return $headerIndex;
     }

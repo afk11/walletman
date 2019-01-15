@@ -70,7 +70,7 @@ class Create extends Command
             // settings for bip39 seed generation
             ->addOption('bip39-en', null, InputOption::VALUE_NONE, "Use the english wordlist for BIP39 (default)")
             ->addOption('bip39-jp', null, InputOption::VALUE_NONE, "Use the japanese wordlist for BIP39")
-            ->addOption('bip39-custommnemonic', 'm', InputOption::VALUE_NONE, "Prompt for a user-provided BIP39 mnemonic")
+            ->addOption('bip39-recovery', 'm', InputOption::VALUE_NONE, "Prompt for a BIP39 seed and recover this wallet")
             ->addOption('bip39-passphrase', 'p', InputOption::VALUE_NONE, "Prompt for a BIP39 passphrase")
 
             // settings for bip32 derived wallets
@@ -97,7 +97,7 @@ class Create extends Command
     private function getBip39Mnemonic(InputInterface $input, OutputInterface $output, Bip39WordListInterface $wordList): string
     {
         $bip39 = MnemonicFactory::bip39($wordList);
-        if ($input->getOption('bip39-custommnemonic')) {
+        if ($input->getOption('bip39-recovery')) {
             return $this->promptForMnemonic($bip39, $input, $output);
         }
 
@@ -143,7 +143,7 @@ class Create extends Command
     private function parseHardenedBip32Index(InputInterface $input, string $optionName): int
     {
         $indexValue = $input->getOption($optionName);
-        if (!is_string($indexValue)) {
+        if (!\is_string($indexValue)) {
             throw new \RuntimeException("Invalid value provided for {$optionName}");
         }
         if ($indexValue != (string)(int)$indexValue) {
@@ -159,20 +159,20 @@ class Create extends Command
     private function parseBirthday(InputInterface $input): ?BlockRef
     {
         $birthdayValue = $input->getOption('birthday');
-        if (!is_string($birthdayValue)) {
+        if (!\is_string($birthdayValue)) {
             return null;
         }
 
-        if (substr_count($birthdayValue, ",") !== 1) {
+        if (\substr_count($birthdayValue, ",") !== 1) {
             throw new \RuntimeException("Invalid birthday, should be [height],[hash]");
         }
 
-        list ($height, $hash) = explode(",", $birthdayValue);
+        list ($height, $hash) = \explode(",", $birthdayValue);
         if ($height !== (string)(int)$height) {
             throw new \RuntimeException("Invalid height");
         }
 
-        if (!is_string($hash) || strlen($hash) !== 64) {
+        if (!\is_string($hash) || \strlen($hash) !== 64) {
             throw new \RuntimeException("Invalid hash for birthday");
         }
 

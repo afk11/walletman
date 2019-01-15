@@ -34,15 +34,9 @@ interface DBInterface
 
     public function createHeaderTable();
 
-    public function getBlockHash(int $height): ?BufferInterface;
-
-    public function getTailHashes(int $height): array;
-
     public function getHeader(BufferInterface $hash): ?DbHeader;
 
-    public function getBestHeader(): DbHeader;
-
-    public function getHeaderCount(): int;
+    public function getGenesisHeader(): ?DbHeader;
 
     public function markBirthdayHistoryValid(int $height);
 
@@ -80,6 +74,10 @@ interface DBInterface
 
     public function loadScriptByScriptPubKey(int $walletId, ScriptInterface $script): ?DbScript;
 
+    /**
+     * @param ScriptInterface $script
+     * @return int[]
+     */
     public function loadWalletIDsByScriptPubKey(ScriptInterface $script): array;
 
     public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx);
@@ -100,7 +98,13 @@ interface DBInterface
      */
     public function getUnspentWalletUtxos(int $walletId): array;
 
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange);
+    /**
+     * @param int $walletId
+     * @return string[]
+     */
+    public function getWalletScriptPubKeys(int $walletId): array;
+
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool;
 
     public function getConfirmedBalance(int $walletId): int;
 

@@ -36,29 +36,35 @@ class DBDecorator implements DBInterface
         call_user_func($this->writer, $input);
     }
 
+    private function format($arg)
+    {
+        if ($arg instanceof \GMP) {
+            return var_export(gmp_strval($arg, 10), true);
+        } else if ($arg instanceof BufferInterface) {
+            return var_export($arg->getHex(), true);
+        } else if ($arg instanceof ScriptInterface) {
+            return var_export($arg->getHex(), true);
+        }
+        return var_export($arg, true);
+    }
+
     private function call(string $func, array $args)
     {
-        $formatValue = function ($arg) {
-            if ($arg instanceof \GMP) {
-                return var_export(gmp_strval($arg, 10), true);
-            } else if ($arg instanceof BufferInterface) {
-                return var_export($arg->getHex(), true);
-            } else if ($arg instanceof ScriptInterface) {
-                return var_export($arg->getHex(), true);
-            }
-            return var_export($arg, true);
-        };
-
-        $strArgs = array_map(
-            $formatValue,
-            $args
-        );
+        $strArgs = [];
+        foreach ($args as $arg) {
+            $strArgs[] = $this->format($arg);
+        }
         if (strpos($func, '::')) {
             list(, $func) = explode('::', $func);
         }
         $this->write($func.'('.implode(', ', $strArgs).')');
-        $res = call_user_func_array([$this->db, $func], $args);
-        $this->write(' => ' . $formatValue($res) . PHP_EOL);
+        $callable = [$this->db, $func];
+        if (!is_callable($callable)) {
+            throw new \RuntimeException("wut");
+        }
+
+        $res = call_user_func_array($callable, $args);
+        $this->write(' => ' . $this->format($res) . PHP_EOL);
         return $res;
     }
 
@@ -97,16 +103,6 @@ class DBDecorator implements DBInterface
         $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function getBlockHash(int $height): ?BufferInterface
-    {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
-
-    public function getTailHashes(int $height): array
-    {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
-
     public function getHeader(BufferInterface $hash): ?DbHeader
     {
         return $this->call(__FUNCTION__, func_get_args());
@@ -117,7 +113,7 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function getHeaderCount(): int
+    public function getGenesisHeader(): ?DbHeader
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
@@ -237,12 +233,16 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange)
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
 
     public function getConfirmedBalance(int $walletId): int
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+    public function getWalletScriptPubKeys(int $walletId): array
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
