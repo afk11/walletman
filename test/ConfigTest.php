@@ -15,6 +15,12 @@ class ConfigTest extends TestCase
         $this->assertEquals(NetworkName::BITCOIN, $config->getNetwork());
     }
 
+    public function testGetDaemon()
+    {
+        $config = new Config(NetworkName::BITCOIN);
+        $this->assertTrue($config->get());
+    }
+
     public function testDbPath()
     {
         $config = new Config(NetworkName::BITCOIN);

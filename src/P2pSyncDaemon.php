@@ -156,6 +156,7 @@ class P2pSyncDaemon
      * @var bool
      */
     private $initialized = false;
+    private $keepRunning = true;
 
     /**
      * This is set to null by resetBlockStats so the next
@@ -188,6 +189,11 @@ class P2pSyncDaemon
      * @var int
      */
     private $blockDeserializeNTx;
+
+    /**
+     * @var null|Peer
+     */
+    private $peer;
 
     /**
      * @var WalletInterface[]
@@ -283,8 +289,25 @@ class P2pSyncDaemon
         $this->logger->info("Initialized. Best block: {$this->chain->getBestBlock()->getHeight()}. Best header: {$this->chain->getBestHeader()->getHeight()}");
     }
 
+    public function close(LoopInterface $loop)
+    {
+        $this->keepRunning = false;
+        echo "requested: " . count($this->requested) . PHP_EOL;
+        echo "toDownload: " . count($this->toDownload) . PHP_EOL;
+
+        $loop->addTimer(5, function () use ($loop) {
+            echo "TIMER\n";
+            echo "requested: " . count($this->requested) . PHP_EOL;
+            print_r(array_map('bin2hex', array_keys($this->requested)));
+            echo "toDownload: " . count($this->toDownload) . PHP_EOL;
+            print_r($this->toDownload);
+            $loop->stop();
+            echo "Killed by stop timer\n";
+        });
+    }
     public function sync(LoopInterface $loop)
     {
+        $this->loop = $loop;
         if (!$this->initialized) {
             throw new \LogicException("Cannot sync, not initialized");
         }
@@ -311,13 +334,11 @@ class P2pSyncDaemon
             ->getConnector($connParams)
             ->connect($netFactory->getAddress(new Ipv4($this->host), $this->port))
             ->then(function (Peer $peer) use ($loop) {
+                $this->peer = $peer;
                 $timeLastPing = null;
                 $pingLastNonce = null;
 
-                $peer->on('close', function (Peer $peer) {
-                    throw new \RuntimeException("peer closed connection");
-                });
-                $loop->addPeriodicTimer(60, function () use ($peer, &$timeLastPing, &$pingLastNonce) {
+                $pingTimer = $loop->addPeriodicTimer(60, function () use ($peer, &$timeLastPing, &$pingLastNonce) {
                     if ($timeLastPing === null) {
                         $ping = Ping::generate($this->random);
                         $timeLastPing = time();
@@ -329,6 +350,20 @@ class P2pSyncDaemon
                             throw new \RuntimeException("ping timeout");
                         }
                     }
+                });
+                $weRequestedShutdown = false;
+                $peer->on('intentionaldisconnect', function () use (&$weRequestedShutdown) {
+                    echo "we requested shutdown\n";
+                    $weRequestedShutdown = true;
+                });
+
+                $peer->on('close', function () use (&$weRequestedShutdown, $loop, $pingTimer) {
+                    $loop->cancelTimer($pingTimer);
+                    if ($weRequestedShutdown) {
+                        echo "done in close\n";
+                        return;
+                    }
+                    throw new \RuntimeException("peer closed connection");
                 });
                 $peer->on(Message::PONG, function (Peer $peer, Pong $pong) use (&$timeLastPing, &$pingLastNonce) {
                     if (!$pingLastNonce) {
@@ -509,6 +544,8 @@ class P2pSyncDaemon
 
                 $peer->getheaders(new BlockLocator([$bestHeader->getHash()], new Buffer('', 32)));
                 $peer->sendheaders();
+
+                return $peer;
             }, function (\Exception $e) {
                 throw $e;
             });
@@ -522,6 +559,10 @@ class P2pSyncDaemon
      */
     public function requestBlocks(Peer $peer)
     {
+        if (!$this->keepRunning) {
+            return;
+        }
+
         if (null === $this->blockStatsCount) {
             $this->blockProcessTime = 0;
             $this->blockDeserializeTime = 0;
@@ -536,9 +577,14 @@ class P2pSyncDaemon
         // if we later use multiple peers, ensure we don't download blocks > than peer.bestKnownHeight
         $heightBestHeader = $this->chain->getBestHeader()->getHeight();
         $toDownload = [];
+        echo "begin downloading\n";
+        echo " - num requested: " . count($this->requested) . PHP_EOL;
+        echo " - download start height: $downloadStartHeight\n";
+        echo " - height of best header: $heightBestHeader\n";
 
         while (count($this->requested) < $this->batchSize && $downloadStartHeight + count($this->requested) <= $heightBestHeader) {
             $height = $downloadStartHeight + count($this->requested);
+            echo "request $height\n";
             $hash = $this->chain->getBlockHash($height);
             if ($this->segwit) {
                 $toDownload[] = Inventory::witnessBlock($hash);
@@ -548,6 +594,8 @@ class P2pSyncDaemon
 
             $this->requested[$hash->getBinary()] = 1;
         }
+        echo "completed request\n";
+        echo " - num requested " . count($this->requested) . "\n";
 
         $this->toDownload = array_merge($this->toDownload, $toDownload);
 
@@ -558,6 +606,7 @@ class P2pSyncDaemon
             if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
                 $peer->getdata($this->toDownload);
                 $this->toDownload = [];
+                die();
             }
         }
     }

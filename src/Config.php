@@ -11,9 +11,15 @@ class Config
      */
     private $network;
 
-    public function __construct(string $network)
+    /**
+     * @var bool
+     */
+    private $daemon;
+
+    public function __construct(string $network, bool $daemon = false)
     {
         $this->network = $network;
+        $this->daemon = $daemon;
     }
 
     public static function fromDataDir(string $dataDir): Config
@@ -40,12 +46,18 @@ class Config
         if (!array_key_exists('network', $config)) {
             throw new \InvalidArgumentException("Config array missing network");
         }
-        return new self($config['network']);
+        $daemon = array_key_exists('daemon', $config) ? $config['daemon'] : false;
+        return new self($config['network'], $daemon);
     }
 
     public function getNetwork(): string
     {
         return $this->network;
+    }
+
+    public function isDaemon(): bool
+    {
+        return $this->daemon;
     }
 
     public function getDbPath(string $dataDir): string
@@ -54,5 +66,13 @@ class Config
             $dataDir = substr($dataDir, 0, -1);
         }
         return "{$dataDir}/db.sqlite3";
+    }
+
+    public function getLogPath(string $dataDir): string
+    {
+        if (substr($dataDir, -1) == "/") {
+            $dataDir = substr($dataDir, 0, -1);
+        }
+        return "{$dataDir}/debug.log";
     }
 }

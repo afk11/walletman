@@ -22,6 +22,7 @@ use BitWasp\Wallet\DbManager;
 use BitWasp\Wallet\NetworkInfo;
 use BitWasp\Wallet\P2pSyncDaemon;
 use Monolog\Logger;
+use React\EventLoop\StreamSelectLoop;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -45,6 +46,7 @@ class SyncWallet extends Command
             ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
 
             // debug options
+            ->addOption('daemon', null, InputOption::VALUE_NONE, "Start the node in daemon mode")
             ->addOption('debug-db', null, InputOption::VALUE_NONE, "Debug the database usage by printing function calls")
             ->addOption('debug-perblock', null, InputOption::VALUE_NONE, "Debug time taken for all stages while processing all blocks")
             ->addOption('debug-blockwindow', null, InputOption::VALUE_REQUIRED, "Number of blocks to wait before printing debug info", '64')
@@ -71,6 +73,7 @@ class SyncWallet extends Command
         $fSyncMempool = (bool) $input->getOption('mempool');
         $dataDir = $this->loadDataDir($input);
         $fDebugDb = $input->getOption('debug-db');
+        $fDaemon = $input->getOption('daemon');
         $fDebugPerBlock = $input->getOption('debug-perblock');
         $fBlockStatsToFile = $input->getOption('blockstats');
         $fBlockWindow = $this->parseBlockWindow($input);
@@ -78,7 +81,7 @@ class SyncWallet extends Command
 
         $ecAdapter = Bitcoin::getEcAdapter();
         $random = new Random();
-        $loop = \React\EventLoop\Factory::create();
+        $loop = new StreamSelectLoop();
 
         $dbMgr = new DbManager();
         $config = Config::fromDataDir($dataDir);
@@ -102,8 +105,17 @@ class SyncWallet extends Command
             ])
         ])));
 
+        $logPath = $config->getLogPath($dataDir);
+        $logHandle = fopen($logPath, "a");
+        if (!$logHandle) {
+            throw new \RuntimeException("Failed to open log file");
+        }
+
         $logger = new Logger('walletman');
-        $logger->pushHandler(new \Monolog\Handler\ErrorLogHandler());
+        $logger->pushHandler(new \Monolog\Handler\StreamHandler($logHandle, Logger::DEBUG));
+        if (!$fDaemon) {
+            $logger->pushHandler(new \Monolog\Handler\ErrorLogHandler());
+        }
 
         $pow = new ProofOfWork(new Math(), $params);
         $chain = new Chain($pow);
@@ -126,6 +138,43 @@ class SyncWallet extends Command
                 echo $e->getMessage().PHP_EOL;
                 echo $e->getTraceAsString().PHP_EOL;
             });
+
+//        $server = new \React\Socket\UnixServer('/tmp/server.sock', $loop);
+//        $server->on('connection', function (\React\Socket\ConnectionInterface $connection) use ($daemon, $server, $loop) {
+//            $connection->on('data', function ($data) use ($daemon, $server, $connection, $loop) {
+//                switch (trim($data)) {
+//                    case "close":
+//                        $connection->write('OK' . PHP_EOL);
+//                        $connection->close();
+//                        $server->close();
+//                        $daemon->close();
+//                        $loop->stop();
+//                        break;
+//                    default:
+//                        $connection->write('NOPE' . PHP_EOL);
+//                        break;
+//                }
+//            });
+//        });
+
+        $loop->addSignal(SIGINT, function () use ($daemon, $loop) {
+            echo "got SIGINT\n";
+            $daemon->close($loop);
+            //$loop->stop();
+        });
+
+        if ($fDaemon || $config->isDaemon()) {
+            $child_pid = pcntl_fork();
+            if ($child_pid) {
+                // Exit from the parent process that is bound to the console
+                exit();
+            }
+            // Make the child as the main process.
+            posix_setsid();
+        }
         $loop->run();
+
+        fclose($logHandle);
+        //unlink("/tmp/server.sock");
     }
 }
