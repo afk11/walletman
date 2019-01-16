@@ -17,8 +17,12 @@ class ConfigTest extends TestCase
 
     public function testGetDaemon()
     {
+        $config = new Config(NetworkName::BITCOIN, false);
+        $this->assertFalse($config->isDaemon());
+        $config = new Config(NetworkName::BITCOIN, true);
+        $this->assertTrue($config->isDaemon());
         $config = new Config(NetworkName::BITCOIN);
-        $this->assertTrue($config->get());
+        $this->assertFalse($config->isDaemon());
     }
 
     public function testDbPath()

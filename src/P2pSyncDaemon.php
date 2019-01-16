@@ -35,6 +35,7 @@ use BitWasp\Wallet\Wallet\WalletInterface;
 use BitWasp\Wallet\Wallet\WalletType;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\LoopInterface;
+use React\EventLoop\TimerInterface;
 
 class P2pSyncDaemon
 {
@@ -291,23 +292,22 @@ class P2pSyncDaemon
 
     public function close(LoopInterface $loop)
     {
-        $this->keepRunning = false;
-        echo "requested: " . count($this->requested) . PHP_EOL;
-        echo "toDownload: " . count($this->toDownload) . PHP_EOL;
+        if ($this->keepRunning) {
+            $this->keepRunning = false;
+        }
 
-        $loop->addTimer(5, function () use ($loop) {
-            echo "TIMER\n";
-            echo "requested: " . count($this->requested) . PHP_EOL;
-            print_r(array_map('bin2hex', array_keys($this->requested)));
-            echo "toDownload: " . count($this->toDownload) . PHP_EOL;
-            print_r($this->toDownload);
-            $loop->stop();
-            echo "Killed by stop timer\n";
+        $loop->addPeriodicTimer(1, function (TimerInterface $timer) use ($loop) {
+            if (count($this->requested) === 0) {
+                if ($this->peer !== null) {
+                    $this->peer->intentionalClose();
+                }
+                $loop->cancelTimer($timer);
+            }
         });
     }
+
     public function sync(LoopInterface $loop)
     {
-        $this->loop = $loop;
         if (!$this->initialized) {
             throw new \LogicException("Cannot sync, not initialized");
         }
@@ -338,7 +338,7 @@ class P2pSyncDaemon
                 $timeLastPing = null;
                 $pingLastNonce = null;
 
-                $pingTimer = $loop->addPeriodicTimer(60, function () use ($peer, &$timeLastPing, &$pingLastNonce) {
+                $pingTimer = $loop->addPeriodicTimer(1, function () use ($peer, &$timeLastPing, &$pingLastNonce) {
                     if ($timeLastPing === null) {
                         $ping = Ping::generate($this->random);
                         $timeLastPing = time();
@@ -353,14 +353,12 @@ class P2pSyncDaemon
                 });
                 $weRequestedShutdown = false;
                 $peer->on('intentionaldisconnect', function () use (&$weRequestedShutdown) {
-                    echo "we requested shutdown\n";
                     $weRequestedShutdown = true;
                 });
 
                 $peer->on('close', function () use (&$weRequestedShutdown, $loop, $pingTimer) {
                     $loop->cancelTimer($pingTimer);
                     if ($weRequestedShutdown) {
-                        echo "done in close\n";
                         return;
                     }
                     throw new \RuntimeException("peer closed connection");
@@ -576,37 +574,28 @@ class P2pSyncDaemon
         // this is our best header, which should match remote peer.
         // if we later use multiple peers, ensure we don't download blocks > than peer.bestKnownHeight
         $heightBestHeader = $this->chain->getBestHeader()->getHeight();
-        $toDownload = [];
-        echo "begin downloading\n";
-        echo " - num requested: " . count($this->requested) . PHP_EOL;
-        echo " - download start height: $downloadStartHeight\n";
-        echo " - height of best header: $heightBestHeader\n";
+        $numBlocksInFlight = count($this->requested);
 
-        while (count($this->requested) < $this->batchSize && $downloadStartHeight + count($this->requested) <= $heightBestHeader) {
-            $height = $downloadStartHeight + count($this->requested);
-            echo "request $height\n";
+        while ($numBlocksInFlight + count($this->toDownload) < $this->batchSize && $downloadStartHeight + $numBlocksInFlight + count($this->toDownload) <= $heightBestHeader) {
+            $height = $downloadStartHeight + count($this->requested) + count($this->toDownload);
             $hash = $this->chain->getBlockHash($height);
             if ($this->segwit) {
-                $toDownload[] = Inventory::witnessBlock($hash);
+                $this->toDownload[] = Inventory::witnessBlock($hash);
             } else {
-                $toDownload[] = Inventory::block($hash);
+                $this->toDownload[] = Inventory::block($hash);
             }
-
-            $this->requested[$hash->getBinary()] = 1;
         }
-        echo "completed request\n";
-        echo " - num requested " . count($this->requested) . "\n";
-
-        $this->toDownload = array_merge($this->toDownload, $toDownload);
 
         if (count($this->toDownload) > 0) {
             // if nearTip don't bother sending a batch request, submit immediately
             // otherwise, send when we have batch/2 or batch items
-            $nearTip = count($this->requested) < $this->batchSize;
+            $nearTip = count($this->requested) + count($this->toDownload) < $this->batchSize;
             if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
+                foreach ($this->toDownload as $inv) {
+                    $this->requested[$inv->getHash()->getBinary()] = 1;
+                }
                 $peer->getdata($this->toDownload);
                 $this->toDownload = [];
-                die();
             }
         }
     }

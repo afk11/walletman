@@ -90,10 +90,11 @@ class SyncWallet extends Command
             $db = new DBDecorator($db);
         }
 
+        $math = new Math();
         $networkInfo = new NetworkInfo();
         $net = $networkInfo->getNetwork($config->getNetwork());
         $port = $networkInfo->getP2pPort($config->getNetwork());
-        $params = $networkInfo->getParams($config->getNetwork(), new Math());
+        $params = $networkInfo->getParams($config->getNetwork(), $math);
         $registry = $networkInfo->getSlip132Registry($config->getNetwork());
 
         $slip132 = new Slip132(new KeyToScriptHelper($ecAdapter));
@@ -117,7 +118,7 @@ class SyncWallet extends Command
             $logger->pushHandler(new \Monolog\Handler\ErrorLogHandler());
         }
 
-        $pow = new ProofOfWork(new Math(), $params);
+        $pow = new ProofOfWork($math, $params);
         $chain = new Chain($pow);
         $daemon = new P2pSyncDaemon($logger, $ip, $port, $ecAdapter, $net, $params, $db, $random, $chain);
         $daemon->syncMempool($fSyncMempool);
@@ -131,6 +132,12 @@ class SyncWallet extends Command
             $daemon->produceBlockStatsCsv(__DIR__ . "/../../../../blockstats");
         }
         $daemon->init($hdSerializer);
+
+        $loop->addSignal(SIGINT, $closer = function () use ($daemon, $loop, &$closer) {
+            $daemon->close($loop);
+            $loop->removeSignal(SIGINT, $closer);
+        });
+
         $daemon->sync($loop)
             ->then(null, function (\Exception $e) use ($logger) {
                 $logger->error("Caught exception: {$e->getMessage()}\n");
@@ -138,30 +145,6 @@ class SyncWallet extends Command
                 echo $e->getMessage().PHP_EOL;
                 echo $e->getTraceAsString().PHP_EOL;
             });
-
-//        $server = new \React\Socket\UnixServer('/tmp/server.sock', $loop);
-//        $server->on('connection', function (\React\Socket\ConnectionInterface $connection) use ($daemon, $server, $loop) {
-//            $connection->on('data', function ($data) use ($daemon, $server, $connection, $loop) {
-//                switch (trim($data)) {
-//                    case "close":
-//                        $connection->write('OK' . PHP_EOL);
-//                        $connection->close();
-//                        $server->close();
-//                        $daemon->close();
-//                        $loop->stop();
-//                        break;
-//                    default:
-//                        $connection->write('NOPE' . PHP_EOL);
-//                        break;
-//                }
-//            });
-//        });
-
-        $loop->addSignal(SIGINT, function () use ($daemon, $loop) {
-            echo "got SIGINT\n";
-            $daemon->close($loop);
-            //$loop->stop();
-        });
 
         if ($fDaemon || $config->isDaemon()) {
             $child_pid = pcntl_fork();
@@ -173,8 +156,5 @@ class SyncWallet extends Command
             posix_setsid();
         }
         $loop->run();
-
-        fclose($logHandle);
-        //unlink("/tmp/server.sock");
     }
 }
