@@ -135,7 +135,7 @@ class P2pSyncDaemon
      * map [blockHash: 1]
      * @var int[]
      */
-    private $requested = [];
+    private $blocksInFlight = [];
 
     /**
      * @var Inventory[]
@@ -297,7 +297,7 @@ class P2pSyncDaemon
         }
 
         $loop->addPeriodicTimer(1, function (TimerInterface $timer) use ($loop) {
-            if (count($this->requested) === 0) {
+            if (count($this->blocksInFlight) === 0) {
                 if ($this->peer !== null) {
                     $this->peer->intentionalClose();
                 }
@@ -457,10 +457,10 @@ class P2pSyncDaemon
                     $this->blockDeserializeNTx += count($block->getTransactions());
 
                     $hash = $block->getHeader()->getHash();
-                    if (!array_key_exists($hash->getBinary(), $this->requested)) {
+                    if (!array_key_exists($hash->getBinary(), $this->blocksInFlight)) {
                         throw new \RuntimeException("missing block request {$hash->getHex()}");
                     }
-                    unset($this->requested[$hash->getBinary()]);
+                    unset($this->blocksInFlight[$hash->getBinary()]);
 
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();
@@ -574,10 +574,10 @@ class P2pSyncDaemon
         // this is our best header, which should match remote peer.
         // if we later use multiple peers, ensure we don't download blocks > than peer.bestKnownHeight
         $heightBestHeader = $this->chain->getBestHeader()->getHeight();
-        $numBlocksInFlight = count($this->requested);
+        $numBlocksInFlight = count($this->blocksInFlight);
 
         while ($numBlocksInFlight + count($this->toDownload) < $this->batchSize && $downloadStartHeight + $numBlocksInFlight + count($this->toDownload) <= $heightBestHeader) {
-            $height = $downloadStartHeight + count($this->requested) + count($this->toDownload);
+            $height = $downloadStartHeight + count($this->blocksInFlight) + count($this->toDownload);
             $hash = $this->chain->getBlockHash($height);
             if ($this->segwit) {
                 $this->toDownload[] = Inventory::witnessBlock($hash);
@@ -589,10 +589,10 @@ class P2pSyncDaemon
         if (count($this->toDownload) > 0) {
             // if nearTip don't bother sending a batch request, submit immediately
             // otherwise, send when we have batch/2 or batch items
-            $nearTip = count($this->requested) + count($this->toDownload) < $this->batchSize;
+            $nearTip = count($this->blocksInFlight) + count($this->toDownload) < $this->batchSize;
             if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
                 foreach ($this->toDownload as $inv) {
-                    $this->requested[$inv->getHash()->getBinary()] = 1;
+                    $this->blocksInFlight[$inv->getHash()->getBinary()] = 1;
                 }
                 $peer->getdata($this->toDownload);
                 $this->toDownload = [];
