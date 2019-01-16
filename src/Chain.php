@@ -15,14 +15,10 @@ use BitWasp\Wallet\DB\DBInterface;
 
 class Chain
 {
-    // Blocks
-
     /**
-     * @var BlockRef
+     * @var null|BlockRef
      */
-    private $startBlockRef;
-
-    // Headers
+    private $birthdayRef;
 
     /**
      * @var DbHeader
@@ -33,12 +29,6 @@ class Chain
      * @var DbHeader
      */
     private $bestBlockIndex;
-
-    /**
-     * Initialized in init
-     * @var int
-     */
-    private $bestBlockHeight;
 
     /**
      * allows for tracking more than one chain
@@ -165,10 +155,28 @@ class Chain
         }
     }
 
-    public function setStartBlock(BlockRef $blockRef)
+    public function setBirthdayBlock(BlockRef $lowestBirthdayBlock, DBInterface $db)
     {
-        $this->startBlockRef = $blockRef;
-        $this->bestBlockHeight = $blockRef->getHeight();
+        $this->birthdayRef = $lowestBirthdayBlock;
+
+        if ($lowestBirthdayBlock->getHeight() <= $this->getBestHeader()->getHeight()) {
+            // have header chain up to birthday block - check hash
+            $hashAtBirthday = new Buffer($this->heightMapToHash[$lowestBirthdayBlock->getHeight()]);
+            if (!$lowestBirthdayBlock->getHash()->equals($hashAtBirthday)) {
+                throw new \RuntimeException(sprintf(
+                    "Initialized chain has header at birthday height %d, and birthday hash %s != chain hash %s",
+                    $lowestBirthdayBlock->getHeight(),
+                    $lowestBirthdayBlock->getHash()->getHex(),
+                    $hashAtBirthday->getHex()
+                ));
+            }
+            /** @var DbHeader $birthdayHeader */
+            $birthdayHeader = $db->getHeader($hashAtBirthday);
+            // If birthday is beyond our bestBlockIndex, just jump to that.
+            if ($birthdayHeader->getHeight() >= $this->bestBlockIndex->getHeight()) {
+                $this->bestBlockIndex = $birthdayHeader;
+            }
+        }
     }
 
     public function getBestBlock(): DbHeader
@@ -220,18 +228,26 @@ class Chain
             return false;
         }
 
-        // PREVHASH in chain to find height somehow
-        $height = $prevIndex->getHeight() + 1;
-        if (null !== $this->startBlockRef && $this->startBlockRef->getHeight() === $height) {
-            if (!$hash->equals($this->startBlockRef->getHash())) {
-                throw new \RuntimeException("header {$hash->getHex()}) doesn't match start block {$this->startBlockRef->getHash()->getHex()}");
-            }
-        }
-
         $work = gmp_add($prevIndex->getWork(), $this->proofOfWork->getWork($header->getBits()));
         $prevTip = $this->getBestHeader();
-
+        $height = $prevIndex->getHeight() + 1;
         $headerIndex = $this->acceptHeaderToIndex($db, $height, $work, $hash, $header);
+
+        // If we are accepting a header at the birthday height, it's hash MUST
+        // match the configured value. This marks the previous block history as
+        // valid to 'jump start' block validation. No reorgs below this height
+        // are acceptable.
+        if ($this->birthdayRef instanceof BlockRef && $height === $this->birthdayRef->getHeight()) {
+            if (!$hash->equals($this->birthdayRef->getHash())) {
+                throw new \RuntimeException(sprintf(
+                    "Rejected header at birthday height %d, and birthday hash %s != header hash %s",
+                    $height,
+                    $this->birthdayRef->getHash()->getHex(),
+                    $hash->getHex()
+                ));
+            }
+            $db->markBirthdayHistoryValid($this->birthdayRef->getHeight());
+        }
 
         if (gmp_cmp($work, $prevTip->getWork()) > 0) {
             $candidateHashes = [$headerIndex->getHeight() => $headerIndex->getHash()->getBinary()];
@@ -259,16 +275,24 @@ class Chain
 
             // Insert [lastCommonHeight+1, candidateTipHeight] to the header chain
             for ($i = $lastCommonHeight + 1; $i <= $headerIndex->getHeight(); $i++) {
+                // If we are adding our birthday to the chain, we need to update
+                // bestBlockIndex now so block sync starts from the correct height.
+                // Not necessary in unwind, because no way for another header to
+                // be used at that height.
+                if ($this->birthdayRef instanceof BlockRef && $i === $this->birthdayRef->getHeight()) {
+                    $bestBlock = $db->getHeader($this->birthdayRef->getHash());
+                    if (!($bestBlock instanceof DbHeader)) {
+                        throw new \RuntimeException("Couldn't find previously accepted header in db");
+                    }
+                    $this->bestBlockIndex = $bestBlock;
+                }
+
+                // update best chain
                 $this->heightMapToHash[$i] = $candidateHashes[$i];
             }
 
             // Updates bestHeaderIndex
             $this->bestHeaderIndex = $headerIndex;
-
-            // todo: this will need to be checked, maybe chain init unexpected new candidate code
-            if ($this->bestBlockHeight > $lastCommonHeight) {
-                $this->bestBlockHeight = $lastCommonHeight;
-            }
         }
 
         return true;
@@ -286,7 +310,6 @@ class Chain
         $prevIdx = $db->getHeader($header->getPrevBlock());
         if ($prevIdx) {
             if (($prevIdx->getStatus() & DbHeader::BLOCK_VALID) == 0) {
-                echo "prev known. block not valid. return false\n";
                 return false;
             }
         }

@@ -38,6 +38,14 @@ interface DBInterface
 
     public function getGenesisHeader(): ?DbHeader;
 
+    public function deleteBlockIndex();
+
+    public function deleteBlocksFromIndex();
+
+    public function deleteWalletTxs();
+
+    public function deleteWalletUtxos();
+
     public function markBirthdayHistoryValid(int $height);
 
     public function addHeader(int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header, int $status): bool;

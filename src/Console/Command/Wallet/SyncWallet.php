@@ -41,17 +41,17 @@ class SyncWallet extends Command
 
             ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
 
-            ->addOption('debug-blockwindow', null, InputOption::VALUE_REQUIRED, "Number of blocks to wait before printing debug info", '64')
-
-            // sync options
+            // general options
             ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
+
+            // debug options
             ->addOption('debug-db', null, InputOption::VALUE_NONE, "Debug the database usage by printing function calls")
             ->addOption('debug-perblock', null, InputOption::VALUE_NONE, "Debug time taken for all stages while processing all blocks")
+            ->addOption('debug-blockwindow', null, InputOption::VALUE_REQUIRED, "Number of blocks to wait before printing debug info", '64')
+
             ->addOption('blockstats', null, InputOption::VALUE_NONE, "Log block stats to file")
 
-            // the full command description shown when running the command with
-            // the "--help" option
-            ->setHelp('This command starts the wallet. Some configuration parameters can be provided as options, overriding default or configuration file values');
+            ->setHelp('This command starts synchronizing the blockchain. An IP address must be provided for the host');
     }
 
     protected function parseBlockWindow(InputInterface $input): int
@@ -120,8 +120,11 @@ class SyncWallet extends Command
         }
         $daemon->init($hdSerializer);
         $daemon->sync($loop)
-            ->then(null, function (\Exception $e) {
-                echo "error received all the way back here\n";
+            ->then(null, function (\Exception $e) use ($logger) {
+                $logger->error("Caught exception: {$e->getMessage()}\n");
+                $logger->error($e->getTraceAsString());
+                echo $e->getMessage().PHP_EOL;
+                echo $e->getTraceAsString().PHP_EOL;
             });
         $loop->run();
     }

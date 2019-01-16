@@ -6,11 +6,13 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 
 use BitWasp\Bitcoin\Address\AddressCreator;
 use BitWasp\Bitcoin\Bitcoin;
+use BitWasp\Bitcoin\Chain\ProofOfWork;
 use BitWasp\Bitcoin\Crypto\Random\Random;
 use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\GlobalPrefixConfig;
 use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\NetworkConfig;
 use BitWasp\Bitcoin\Key\Deterministic\Slip132\Slip132;
 use BitWasp\Bitcoin\Key\Factory\HierarchicalKeyFactory;
+use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39SeedGenerator;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Bip39WordListInterface;
 use BitWasp\Bitcoin\Mnemonic\Bip39\Wordlist\EnglishWordList;
@@ -24,6 +26,7 @@ use BitWasp\PinEntry\PinEntry;
 use BitWasp\PinEntry\PinRequest;
 use BitWasp\PinEntry\Process\Process;
 use BitWasp\Wallet\BlockRef;
+use BitWasp\Wallet\Chain;
 use BitWasp\Wallet\Config;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
@@ -182,7 +185,7 @@ class Create extends Command
     private function parseGapLimit(InputInterface $input): int
     {
         /** @var string $birthdayValue */
-        $birthdayValue = $input->getOption('birthday');
+        $birthdayValue = $input->getOption('bip32-gaplimit');
         return (int) $birthdayValue;
     }
 
@@ -199,6 +202,7 @@ class Create extends Command
         $birthday = $this->parseBirthday($input);
 
         // simple deps
+        $math = new Math();
         $networkInfo = new NetworkInfo();
         $dbMgr = new DbManager();
         $ecAdapter = Bitcoin::getEcAdapter();
@@ -209,6 +213,11 @@ class Create extends Command
         $net = $networkInfo->getNetwork($config->getNetwork());
         $registry = $networkInfo->getSlip132Registry($config->getNetwork());
         $db = $dbMgr->loadDb($config->getDbPath($dataDir));
+
+        $params = $networkInfo->getParams($config->getNetwork(), $math);
+        if ($birthday === null) {
+            $birthday = new BlockRef(0, $params->getGenesisBlockHeader()->getHash());
+        }
 
         // check user input
         if ($db->checkWalletExists($identifier)) {
@@ -242,6 +251,13 @@ class Create extends Command
             ])
         ]);
 
+        $chain = new Chain(new ProofOfWork($math, $params));
+        $chain->init($db, $params);
+        $bestBlock = $chain->getBestBlock();
+        if ($birthday->getHeight() < $bestBlock->getHeight()) {
+            throw new \RuntimeException("Best block is greater than birthday, need to start syncing from scratch");
+        }
+
         $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter, $prefixConfig));
         $hdFactory = new HierarchicalKeyFactory($ecAdapter, $hdSerializer);
         $walletFactory = new Factory($db, $net, $hdSerializer, $ecAdapter);
@@ -266,7 +282,6 @@ class Create extends Command
         }
 
         $dbScript = $wallet->getScriptGenerator()->generate();
-
         $addrCreator = new AddressCreator();
         $addrString = $dbScript->getAddress($addrCreator)->getAddress($net);
         echo "$addrString\n";

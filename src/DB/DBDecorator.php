@@ -118,7 +118,22 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function getBestBlockHeight(): int
+    public function deleteBlocksFromIndex()
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+
+    public function deleteBlockIndex()
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+
+    public function deleteWalletTxs()
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+
+    public function deleteWalletUtxos()
     {
         return $this->call(__FUNCTION__, func_get_args());
     }

@@ -196,6 +196,26 @@ class DB implements DBInterface
         return null;
     }
 
+    public function deleteBlocksFromIndex()
+    {
+        return $this->pdo->exec("UPDATE header set status = 1 where status = 3");
+    }
+
+    public function deleteBlockIndex()
+    {
+        return $this->pdo->exec("DELETE FROM header");
+    }
+
+    public function deleteWalletTxs()
+    {
+        return $this->pdo->exec("DELETE FROM tx");
+    }
+
+    public function deleteWalletUtxos()
+    {
+        return $this->pdo->exec("DELETE FROM utxo");
+    }
+
     public function markBirthdayHistoryValid(int $height)
     {
         $stmt = $this->pdo->prepare("UPDATE header set status = 3 where status = 1 and height <= ?");
@@ -530,7 +550,7 @@ class DB implements DBInterface
     public function getConfirmedBalance(int $walletId): int
     {
         if (null === $this->getConfirmedBalanceStmt) {
-            $this->getConfirmedBalanceStmt = $this->pdo->prepare("SELECT SUM(valueChange) as balance FROM tx WHERE walletId = ?");
+            $this->getConfirmedBalanceStmt = $this->pdo->prepare("SELECT SUM(valueChange) as balance FROM tx WHERE walletId = ? and status = 1");
         }
         $this->getConfirmedBalanceStmt->execute([
             $walletId,

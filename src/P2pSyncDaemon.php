@@ -32,12 +32,14 @@ use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\WalletInterface;
+use BitWasp\Wallet\Wallet\WalletType;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\LoopInterface;
 
 class P2pSyncDaemon
 {
     const PING_TIMEOUT = 1200;
+    const HEADERS_FULL = 2000;
 
     /**
      * @var LoggerInterface
@@ -219,14 +221,17 @@ class P2pSyncDaemon
     {
         $this->blockStatsCount = null;
     }
+
     public function setPerBlockDebug(bool $setting)
     {
         $this->perBlockDebug = $setting;
     }
+
     public function setBlockStatsWindow(int $numBlocks)
     {
         $this->blockStatsWindow = $numBlocks;
     }
+
     public function syncMempool(bool $setting)
     {
         $this->mempool = $setting;
@@ -248,23 +253,30 @@ class P2pSyncDaemon
     {
         $this->logger->debug("Loading wallets...");
         $dbWallets = $this->db->loadAllWallets();
-        $startBlock = null;
+
+        $this->logger->debug("Initializing chain...");
+        $this->chain->init($this->db, $this->params);
+
+        $startBlockRef = null;
+
         foreach ($dbWallets as $dbWallet) {
-            if ($dbWallet->getType() !== 1) {
+            if ($dbWallet->getType() !== WalletType::BIP44_WALLET) {
                 throw new \RuntimeException("invalid wallet type");
             }
             $this->wallets[] = new Bip44Wallet($this->db, $hdSerializer, $dbWallet, $this->db->loadBip44WalletKey($dbWallet->getId()), $this->network, $this->ecAdapter);
-            if ($birthday = $dbWallet->getBirthday()) {
-                if (!($startBlock instanceof BlockRef)) {
-                    $startBlock = $dbWallet->getBirthday();
-                } else if ($birthday->getHeight() < $startBlock->getHeight()) {
-                    $startBlock = $dbWallet->getBirthday();
+            $birthday = $dbWallet->getBirthday();
+            if ($birthday !== null) {
+                if (!($startBlockRef instanceof BlockRef)) {
+                    $startBlockRef = $birthday;
+                } else if ($birthday->getHeight() < $birthday->getHeight()) {
+                    $startBlockRef = $birthday;
                 }
             }
         }
 
-        $this->logger->debug("Initializing chain...");
-        $this->chain->init($this->db, $this->params);
+        if ($startBlockRef) {
+            $this->chain->setBirthdayBlock($startBlockRef, $this->db);
+        }
 
         // would normally come from wallet birthday
         $this->initialized = true;
@@ -350,10 +362,10 @@ class P2pSyncDaemon
                 });
                 $peer->on(Message::HEADERS, function (Peer $peer, Headers $headers) {
                     if (count($headers->getHeaders()) > 0) {
-                        $this->db->getPdo()->beginTransaction();
                         /** @var DbHeader null|$lastHeader */
                         $lastHeader = null;
 
+                        $this->db->getPdo()->beginTransaction();
                         try {
                             foreach ($headers->getHeaders() as $i => $headerData) {
                                 $header = $this->headerSerializer->parse($headerData);
@@ -379,14 +391,26 @@ class P2pSyncDaemon
                             $lastHeader->getHash()->getHex()
                         ));
 
-                        if (count($headers->getHeaders()) === 2000) {
-                            $this->logger->info("request headers from {$lastHeader->getHeight()} {$lastHeader->getHash()->getHex()}");
+                        if (count($headers->getHeaders()) === self::HEADERS_FULL) {
+                            $this->logger->debug(sprintf(
+                                "requestHeaders from %d %s",
+                                $lastHeader->getHeight(),
+                                $lastHeader->getHash()->getHex()
+                            ));
                             $peer->getheaders(new BlockLocator([$lastHeader->getHash()], new Buffer('', 32)));
                         }
                     }
 
-                    if (count($headers->getHeaders()) < 2000) {
-                        $this->downloadBlocks($peer);
+                    // Block download if count < max
+                    if (count($headers->getHeaders()) < self::HEADERS_FULL) {
+                        $bestHeader = $this->chain->getBestHeader();
+                        // when we sync the tip for the first time and don't have wallets,
+                        // set the tip as startBlock - this bypasse
+                        if (count($this->wallets) === 0) {
+                            $this->logger->info("synced header chain, but no wallets. Not downloading blocks.");
+                        } else if (!$this->chain->getBestBlock()->getHash()->equals($bestHeader->getHash())) {
+                            $this->downloadBlocks($peer);
+                        }
                     }
                 });
 
@@ -400,7 +424,6 @@ class P2pSyncDaemon
                     $this->blockDeserializeNTx += count($block->getTransactions());
 
                     $hash = $block->getHeader()->getHash();
-                    // echo "receiveBlock {$hash->getHex()}\n";
                     if (!array_key_exists($hash->getBinary(), $this->requested)) {
                         throw new \RuntimeException("missing block request {$hash->getHex()}");
                     }
@@ -443,6 +466,7 @@ class P2pSyncDaemon
 
                         $windowNumBlocks = $this->perBlockDebug ? 1 : $this->blockStatsWindow;
                         $avgPerBlock = number_format($totalTime / $windowNumBlocks, 2);
+
                         $this->logger->info("processed $windowNumBlocks blocks, ntx: {$this->blockDeserializeNTx}, $deserBytes MB): height {$headerIndex->getHeight()} hash {$hash->getHex()} | deserialize {$deserTime}s {$deserPct}% | downloadtime {$downloadTime}s {$downloadPct}% | processtime {$processTime}s {$processPct}% | total {$windowTime}s, avg {$avgPerBlock}s");
                         if (null !== $this->blockStatsFileHandle) {
                             fwrite($this->blockStatsFileHandle, implode(", ", [
@@ -467,17 +491,8 @@ class P2pSyncDaemon
                     }
 
                     if ($headerIndex->getHash()->equals($this->chain->getBestHeader()->getHash())) {
-                        // finish shortcut for new wallets - mark history before we came online
-                        // as valid
-//                        if ($isFirstSetup) {
-//                            $bestHeaderHeight = $this->chain->getBestHeader()->getHeight();
-//                            echo "mark birthday history as valid {$bestHeaderHeight}\n";
-//                            $this->db->markBirthdayHistoryValid($bestHeaderHeight);
-//                        }
-
                         $bestBlock = $this->chain->getBestBlock();
                         $this->logger->info("done syncing blocks to tip: {$bestBlock->getHeight()} {$bestBlock->getHash()->getHex()}");
-
                         $this->downloading = false;
                         $this->resetBlockStats();
                     } else {
@@ -486,7 +501,12 @@ class P2pSyncDaemon
                 });
 
                 $bestHeader = $this->chain->getBestHeader();
-                $this->logger->info("requestHeaders starting at {$bestHeader->getHeight()} {$bestHeader->getHash()->getHex()}");
+                $this->logger->debug(sprintf(
+                    "requestHeaders starting at %d %s",
+                    $bestHeader->getHeight(),
+                    $bestHeader->getHash()->getHex()
+                ));
+
                 $peer->getheaders(new BlockLocator([$bestHeader->getHash()], new Buffer('', 32)));
                 $peer->sendheaders();
             }, function (\Exception $e) {
@@ -511,7 +531,9 @@ class P2pSyncDaemon
             $this->blockStatsBegin = \microtime(true);
         }
 
-        $downloadStartHeight = $this->chain->getBestBlockHeight() + 1;
+        $downloadStartHeight = $this->chain->getBestBlock()->getHeight() + 1;
+        // this is our best header, which should match remote peer.
+        // if we later use multiple peers, ensure we don't download blocks > than peer.bestKnownHeight
         $heightBestHeader = $this->chain->getBestHeader()->getHeight();
         $toDownload = [];
 
@@ -551,29 +573,6 @@ class P2pSyncDaemon
         if ($this->downloading) {
             return;
         }
-
-//        if ($this->chain->getBestBlockHeight() === 0) {
-//            $this->firstHeaderSync = true;
-//            $startBlock = null;
-//            if (count($this->wallets) === 0) {
-//                $bestIndex = $this->chain->getBestHeader();
-//                $startBlock = new BlockRef($bestIndex->getHeight(), $bestIndex->getHash());
-//            } else {
-//                foreach ($this->wallets as $wallet) {
-//                    $dbWallet = $wallet->getDbWallet();
-//                    if ($birthday = $dbWallet->getBirthday()) {
-//                        if (!($startBlock instanceof BlockRef)) {
-//                            $startBlock = $dbWallet->getBirthday();
-//                        } else if ($birthday->getHeight() < $startBlock->getHeight()) {
-//                            $startBlock = $dbWallet->getBirthday();
-//                        }
-//                    }
-//                }
-//            }
-//            if ($startBlock) {
-//             //   $this->chain->setStartBlock($startBlock);
-//            }
-//        }
 
         $this->downloading = true;
         $bestBlock = $this->chain->getBestBlock();

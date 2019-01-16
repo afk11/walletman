@@ -13,6 +13,21 @@ to get new addresses from the CLI, the node should be stopped.
 
 Currently the HD wallet implementation provides support for BIP44, BIP49, and BIP84 wallets.
 
+## How wallet birthday works
+
+When generating a brand new wallet, the wallet will report it's birthday block height & hash (if available).
+This aids future recovery by allowing the node to skip processing blocks before it's birthday, as
+they don't contain transactions for our wallet.
+
+When recovering an old wallet, if the wallet's birthday is unknown, block downloading will
+start from the genesis block so all outputs are discovered.
+
+When the node starts up and is configured with wallets, the earliest birthday is taken and the chain hash
+@ `birthday.height` must equal `birthday.hash`. Block history up to and including the birthday hash
+is marked as 'valid' and trusted, and block downloading starts from the `birthday.height + 1`
+
+If the node starts without any wallets configured, it will download headers but not blocks.
+
 ## Project data directory
 
 Project configuration and data storage is contained in a data directory. The data directory should
