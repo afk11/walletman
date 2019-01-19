@@ -2,12 +2,14 @@ language: php
 
 matrix:
   include:
-    - php: 7.2
-      env: WITH_DEBUG=false PHPUNIT=true
     - php: 7.3
       env: COVERAGE=true PHPUNIT=true
     - php: 7.3
       env: WITH_DEBUG=false CODE_STYLE=true PHPSTAN=true
+    - php: 7.2
+      env: WITH_DEBUG=false PHPUNIT=true
+    - php: nightly
+      env: WITH_DEBUG=false PHPUNIT=true
    
 before_install:
  - sh -c 'if [ "${WITH_DEBUG}" = "false" ]; then phpenv config-rm xdebug.ini && echo "xdebug disabled" || exit 0; fi'
