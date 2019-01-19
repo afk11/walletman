@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\DB;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
+use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PublicKeyInterface;
+use BitWasp\Bitcoin\Key\Deterministic\ElectrumKey;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
@@ -19,7 +21,8 @@ class DB implements DBInterface
     private $pdo;
 
     private $addWalletStmt;
-    private $createKeyStmt;
+    private $createBip32KeyStmt;
+    private $createElectrumKeyStmt;
     private $loadKeyByPathStmt;
     private $loadKeysByPathStmt;
     private $loadScriptBySpkStmt;
@@ -118,7 +121,7 @@ class DB implements DBInterface
             `walletId`	INTEGER NOT NULL,
             `path`	TEXT NOT NULL,
             `childSequence`	INTEGER,
-            `depth`	INTEGER NOT NULL,
+            `depth`	INTEGER,
             `key`	TEXT NOT NULL,
             `keyIndex`	INTEGER,
             `status`    INTEGER DEFAULT 0,
@@ -324,15 +327,30 @@ class DB implements DBInterface
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function createKey(int $walletId, Base58ExtendedKeySerializer $serializer, string $path, HierarchicalKey $key, NetworkInterface $network, int $keyIndex, bool $isLeaf): int
+    public function createBip32Key(int $walletId, Base58ExtendedKeySerializer $serializer, string $path, HierarchicalKey $key, NetworkInterface $network, int $keyIndex, bool $isLeaf): int
     {
-        if (null === $this->createKeyStmt) {
-            $this->createKeyStmt = $this->pdo->prepare("INSERT INTO key (walletId, path, childSequence, depth, key, keyIndex, isLeaf) values (?,?,?,?,?,?,?)");
+        if (null === $this->createBip32KeyStmt) {
+            $this->createBip32KeyStmt = $this->pdo->prepare("INSERT INTO key (walletId, path, childSequence, depth, key, keyIndex, isLeaf) values (?,?,?,?,?,?,?)");
         }
 
-        if (!$this->createKeyStmt->execute([
+        if (!$this->createBip32KeyStmt->execute([
             $walletId, $path, 0, $key->getDepth(),
             $serializer->serialize($network, $key->withoutPrivateKey()), $keyIndex, $isLeaf,
+        ])) {
+            throw new \RuntimeException("Failed to create key");
+        }
+
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    public function createElectrumKey(int $walletId, PublicKeyInterface $key, int $keyIndex, int $purpose): int
+    {
+        if (null === $this->createElectrumKeyStmt) {
+            $this->createElectrumKeyStmt = $this->pdo->prepare("INSERT INTO key (walletId, childSequence, key, keyIndex, path) values (?,?,?,?,?)");
+        }
+        $childSequence = 0;
+        if (!$this->createElectrumKeyStmt->execute([
+            $walletId, $childSequence, $key->getHex(), $keyIndex, $purpose,
         ])) {
             throw new \RuntimeException("Failed to create key");
         }

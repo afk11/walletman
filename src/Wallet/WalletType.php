@@ -6,4 +6,5 @@ namespace BitWasp\Wallet\Wallet;
 class WalletType
 {
     const BIP44_WALLET = 1;
+    const ELECTRUM_WALLET = 2;
 }

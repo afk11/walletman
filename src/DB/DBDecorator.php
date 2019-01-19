@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\DB;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
+use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PublicKeyInterface;
+use BitWasp\Bitcoin\Key\Deterministic\ElectrumKey;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
@@ -180,7 +182,12 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function createKey(int $walletId, Base58ExtendedKeySerializer $serializer, string $path, HierarchicalKey $key, NetworkInterface $network, int $keyIndex, bool $isLeaf): int
+    public function createBip32Key(int $walletId, Base58ExtendedKeySerializer $serializer, string $path, HierarchicalKey $key, NetworkInterface $network, int $keyIndex, bool $isLeaf): int
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+
+    public function createElectrumKey(int $walletId, PublicKeyInterface $key, int $keyIndex, int $purpose): int
     {
         return $this->call(__FUNCTION__, func_get_args());
     }

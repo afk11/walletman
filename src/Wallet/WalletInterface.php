@@ -16,6 +16,10 @@ interface WalletInterface
     public function getScriptGenerator(): ScriptGenerator;
     public function getChangeScriptGenerator(): ScriptGenerator;
     public function getScriptStorage(): ScriptStorage;
+
+    public function isLocked(): bool;
+    public function lockWallet();
+
     /**
      * @param TransactionOutputInterface[] $txOuts
      * @param int $feeRate

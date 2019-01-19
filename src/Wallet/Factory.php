@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace BitWasp\Wallet\Wallet;
 
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
+use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PublicKeyInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKeySequence;
+use BitWasp\Bitcoin\Key\Factory\ElectrumKeyFactory;
+use BitWasp\Bitcoin\Mnemonic\Electrum\ElectrumWordListInterface;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Wallet\BlockRef;
 use BitWasp\Wallet\DB\DBInterface;
+use BitWasp\Wallet\Wallet\Electrum\ElectrumWallet;
 
 class Factory
 {
@@ -31,9 +35,12 @@ class Factory
     {
         $dbWallet = $this->db->loadWallet($identifier);
         switch ($dbWallet->getType()) {
-            case 1:
+            case WalletType::BIP44_WALLET:
                 $rootKey = $this->db->loadBip44WalletKey($dbWallet->getId());
                 return new Bip44Wallet($this->db, $this->serializer, $dbWallet, $rootKey, $this->network, $this->ecAdapter);
+            case WalletType::ELECTRUM_WALLET:
+                $rootKey = $this->db->loadKeyByPath($dbWallet->getId(), (string)ElectrumWallet::INDEX_EXTERNAL, 0);
+                return new ElectrumWallet($this->db, $dbWallet, $rootKey, $this->ecAdapter);
             default:
                 throw new \RuntimeException("Unknown type");
         }
@@ -85,9 +92,32 @@ class Factory
         $this->db->getPdo()->beginTransaction();
         try {
             $walletId = $this->db->createWallet($identifier, WalletType::BIP44_WALLET, $gapLimit, $birthday);
-            $this->db->createKey($walletId, $this->serializer, $path, $accountNode, $this->network, 0, false);
-            $this->db->createKey($walletId, $this->serializer, "$path/{$externalNode->getSequence()}", $externalNode, $this->network, 0, false);
-            $this->db->createKey($walletId, $this->serializer, "$path/{$changeNode->getSequence()}", $changeNode, $this->network, 0, false);
+            $this->db->createBip32Key($walletId, $this->serializer, $path, $accountNode, $this->network, 0, false);
+            $this->db->createBip32Key($walletId, $this->serializer, "$path/{$externalNode->getSequence()}", $externalNode, $this->network, 0, false);
+            $this->db->createBip32Key($walletId, $this->serializer, "$path/{$changeNode->getSequence()}", $changeNode, $this->network, 0, false);
+            $this->db->getPdo()->commit();
+        } catch (\Exception $e) {
+            $this->db->getPdo()->rollBack();
+            throw $e;
+        }
+
+        return $this->loadWallet($identifier);
+    }
+
+    public function createElectrumWalletFromSeed(string $identifier, string $mnemonic, int $gapLimit, ?BlockRef $birthday, ?ElectrumWordListInterface $wordList): WalletInterface
+    {
+        $electrumFactory = new ElectrumKeyFactory();
+        $masterKey = $electrumFactory->fromMnemonic($mnemonic, $wordList);
+        return $this->createElectrumWalletFromMPK($identifier, $masterKey->getMasterPublicKey(), $gapLimit, $birthday);
+    }
+
+    public function createElectrumWalletFromMPK(string $identifier, PublicKeyInterface $publicKey, int $gapLimit, ?BlockRef $birthday): WalletInterface
+    {
+        $this->db->getPdo()->beginTransaction();
+        try {
+            $walletId = $this->db->createWallet($identifier, WalletType::ELECTRUM_WALLET, $gapLimit, $birthday);
+            $this->db->createElectrumKey($walletId, $publicKey, 0, ElectrumWallet::INDEX_EXTERNAL);
+            $this->db->createElectrumKey($walletId, $publicKey, 0, ElectrumWallet::INDEX_CHANGE);
             $this->db->getPdo()->commit();
         } catch (\Exception $e) {
             $this->db->getPdo()->rollBack();

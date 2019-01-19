@@ -54,8 +54,9 @@ class DbWallet
 
     public function getGapLimit(): int
     {
-        if ($this->getType() === WalletType::BIP44_WALLET) {
-            return (int) $this->gapLimit;
+        $type = $this->getType();
+        if ($type === WalletType::BIP44_WALLET || $type === WalletType::ELECTRUM_WALLET) {
+            return (int)$this->gapLimit;
         }
 
         throw new \LogicException("wallet type does not have a gap limit");

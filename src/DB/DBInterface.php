@@ -1,14 +1,9 @@
-<?php
-/**
- * Created by PhpStorm.
- * User: tk
- * Date: 12/23/18
- * Time: 6:21 PM
- */
+<?php declare(strict_types=1);
 
 namespace BitWasp\Wallet\DB;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
+use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PublicKeyInterface;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
@@ -65,7 +60,8 @@ interface DBInterface
 
     public function createWallet(string $identifier, int $type, ?int $gapLimit, ?BlockRef $birthday): int;
 
-    public function createKey(int $walletId, Base58ExtendedKeySerializer $serializer, string $path, HierarchicalKey $key, NetworkInterface $network, int $keyIndex, bool $isLeaf): int;
+    public function createBip32Key(int $walletId, Base58ExtendedKeySerializer $serializer, string $path, HierarchicalKey $key, NetworkInterface $network, int $keyIndex, bool $isLeaf): int;
+    public function createElectrumKey(int $walletId, PublicKeyInterface $key, int $keyIndex, int $purpose): int;
 
     public function loadKeyByPath(int $walletId, string $path, int $keyIndex): DbKey;
 

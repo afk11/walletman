@@ -21,6 +21,7 @@ class DbKey
 
     /**
      * BIP32 path
+     * for electrum, this is 'purpose'
      * @var string
      */
     private $path;
@@ -33,6 +34,7 @@ class DbKey
 
     /**
      * key in use - xpub/ypub depending on the wallet
+     * for electrum, should be hex pubkey
      * @var string
      */
     private $key;
