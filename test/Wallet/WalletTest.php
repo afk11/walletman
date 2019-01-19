@@ -26,7 +26,6 @@ use BitWasp\Wallet\DB\DbWallet;
 use BitWasp\Wallet\DB\DbWalletTx;
 use BitWasp\Wallet\NetworkInfo;
 use BitWasp\Wallet\Wallet\Factory;
-use BitWasp\Wallet\Wallet\HdWallet;
 use BitWasp\Wallet\Wallet\SizeEstimation;
 
 class WalletTest extends DbTestCase
