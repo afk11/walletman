@@ -46,7 +46,7 @@ class Factory
         }
     }
 
-    public function createBip44WalletFromRootKey(string $identifier, HierarchicalKey $rootKey, string $accountPath, int $gapLimit, ?BlockRef $birthday): WalletInterface
+    public function createBip44WalletFromRootKey(string $identifier, HierarchicalKey $rootKey, string $accountPath, int $gapLimit, ?BlockRef $birthday): Bip44Wallet
     {
         if ($rootKey->getDepth() !== 0) {
             throw new \RuntimeException("invalid key - must be root");
@@ -70,7 +70,7 @@ class Factory
         return $this->createBip44WalletFromAccountKey($identifier, $accountNode, $accountPath, $gapLimit, $birthday);
     }
 
-    public function createBip44WalletFromAccountKey(string $identifier, HierarchicalKey $accountNode, string $path, int $gapLimit, ?BlockRef $birthday): WalletInterface
+    public function createBip44WalletFromAccountKey(string $identifier, HierarchicalKey $accountNode, string $path, int $gapLimit, ?BlockRef $birthday): Bip44Wallet
     {
         if ($accountNode->getDepth() !== 3) {
             throw new \RuntimeException("invalid key - must be root");
@@ -101,17 +101,19 @@ class Factory
             throw $e;
         }
 
-        return $this->loadWallet($identifier);
+        /** @var Bip44Wallet $wallet */
+        $wallet = $this->loadWallet($identifier);
+        return $wallet;
     }
 
-    public function createElectrumWalletFromSeed(string $identifier, string $mnemonic, int $gapLimit, ?BlockRef $birthday, ?ElectrumWordListInterface $wordList): WalletInterface
+    public function createElectrumWalletFromSeed(string $identifier, string $mnemonic, int $gapLimit, ?BlockRef $birthday, ?ElectrumWordListInterface $wordList): ElectrumWallet
     {
         $electrumFactory = new ElectrumKeyFactory();
         $masterKey = $electrumFactory->fromMnemonic($mnemonic, $wordList);
         return $this->createElectrumWalletFromMPK($identifier, $masterKey->getMasterPublicKey(), $gapLimit, $birthday);
     }
 
-    public function createElectrumWalletFromMPK(string $identifier, PublicKeyInterface $publicKey, int $gapLimit, ?BlockRef $birthday): WalletInterface
+    public function createElectrumWalletFromMPK(string $identifier, PublicKeyInterface $publicKey, int $gapLimit, ?BlockRef $birthday): ElectrumWallet
     {
         $this->db->getPdo()->beginTransaction();
         try {
@@ -124,6 +126,8 @@ class Factory
             throw $e;
         }
 
-        return $this->loadWallet($identifier);
+        /** @var ElectrumWallet $wallet */
+        $wallet = $this->loadWallet($identifier);
+        return $wallet;
     }
 }

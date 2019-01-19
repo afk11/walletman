@@ -71,10 +71,12 @@ class FactoryTest extends DbTestCase
         $accountKey = $hdSerializer->parse($this->sessionNetwork, $xpub);
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
         $wallet = $walletFactory->createBip44WalletFromAccountKey($identifier, $accountKey, $path, $gapLimit, $birthday);
-
         $this->assertInstanceOf(Bip44Wallet::class, $wallet);
-        $this->assertNotNull($wallet->getDbWallet()->getBirthday());
-        $this->assertEquals($birthday->getHeight(), $wallet->getDbWallet()->getBirthday()->getHeight());
-        $this->assertEquals($birthday->getHash()->getHex(), $wallet->getDbWallet()->getBirthday()->getHash()->getHex());
+
+        /** @var BlockRef $dbBirthday */
+        $dbBirthday = $wallet->getDbWallet()->getBirthday();
+        $this->assertInstanceOf(BlockRef::class, $dbBirthday);
+        $this->assertEquals($birthday->getHeight(), $dbBirthday->getHeight());
+        $this->assertEquals($birthday->getHash()->getHex(), $dbBirthday->getHash()->getHex());
     }
 }

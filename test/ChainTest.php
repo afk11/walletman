@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BitWasp\Test\Wallet\Wallet;
+namespace BitWasp\Test\Wallet;
 
 use BitWasp\Bitcoin\Block\Block;
 use BitWasp\Bitcoin\Block\BlockHeader;
@@ -66,15 +66,18 @@ class ChainTest extends DbTestCase
         }
 
         $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
-        for ($i = 0; $i < 50; $i++) {
+        $i = 0;
+        do {
             $b = new Block(new Math(), new BlockHeader(1, $prevHash, $cb1TxId, time(), $prevHeader->getBits(), $i), ...array_merge([$cb1], $otherTxs));
             try {
                 $pow->checkHeader($b->getHeader());
-                break;
+                $keepRunning = false;
             } catch (\Exception $e) {
-                continue;
+                $keepRunning = true;
+                $i++;
             }
-        }
+        } while ($keepRunning);
+
         $pow->checkHeader($b->getHeader());
         return $b;
     }

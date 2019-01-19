@@ -104,7 +104,6 @@ abstract class DbTestCase extends TestCase
         $initializer = new Initializer();
         $db = $initializer->setupDb($this->sessionDataDir);
         if ($this->dbDebug) {
-            /** @var DB $db */
             $this->sessionDb = new DBDecorator($db, $this->dbWriter);
         } else {
             $this->sessionDb = $db;

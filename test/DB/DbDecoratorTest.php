@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BitWasp\Test\DB;
+namespace BitWasp\Test\Wallet\DB;
 
 class DbDecoratorTest extends DBTest
 {

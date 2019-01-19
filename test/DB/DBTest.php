@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BitWasp\Test\DB;
+namespace BitWasp\Test\Wallet\DB;
 
 use BitWasp\Bitcoin\Block\BlockHeader;
 use BitWasp\Bitcoin\Chain\ProofOfWork;
@@ -34,7 +34,9 @@ class DBTest extends DbTestCase
             $genesisHeader->getNonce(),
         ]));
 
+        /** @var DbHeader $index */
         $index = $this->sessionDb->getHeader($genesisHash);
+        $this->assertInstanceOf(DbHeader::class, $index);
         $this->assertEquals($genesisHash->getHex(), $index->getHash()->getHex());
         $this->assertEquals(0, $index->getHeight());
         $this->assertEquals($work, $index->getWork());
@@ -68,6 +70,7 @@ class DBTest extends DbTestCase
             $genesisHeader->getNonce(),
         ]));
 
+        /** @var DbHeader $index */
         $index = $this->sessionDb->getGenesisHeader();
         $this->assertInstanceOf(DbHeader::class, $index);
         $this->assertEquals($genesisHash->getHex(), $index->getHash()->getHex());
@@ -94,6 +97,7 @@ class DBTest extends DbTestCase
         $merkle = $genesisHeader->getMerkleRoot()->getHex();
         $prevHash = $genesisHeader->getPrevBlock()->getHex();
 
+        /** @var DbHeader $index */
         $index = $this->sessionDb->getGenesisHeader();
         $this->assertInstanceOf(DbHeader::class, $index);
         $this->assertEquals($genesisHash->getHex(), $index->getHash()->getHex());
@@ -120,9 +124,16 @@ class DBTest extends DbTestCase
         $header1 = new BlockHeader(1, $genesisHash, new Buffer("", 32), 1, 1, 1);
         $hash1 = $header1->getHash();
         $this->assertTrue($this->sessionDb->addHeader(1, gmp_mul(2, $work), $hash1, $header1, DbHeader::HEADER_VALID));
-        $this->assertEquals(DbHeader::HEADER_VALID, $this->sessionDb->getHeader($hash1)->getStatus());
+
+        /** @var DbHeader $index1 */
+        $index1 = $this->sessionDb->getHeader($hash1);
+        $this->assertInstanceOf(DbHeader::class, $index1);
+        $this->assertEquals(DbHeader::HEADER_VALID, $index1->getStatus());
         $this->sessionDb->markBirthdayHistoryValid(1);
-        $this->assertEquals(DbHeader::HEADER_VALID|DbHeader::BLOCK_VALID, $this->sessionDb->getHeader($hash1)->getStatus());
+
+        /** @var DbHeader $index1 */
+        $index1 = $this->sessionDb->getHeader($hash1);
+        $this->assertEquals(DbHeader::HEADER_VALID|DbHeader::BLOCK_VALID, $index1->getStatus());
     }
 
     public function testSetBlockReceived()
@@ -137,10 +148,18 @@ class DBTest extends DbTestCase
 
         $header1 = new BlockHeader(1, $genesisHash, new Buffer("", 32), 1, 1, 1);
         $hash1 = $header1->getHash();
+
         $this->assertTrue($this->sessionDb->addHeader(1, gmp_mul(2, $work), $hash1, $header1, DbHeader::HEADER_VALID));
-        $this->assertEquals(DbHeader::HEADER_VALID, $this->sessionDb->getHeader($hash1)->getStatus());
+
+        /** @var DbHeader $index1 */
+        $index1 = $this->sessionDb->getHeader($hash1);
+        $this->assertInstanceOf(DbHeader::class, $index1);
+        $this->assertEquals(DbHeader::HEADER_VALID, $index1->getStatus());
         $this->sessionDb->setBlockReceived($hash1);
-        $this->assertEquals(DbHeader::HEADER_VALID|DbHeader::BLOCK_VALID, $this->sessionDb->getHeader($hash1)->getStatus());
+
+        /** @var DbHeader $index1 */
+        $index1 = $this->sessionDb->getHeader($hash1);
+        $this->assertEquals(DbHeader::HEADER_VALID|DbHeader::BLOCK_VALID, $index1->getStatus());
     }
 
     public function testLoadWallets()

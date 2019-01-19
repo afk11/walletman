@@ -10,9 +10,9 @@ class Initializer
      * must not be called with a datadir
      * containing a db.sqlite3 file.
      * @param string $dataDir
-     * @return DBInterface
+     * @return DB
      */
-    public function setupDb(string $dataDir): DBInterface
+    public function setupDb(string $dataDir): DB
     {
         $dbPath = "$dataDir/db.sqlite3";
         if (file_exists($dbPath)) {

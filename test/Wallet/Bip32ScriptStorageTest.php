@@ -39,6 +39,8 @@ class Bip32ScriptStorageTest extends DbTestCase
 
         $generator = new Bip32Generator($this->sessionDb, $branchNode, $gapLimit, $key);
         $generator->generate();
+
+        /** @var DbScript $last */
         $last = $wallet->getScriptByPath("$accountPath/0/2");
         $this->assertNotNull($last);
         $this->assertNull($wallet->getScriptByPath("$accountPath/0/3"));
@@ -47,6 +49,7 @@ class Bip32ScriptStorageTest extends DbTestCase
         $storage = new Bip32ScriptStorage($this->sessionDb, $hdSerializer, $dbWallet, 5, $ecAdapter, $this->sessionNetwork);
         $this->assertNull($storage->searchScript(new Script()));
 
+        /** @var DbScript $foundLast */
         $foundLast = $storage->searchScript($last->getScriptPubKey());
         $this->assertInstanceOf(DbScript::class, $foundLast);
         $this->assertEquals($last->getId(), $foundLast->getId());

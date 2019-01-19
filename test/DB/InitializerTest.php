@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BitWasp\Test\DB;
+namespace BitWasp\Test\Wallet\DB;
 
 use BitWasp\Test\Wallet\TestCase;
 use BitWasp\Wallet\DB\Initializer;
@@ -44,6 +44,7 @@ class InitializerTest extends TestCase
             $table,
         ]);
         $result = $checkTableStmt->fetchAll(\PDO::FETCH_ASSOC);
+        $this->assertIsArray($result);
         $this->assertCount(1, $result, "should find table");
         $this->assertEquals($table, $result[0]["name"], "table name should match expected value");
     }

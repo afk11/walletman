@@ -14,6 +14,7 @@ use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\Wallet\Bip32Generator;
+use BitWasp\Wallet\Wallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\Factory;
 
 class Bip32GeneratorTest extends DbTestCase
@@ -37,6 +38,7 @@ class Bip32GeneratorTest extends DbTestCase
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $serializer, $ecAdapter);
 
         $gapLimit = 5;
+        /** @var Bip44Wallet $wallet */
         $wallet = $walletFactory->createBip44WalletFromRootKey("wallet-identifier", $rootKey, "M/44'/0'/0'", $gapLimit, null);
         $this->assertNull($wallet->getScriptByPath("M/44'/0'/0'/0/0"));
 

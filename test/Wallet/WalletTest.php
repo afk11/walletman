@@ -170,7 +170,6 @@ class WalletTest extends DbTestCase
         $estimatedVsize = SizeEstimation::estimateVsize([$scriptAndSignData, $scriptAndSignData, $scriptAndSignData,], [new TransactionOutput(0, $destAddr->getScriptPubKey())]);
         $this->assertEquals($totalIn - $estimatedVsize * $feeRate, $totalOut);
 
-        /** @var HdWallet $wallet */
         $this->assertTrue($wallet->isLocked());
         $wallet->unlockWithAccountKey($accountKey);
         $this->assertFalse($wallet->isLocked());

@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace BitWasp\Test\Wallet\Electrum;
+namespace BitWasp\Test\Wallet\Wallet\Electrum;
 
 use BitWasp\Bitcoin\Address\AddressCreator;
 use BitWasp\Bitcoin\Address\PayToPubKeyHashAddress;
@@ -22,7 +22,6 @@ use BitWasp\Wallet\Wallet\SizeEstimation;
 
 class WalletTest extends DbTestCase
 {
-
     public function getFixtures(): array
     {
         return [
@@ -73,8 +72,8 @@ class WalletTest extends DbTestCase
 
         $hdSerializer = new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ecAdapter));
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
-        $wallet = $walletFactory->createElectrumWalletFromMPK($identifier, $pub, $gapLimit, null);
         /** @var ElectrumWallet $wallet */
+        $wallet = $walletFactory->createElectrumWalletFromMPK($identifier, $pub, $gapLimit, null);
         $this->assertTrue($wallet->isLocked());
         $wallet->unlockWithMnemonic($mnemonic);
         $this->assertFalse($wallet->isLocked());
@@ -100,6 +99,7 @@ class WalletTest extends DbTestCase
         $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, $hdSerializer, $ecAdapter);
 
         $gapLimit = 2;
+        /** @var ElectrumWallet $wallet */
         $wallet = $walletFactory->createElectrumWalletFromMPK("wallet-identifier", $rootKey->getMasterPublicKey(), $gapLimit, null);
         $script = $wallet->getScriptGenerator()->generate();
         $spk = $script->getScriptPubKey();

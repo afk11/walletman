@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BitWasp\Test\Wallet\Electrum;
+namespace BitWasp\Test\Wallet\Wallet\Electrum;
 
 use BitWasp\Bitcoin\Bitcoin;
 use BitWasp\Bitcoin\Key\Factory\PublicKeyFactory;
@@ -72,8 +72,11 @@ class FactoryTest extends DbTestCase
         $this->assertInstanceOf(ElectrumWallet::class, $wallet);
         $this->assertEquals(WalletType::ELECTRUM_WALLET, $wallet->getDbWallet()->getType());
         $this->assertEquals($identifier, $wallet->getDbWallet()->getIdentifier());
-        $this->assertNotNull($wallet->getDbWallet()->getBirthday());
-        $this->assertEquals($birthday->getHeight(), $wallet->getDbWallet()->getBirthday()->getHeight());
-        $this->assertEquals($birthday->getHash()->getHex(), $wallet->getDbWallet()->getBirthday()->getHash()->getHex());
+
+        /** @var BlockRef $dbBirthday */
+        $dbBirthday = $wallet->getDbWallet()->getBirthday();
+        $this->assertInstanceOf(BlockRef::class, $dbBirthday);
+        $this->assertEquals($birthday->getHeight(), $dbBirthday->getHeight());
+        $this->assertEquals($birthday->getHash()->getHex(), $dbBirthday->getHash()->getHex());
     }
 }
