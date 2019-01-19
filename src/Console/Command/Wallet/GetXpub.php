@@ -14,7 +14,7 @@ use BitWasp\Wallet\Config;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DbManager;
 use BitWasp\Wallet\NetworkInfo;
-use BitWasp\Wallet\Wallet\Bip44Wallet;
+use BitWasp\Wallet\Wallet\HdWallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\Factory;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;

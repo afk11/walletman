@@ -15,6 +15,7 @@ use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Wallet\BlockRef;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\Electrum\ElectrumWallet;
+use BitWasp\Wallet\Wallet\HdWallet\Bip44Wallet;
 
 class Factory
 {

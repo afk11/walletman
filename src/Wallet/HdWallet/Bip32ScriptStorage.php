@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BitWasp\Wallet\Wallet;
+namespace BitWasp\Wallet\Wallet\HdWallet;
 
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Network\NetworkInterface;
@@ -11,6 +11,7 @@ use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbScript;
 use BitWasp\Wallet\DB\DbWallet;
+use BitWasp\Wallet\Wallet\ScriptStorage;
 
 class Bip32ScriptStorage implements ScriptStorage
 {

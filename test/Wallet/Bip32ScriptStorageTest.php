@@ -12,9 +12,9 @@ use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\DB\DbScript;
-use BitWasp\Wallet\Wallet\Bip32Generator;
-use BitWasp\Wallet\Wallet\Bip32ScriptStorage;
-use BitWasp\Wallet\Wallet\Bip44Wallet;
+use BitWasp\Wallet\Wallet\HdWallet\Bip32Generator;
+use BitWasp\Wallet\Wallet\HdWallet\Bip32ScriptStorage;
+use BitWasp\Wallet\Wallet\HdWallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\Factory;
 
 class Bip32ScriptStorageTest extends DbTestCase

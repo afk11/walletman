@@ -13,7 +13,7 @@ use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\NetworkInfo;
-use BitWasp\Wallet\Wallet\Bip44Wallet;
+use BitWasp\Wallet\Wallet\HdWallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\Factory;
 
 class Bip44Test extends DbTestCase

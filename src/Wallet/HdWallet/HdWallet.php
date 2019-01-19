@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BitWasp\Wallet\Wallet;
+namespace BitWasp\Wallet\Wallet\HdWallet;
 
 use BitWasp\Bitcoin\Crypto\EcAdapter\Adapter\EcAdapterInterface;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PrivateKeyInterface;
@@ -13,6 +13,9 @@ use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbKey;
 use BitWasp\Wallet\DB\DbScript;
 use BitWasp\Wallet\DB\DbWallet;
+use BitWasp\Wallet\Wallet\ScriptGenerator;
+use BitWasp\Wallet\Wallet\ScriptStorage;
+use BitWasp\Wallet\Wallet\Wallet;
 
 abstract class HdWallet extends Wallet
 {
