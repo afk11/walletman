@@ -8,9 +8,6 @@ use BitWasp\Wallet\DB\DB;
 
 class DbManager
 {
-    public function createDb(string $dsn)
-    {
-    }
     public function loadDb(string $path): DB
     {
         if (!file_exists($path)) {

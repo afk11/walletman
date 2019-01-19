@@ -30,7 +30,7 @@ use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\DB\DBInterface;
-use BitWasp\Wallet\Wallet\Bip44Wallet;
+use BitWasp\Wallet\Wallet\HdWallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\WalletInterface;
 use BitWasp\Wallet\Wallet\WalletType;
 use Psr\Log\LoggerInterface;

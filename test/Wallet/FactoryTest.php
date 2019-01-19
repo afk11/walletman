@@ -11,7 +11,7 @@ use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\ExtendedKeySerializer;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\BlockRef;
-use BitWasp\Wallet\Wallet\Bip44Wallet;
+use BitWasp\Wallet\Wallet\HdWallet\Bip44Wallet;
 use BitWasp\Wallet\Wallet\Factory;
 use BitWasp\Wallet\Wallet\WalletType;
 
