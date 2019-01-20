@@ -1,5 +1,7 @@
 language: php
 
+dist: xenial
+
 matrix:
   include:
     - php: 7.3
@@ -9,7 +11,7 @@ matrix:
     - php: 7.2
       env: WITH_DEBUG=false PHPUNIT=true
     - php: 7.3
-      env: PHPUNIT_EXT=true BITCOIN_VERSION=0.16.3 SECP256K1_COMMIT=cd329dbc3eaf096ae007e807b86b6f5947621ee3 PHPUNIT=true
+      env: PHPUNIT_EXT=true BITCOIN_VERSION=0.17.0 SECP256K1_COMMIT=cd329dbc3eaf096ae007e807b86b6f5947621ee3 PHPUNIT=true
     - php: nightly
       env: WITH_DEBUG=false PHPUNIT=true
 
