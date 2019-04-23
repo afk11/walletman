@@ -88,7 +88,7 @@ class MemoryUtxoSet implements UtxoSet
         if (count($this->utxoSet[$key]) === 0) {
             unset($this->utxoSet[$key]);
         }
-        $this->db->deleteSpends($walletId, $outPoint, $spendTxId, $spendVout);
+        $this->db->markUtxoSpent($walletId, $outPoint, $spendTxId, $spendVout);
     }
 
     /**

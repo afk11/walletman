@@ -6,7 +6,6 @@ namespace BitWasp\Wallet\DB;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PublicKeyInterface;
-use BitWasp\Bitcoin\Key\Deterministic\ElectrumKey;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
@@ -222,7 +221,7 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx)
+    public function markUtxoSpent(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx)
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
@@ -270,6 +269,31 @@ class DBDecorator implements DBInterface
     }
 
     public function getTransactions(int $walletId): \PDOStatement
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+    public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+
+    public function deleteTx(int $walletId, BufferInterface $txid): bool
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+    public function deleteTxUtxos(BufferInterface $txId, array $walletIds): array
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+    public function deleteUtxo(int $walletId, BufferInterface $txId, int $vout)
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+    public function unspendTxUtxos(BufferInterface $txId, array $walletIds): array
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+    public function markUtxoUnspent(int $walletId, OutPointInterface $utxoOutPoint)
     {
         return $this->call(__FUNCTION__, func_get_args());
     }

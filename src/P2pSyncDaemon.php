@@ -152,6 +152,7 @@ class P2pSyncDaemon
      * @var int
      */
     private $batchSize =  16;
+    private $userAgent = "/na".":0.0."."1/";
 
     /**
      * @var bool
@@ -229,6 +230,14 @@ class P2pSyncDaemon
         $this->blockStatsCount = null;
     }
 
+    public function getUserAgent(): string
+    {
+        return $this->userAgent;
+    }
+    public function setUserAgent(string $ua)
+    {
+        $this->userAgent = $ua;
+    }
     public function setPerBlockDebug(bool $setting)
     {
         $this->perBlockDebug = $setting;
@@ -325,6 +334,7 @@ class P2pSyncDaemon
         $connParams->setRequiredServices($requiredServices);
         $connParams->setLocalServices($myServices);
         $connParams->setProtocolVersion(70013); // above this causes problems, todo
+        $connParams->setUserAgent($this->getUserAgent());
 
         if ($this->mempool) {
             $connParams->requestTxRelay(true);
@@ -456,22 +466,76 @@ class P2pSyncDaemon
                     $this->blockDeserializeBytes += $blockMsg->getBlock()->getSize();
                     $this->blockDeserializeNTx += count($block->getTransactions());
 
-                    $hash = $block->getHeader()->getHash();
+                    $header = $block->getHeader();
+                    $hash = $header->getHash();
                     if (!array_key_exists($hash->getBinary(), $this->blocksInFlight)) {
                         throw new \RuntimeException("missing block request {$hash->getHex()}");
                     }
                     unset($this->blocksInFlight[$hash->getBinary()]);
 
                     $processStart = microtime(true);
+                    $prevTip = $this->chain->getBestBlock();
                     $this->db->getPdo()->beginTransaction();
+                    $debugReorg = true;
                     try {
                         $headerIndex = null;
                         if (!$this->chain->acceptBlock($this->db, $hash, $block, $headerIndex)) {
                             throw new \RuntimeException("Failed to process block");
                         }
                         /** @var DbHeader $headerIndex */
-                        $processor = new BlockProcessor($this->db, ...$this->wallets);
-                        $processor->process($headerIndex->getHeight(), $hash, $block);
+
+                        if ($debugReorg) {
+                            echo "prevTip: {$prevTip->getHeight()} {$prevTip->getHash()->getHex()} \n";
+                            echo "newBlock: {$headerIndex->getHeight()} {$hash->getHex()} \n";
+                        }
+
+                        if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
+                            $candidateHashes = [$headerIndex->getHeight() => $headerIndex->getHash()->getBinary()];
+
+                            // Unwind until lastCommonHeight and lastCommonHash are determined.
+                            $lastCommonHash = $header->getPrevBlock();
+                            $lastCommonHeight = $headerIndex->getHeight() - 1;
+                            while ($lastCommonHeight != 0 && $this->chain->getBlockHash($lastCommonHeight)->getBinary() !== $lastCommonHash->getBinary()) {
+                                // If the hashes differ, keep our previous attempt
+                                // in candidateHashes because we need to apply them later
+                                $candidateHashes[$lastCommonHeight] = $lastCommonHash->getBinary();
+                                $p = $this->db->getHeader($lastCommonHash);
+                                if (null === $p) {
+                                    throw new \RuntimeException("failed to find prevblock");
+                                }
+                                // need for prevBlock, and arguably status too
+                                $lastCommonHash = $p->getHeader()->getPrevBlock();
+                                $lastCommonHeight--;
+                            }
+                            if ($debugReorg) {
+                                echo "lastCommon: {$lastCommonHeight} {$lastCommonHash->getHex()}\n";
+                            }
+                            // Undo blocks [lastCommonHeight+1, currentTipHeight]
+                            for ($i = $prevTip->getHeight(); $i >= $lastCommonHeight + 1; $i--) {
+                                $prevH = new Buffer($candidateHashes[$i], 32);
+                                if ($debugReorg) {
+                                    echo "unconfirm block {$i} {$prevH->getHex()}\n";
+                                }
+                                /** @var DbHeader $headerIndex */
+                                $processor = new BlockProcessor($this->db, ...$this->wallets);
+                                $processor->unconfirm($headerIndex->getHeight(), $prevH);
+                            }
+
+                            // Insert [lastCommonHeight+1, candidateTipHeight] to the header chain
+                            for ($i = $lastCommonHeight + 1; $i <= $headerIndex->getHeight(); $i++) {
+                                // If we are adding our birthday to the chain, we need to update
+                                // bestBlockIndex now so block sync starts from the correct height.
+                                // Not necessary in unwind, because no way for another header to
+                                // be used at that height.
+                                if ($debugReorg) {
+                                    echo "apply block $i\n";
+                                }
+                                /** @var DbHeader $headerIndex */
+                                $processor = new BlockProcessor($this->db, ...$this->wallets);
+                                $processor->process($headerIndex->getHeight(), $hash, $block);
+                            }
+                        }
+
                         $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
                         $this->db->getPdo()->rollBack();

@@ -22,6 +22,7 @@ interface UtxoSet
 
     public function spendUtxo(int $walletId, OutPointInterface $outPoint, BufferInterface $spendTxId, int $spendVout): void;
 
+    public function unspendUtxo(int $walletId, OutPointInterface $outPoint): void;
     /**
      * @param ScriptInterface $script
      * @return int[]
@@ -29,4 +30,6 @@ interface UtxoSet
     public function getWalletsForScriptPubKey(ScriptInterface $script): array;
 
     public function createUtxo(DbWallet $wallet, DbScript $script, OutPointInterface $outPoint, TransactionOutputInterface $txOut): void;
+
+    public function undoUtxo(int $walletId, BufferInterface $txId, int $vout): void;
 }

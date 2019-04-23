@@ -39,8 +39,10 @@ class DB implements DBInterface
     private $getBip44WalletKey;
     private $getWalletUtxosStmt;
     private $createTxStmt;
+    private $deleteTxStmt;
     private $getConfirmedBalanceStmt;
     private $createUtxoStmt;
+    private $deleteUtxoStmt;
     private $findWalletsWithUtxoStmt;
     private $searchUnspentUtxoStmt;
     private $getWalletScriptPubKeysStmt;
@@ -206,7 +208,7 @@ class DB implements DBInterface
 
     public function deleteBlockIndex()
     {
-        return $this->pdo->exec("DELETE FROM header");
+        return $this->pdo->exec("DELETE FROM header WHERE 1");
     }
 
     public function deleteWalletTxs()
@@ -456,7 +458,7 @@ class DB implements DBInterface
         return $this->loadWalletIdsBySpkStmt->fetchAll(\PDO::FETCH_COLUMN);
     }
 
-    public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx)
+    public function markUtxoSpent(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx)
     {
         $sql = sprintf("UPDATE utxo SET spentTxid = ?, spentIdx = ? WHERE walletId = ? and txid = ? and vout = ?");
         $stmt = $this->pdo->prepare($sql);
@@ -468,6 +470,19 @@ class DB implements DBInterface
         }
         if ($stmt->rowCount() !== 1) {
             throw new \RuntimeException("failed to delete utxo");
+        }
+    }
+    public function markUtxoUnspent(int $walletId, OutPointInterface $utxoOutPoint)
+    {
+        $sql = sprintf("UPDATE utxo SET spentTxid = NULL, spentIdx = NULL WHERE walletId = ? and txid = ? and vout = ?");
+        $stmt = $this->pdo->prepare($sql);
+        if (!$stmt->execute([
+            $walletId, $utxoOutPoint->getTxId()->getHex(), $utxoOutPoint->getVout(),
+        ])) {
+            throw new \RuntimeException("Failed to mark utxo unspent");
+        }
+        if ($stmt->rowCount() !== 1) {
+            throw new \RuntimeException("failed to mark utxo unspent - row != 1");
         }
     }
 
@@ -507,7 +522,18 @@ class DB implements DBInterface
             throw new \RuntimeException("failed to create utxo");
         }
     }
+    public function deleteUtxo(int $walletId, BufferInterface $txId, int $vout)
+    {
+        if (null === $this->deleteUtxoStmt) {
+            $this->deleteUtxoStmt = $this->pdo->prepare("DELETE FROM utxo where walletId = ? and txid = ? and vout = ?");
+        }
 
+        if (!$this->deleteUtxoStmt->execute([
+            $walletId, $txId->getHex(), $vout,
+        ])) {
+            throw new \RuntimeException("failed to delete utxo");
+        }
+    }
     public function searchUnspentUtxo(int $walletId, OutPointInterface $outPoint): ?DbUtxo
     {
         if (null === $this->searchUnspentUtxoStmt) {
@@ -554,6 +580,18 @@ class DB implements DBInterface
         return $utxos;
     }
 
+    public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array
+    {
+        $stmt = $this->pdo->query("SELECT * FROM tx where confirmedHash = ? AND walletId IN (" . implode(",",$walletIds) . ")");
+        if (!$stmt->execute([$hash->getHex()])) {
+            throw new \RuntimeException("failed to fetch block txns");
+        }
+        $results = [];
+        while($tx = $stmt->fetchObject(DbWalletTx::class)) {
+            $results[] = $tx;
+        }
+        return $results;
+    }
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool
     {
         if (null === $this->createTxStmt) {
@@ -562,6 +600,29 @@ class DB implements DBInterface
         return $this->createTxStmt->execute([
             $walletId, $txid->getHex(), $valueChange,
             $status, $blockHashHex, $blockHeight,
+        ]);
+    }
+    public function deleteTx(int $walletId, BufferInterface $txid): bool
+    {
+        if (null === $this->deleteTxStmt) {
+            $this->deleteTxStmt = $this->pdo->prepare("DELETE FROM tx WHERE walletId = ? and txid = ?");
+        }
+        return $this->deleteTxStmt->execute([
+            $walletId, $txid->getHex(),
+        ]);
+    }
+    public function deleteTxUtxos(BufferInterface $txId, array $walletIds): array
+    {
+        $stmt = $this->pdo->query("DELETE FROM utxo WHERE txid = ? and walletId IN (" . implode(",", $walletIds) . ")");
+        return $stmt->execute([
+            $txId->getHex(),
+        ]);
+    }
+    public function unspendTxUtxos(BufferInterface $txId, array $walletIds): array
+    {
+        $stmt = $this->pdo->query("UPDATE utxo SET confirmedHash = NULL, confirmedHeight = NULL WHERE txid = ? and walletId IN (" . implode(",", $walletIds) . ")");
+        return $stmt->execute([
+            $txId->getHex(),
         ]);
     }
 

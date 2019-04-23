@@ -84,7 +84,8 @@ interface DBInterface
      */
     public function loadWalletIDsByScriptPubKey(ScriptInterface $script): array;
 
-    public function deleteSpends(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx);
+    public function markUtxoSpent(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx);
+    public function markUtxoUnspent(int $walletId, OutPointInterface $utxoOutPoint);
 
     /**
      * @param OutPointInterface $outPoint
@@ -93,6 +94,7 @@ interface DBInterface
     public function getWalletUtxosWithUnspentUtxo(OutPointInterface $outPoint): array;
 
     public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, OutPointInterface $outPoint, TransactionOutputInterface $txOut);
+    public function deleteUtxo(int $walletId, BufferInterface $txId, int $vout);
 
     public function searchUnspentUtxo(int $walletId, OutPointInterface $outPoint): ?DbUtxo;
 
@@ -108,7 +110,11 @@ interface DBInterface
      */
     public function getWalletScriptPubKeys(int $walletId): array;
 
+    public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array;
+    public function deleteTxUtxos(BufferInterface $txId, array $walletIds): array;
+    public function unspendTxUtxos(BufferInterface $txId, array $walletIds): array;
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool;
+    public function deleteTx(int $walletId, BufferInterface $txid): bool;
 
     public function getConfirmedBalance(int $walletId): int;
 

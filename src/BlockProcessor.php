@@ -36,8 +36,8 @@ class BlockProcessor
         foreach ($wallets as $wallet) {
             $this->wallets[$wallet->getDbWallet()->getId()] = $wallet;
         }
-        //$this->utxoSet = new DbUtxoSet($db, ...$wallets);
-        $this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
+        $this->utxoSet = new DbUtxoSet($db, ...$wallets);
+        //$this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
     }
 
     public function processConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx)
@@ -50,11 +50,12 @@ class BlockProcessor
             return $txId;
         };
 
-        $nIn = count($tx->getInputs());
+        $ins = $tx->getInputs();
+        $nIn = count($ins);
         $valueChange = [];
 
         for ($iIn = 0; $iIn < $nIn; $iIn++) {
-            $outPoint = $tx->getInput($iIn)->getOutPoint();
+            $outPoint = $ins[$iIn]->getOutPoint();
             // load this utxo from wallets, and mark spent
             $dbUtxos = $this->utxoSet->getUtxosForOutPoint($outPoint);
             $nUtxos = count($dbUtxos);
@@ -69,13 +70,15 @@ class BlockProcessor
             }
         }
 
-        $nOut = count($tx->getOutputs());
+        $outs = $tx->getOutputs();
+        $nOut = count($outs);
         for ($iOut = 0; $iOut < $nOut; $iOut++) {
-            $txOut = $tx->getOutput($iOut);
+            $txOut = $outs[$iOut];
             $walletIds = $this->utxoSet->getWalletsForScriptPubKey($txOut->getScript());
             $numIds = count($walletIds);
             for ($i = 0; $i < $numIds; $i++) {
                 $walletId = $walletIds[$i];
+                // does this allow skipping wallets which are already synced? so resync?
                 if (!array_key_exists($walletId, $this->wallets)) {
                     continue;
                 }
@@ -99,6 +102,25 @@ class BlockProcessor
         }
     }
 
+    public function unconfirm(int $height, BufferInterface $blockHash)
+    {
+        $walletIds = [];
+        foreach ($this->wallets as $wallet) {
+            $walletIds[] = $wallet->getDbWallet()->getId();
+        }
+        $txs = $this->db->fetchBlockTxs($blockHash, $walletIds);
+        foreach ($txs as $tx) {
+
+            /** @var DbWalletTx $tx */
+            // tx may have some spent utxos, and
+            // some created utxos. undo these.
+            $txId = $tx->getTxId();
+            $this->db->deleteTxUtxos($txId, $walletIds);
+            $this->db->unspendTxUtxos($txId, $walletIds);
+            $this->db->deleteTx($tx->getWalletId(), $txId);
+        }
+    }
+
     public function process(int $height, BufferInterface $blockHash, BlockInterface $block)
     {
         $blockHashHex = $blockHash->getHex();
@@ -110,6 +132,7 @@ class BlockProcessor
                 $tx = $block->getTransaction($iTx);
                 $this->processConfirmedTx($height, $blockHashHex, $tx);
             }
+
 //            if ($height === 181) {
 //                die("bail");
 //            }

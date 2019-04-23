@@ -69,7 +69,6 @@ class Chain
         $stmt = $db->getPdo()->prepare("SELECT * FROM header order by height   ASC");
         $stmt->execute();
 
-        // tmpPrev; associate hash => [0:prevHash, 1:status]
         // candidates: tip-hash => chain info
         // tmpPrev allows us to build up heightMapToHash, ie, bestChain
         // by linking hash => hashPrev. it contains links from all chains
@@ -80,7 +79,7 @@ class Chain
             $hash = $row->getHash();
             $hashKey = $hash->getBinary();
             $height = $row->getHeight();
-            $header = $row->getHeader();
+            $prevBlock = $row->getPrevBlock();
 
             // every header is added to hashMapToHeight
             $this->hashMapToHeight[$hashKey] = $height;
@@ -88,7 +87,7 @@ class Chain
             if ($height === 0) {
                 $candidates[$hashKey] = $row;
             } else if (($row->getStatus() & DbHeader::HEADER_VALID) != 0) {
-                $prevKey = $header->getPrevBlock()->getBinary();
+                $prevKey = $prevBlock->getBinary();
                 if (array_key_exists($prevKey, $candidates)) {
                     /** @var DbHeader $prevTip */
                     $prevTip = $candidates[$prevKey];
@@ -103,7 +102,7 @@ class Chain
                     // only leave prevTip if it's BLOCK_VALID but row isn't
                 } else {
                     // prev is not already a tip.
-                    $prev = $db->getHeader($header->getPrevBlock());
+                    $prev = $db->getHeader($prevBlock);
                     if (!$prev) {
                         throw new \RuntimeException("FATAL: could not find prev block");
                     }
@@ -116,9 +115,10 @@ class Chain
                         }
                     }
 
+                    $bh = $bestBlock->getHash()->getBinary();
                     // don't already have an entry for the best block, add it
-                    if (!array_key_exists($bestBlock->getHash()->getBinary(), $candidates)) {
-                        $candidates[$bestBlock->getHash()->getBinary()] = $bestBlock;
+                    if (!array_key_exists($bh, $candidates)) {
+                        $candidates[$bh] = $bestBlock;
                     }
                 }
                 $candidates[$hashKey] = $row;
@@ -151,7 +151,7 @@ class Chain
         // build up our view of the best chain
         while ($bestHeader !== null && $bestHeader->getHeight() >= 0) {
             $this->heightMapToHash[$bestHeader->getHeight()] = $bestHeader->getHash()->getBinary();
-            $bestHeader = $db->getHeader($bestHeader->getHeader()->getPrevBlock());
+            $bestHeader = $db->getHeader($bestHeader->getPrevBlock());
         }
     }
 

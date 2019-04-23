@@ -253,6 +253,7 @@ class Create extends Command
 
         $chain = new Chain(new ProofOfWork($math, $params));
         $chain->init($db, $params);
+
         $bestBlock = $chain->getBestBlock();
         if ($birthday->getHeight() < $bestBlock->getHeight()) {
             throw new \RuntimeException("Best block is greater than birthday, need to start syncing from scratch");

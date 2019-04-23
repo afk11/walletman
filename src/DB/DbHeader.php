@@ -41,6 +41,10 @@ class DbHeader
     {
         return Buffer::hex($this->hash);
     }
+    public function getPrevBlock(): BufferInterface
+    {
+        return Buffer::hex($this->prevBlock);
+    }
     public function getHeader(): BlockHeaderInterface
     {
         return new BlockHeader(

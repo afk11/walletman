@@ -4,14 +4,10 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet\Console\Command\Wallet;
 
-use BitWasp\Bitcoin\Chain\ProofOfWork;
-use BitWasp\Bitcoin\Math\Math;
-use BitWasp\Wallet\Chain;
 use BitWasp\Wallet\Config;
 use BitWasp\Wallet\Console\Command\Command;
 use BitWasp\Wallet\DB\DBDecorator;
 use BitWasp\Wallet\DbManager;
-use BitWasp\Wallet\NetworkInfo;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
