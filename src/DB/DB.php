@@ -613,16 +613,21 @@ class DB implements DBInterface
             $walletId, $txid->getHex(),
         ]);
     }
+
     public function deleteTxUtxos(BufferInterface $txId, array $walletIds): array
     {
         $stmt = $this->pdo->query("DELETE FROM utxo WHERE txid = ? and walletId IN (" . implode(",", $walletIds) . ")");
-        return $stmt->execute([
+        if (!$stmt->execute([
             $txId->getHex(),
-        ]);
+        ])) {
+            throw new \RuntimeException("failed to delete utxos");
+        }
     }
-    public function unspendTxUtxos(BufferInterface $txId, array $walletIds): array
+
+    public function unspendTxUtxos(BufferInterface $txId, array $walletIds)
     {
-        $stmt = $this->pdo->query("UPDATE utxo SET confirmedHash = NULL, confirmedHeight = NULL WHERE txid = ? and walletId IN (" . implode(",", $walletIds) . ")");
+        // todo: index on spentTxid?
+        $stmt = $this->pdo->query("UPDATE utxo SET spentTxid = NULL, spentIdx = NULL WHERE spentTxid = ? and walletId IN (" . implode(",", $walletIds) . ")");
         return $stmt->execute([
             $txId->getHex(),
         ]);

@@ -195,6 +195,23 @@ class DBTest extends DbTestCase
         $this->assertNull($tx->getConfirmedHeight());
     }
 
+    public function testDeleteTx()
+    {
+        $walletId = 89;
+        $txid = new Buffer("txid", 32);
+        $valueChange = -100000000;
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txid, $valueChange, DbWalletTx::STATUS_UNCONFIRMED, null, null));
+
+        $stmt = $this->sessionDb->getTransactions($walletId);
+        $tx = $stmt->fetchObject(DbWalletTx::class);
+        $this->assertInstanceOf(DbWalletTx::class, $tx);
+
+        $this->assertTrue($this->sessionDb->deleteTx($walletId, $txid));
+        $stmt = $this->sessionDb->getTransactions($walletId);
+        $tx = $stmt->fetchObject(DbWalletTx::class);
+        $this->assertFalse($tx);
+    }
+
     public function testCreateUtxo()
     {
         $walletId = 2;
@@ -214,5 +231,86 @@ class DBTest extends DbTestCase
         $this->assertEquals($outpointReceive->getTxId()->getHex(), $getUtxo->getOutPoint()->getTxId()->getHex());
         $this->assertEquals($outpointReceive->getVout(), $getUtxo->getOutPoint()->getVout());
         $this->assertNull($getUtxo->getSpendOutPoint());
+    }
+
+    public function testDeleteUtxo()
+    {
+        $walletId = 2;
+        $txidReceive = new Buffer("txid1", 32);
+        $outpointReceive = new OutPoint($txidReceive, 0);
+        $txoutReceive = new TransactionOutput(500000, new Script());
+        $valueChange = 500000;
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->sessionDb->createUtxo($walletId, 1, $outpointReceive, $txoutReceive);
+
+        // todo: maybe write test function to query this, function
+        // clearly only searches unspent utxos
+        $getUtxo = $this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive);
+        $this->assertInstanceOf(DbUtxo::class, $getUtxo);
+
+        $this->sessionDb->deleteUtxo($walletId, $txidReceive, 0);
+
+        $getUtxo = $this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive);
+        $this->assertNull($getUtxo);
+    }
+
+    public function testMarkUtxoSpent()
+    {
+        $walletId = 2;
+        $txidReceive = new Buffer("txid1", 32);
+        $txidSpend = new Buffer("txid2", 32);
+        $outpointReceive = new OutPoint($txidReceive, 0);
+        $txoutReceive = new TransactionOutput(500000, new Script());
+        $valueChange = 500000;
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->sessionDb->createUtxo($walletId, 1, $outpointReceive, $txoutReceive);
+
+        $getUtxo = $this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive);
+        $this->assertInstanceOf(DbUtxo::class, $getUtxo);
+
+        $this->sessionDb->markUtxoSpent($walletId, $outpointReceive, $txidSpend, 0);
+
+        $getUtxo = $this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive);
+        $this->assertNull($getUtxo);
+    }
+
+    public function testUnspendTxUtxos()
+    {
+        // mimics replacement of a confirmed transaction (via reorg or something)
+        // except the test doesn't add a replacement
+
+        $walletId = 3;
+        $scriptId = 9;
+        $txidReceive = new Buffer("txid1", 32);
+        $outpointReceive = new OutPoint($txidReceive, 0);
+        $txoutReceive = new TransactionOutput(500000, new Script());
+
+        $txidSpend = new Buffer("txid2", 32);
+        $outpointSpend = new OutPoint($txidSpend, 0);
+        $txoutSpend = new TransactionOutput(400000, new Script());
+
+        // create tx, and utxo
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $txoutReceive->getValue(), DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->sessionDb->createUtxo($walletId, $scriptId, $outpointReceive, $txoutReceive);
+
+        // check it exists
+        $getUtxo = $this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive);
+        $this->assertInstanceOf(DbUtxo::class, $getUtxo);
+
+        // create spend tx, delete prev utxo, create newer one
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidSpend, -100000, DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->sessionDb->markUtxoSpent($walletId, $outpointReceive, $txidSpend, 0);
+        $this->sessionDb->createUtxo($walletId, $scriptId, $outpointSpend, $txoutSpend);
+
+        // first utxo is gone, spend utxo exists
+        $getUtxo = $this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive);
+        $this->assertNull($getUtxo);
+        $getUtxo = $this->sessionDb->searchUnspentUtxo($walletId, $outpointSpend);
+        $this->assertInstanceOf(DbUtxo::class, $getUtxo);
+
+        $this->sessionDb->unspendTxUtxos($txidSpend, [$walletId]);
+
+        $getUtxo = $this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive);
+        $this->assertInstanceOf(DbUtxo::class, $getUtxo);
     }
 }

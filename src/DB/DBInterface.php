@@ -112,7 +112,7 @@ interface DBInterface
 
     public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array;
     public function deleteTxUtxos(BufferInterface $txId, array $walletIds): array;
-    public function unspendTxUtxos(BufferInterface $txId, array $walletIds): array;
+    public function unspendTxUtxos(BufferInterface $txId, array $walletIds);
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool;
     public function deleteTx(int $walletId, BufferInterface $txid): bool;
 

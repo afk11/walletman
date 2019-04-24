@@ -289,7 +289,7 @@ class DBDecorator implements DBInterface
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
-    public function unspendTxUtxos(BufferInterface $txId, array $walletIds): array
+    public function unspendTxUtxos(BufferInterface $txId, array $walletIds)
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
