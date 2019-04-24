@@ -508,14 +508,14 @@ class DB implements DBInterface
         return $utxos;
     }
 
-    public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, OutPointInterface $outPoint, TransactionOutputInterface $txOut)
+    public function createUtxo(int $walletId, int $dbScriptId, OutPointInterface $outPoint, TransactionOutputInterface $txOut)
     {
         if (null === $this->createUtxoStmt) {
             $this->createUtxoStmt = $this->pdo->prepare("INSERT INTO utxo (walletId, scriptId, txid, vout, value, scriptPubKey) values (?, ?, ?, ?, ?, ?)");
         }
 
         if (!$this->createUtxoStmt->execute([
-            $dbWallet->getId(), $dbScript->getId(),
+            $walletId, $dbScriptId,
             $outPoint->getTxId()->getHex(), $outPoint->getVout(),
             $txOut->getValue(), $txOut->getScript()->getHex(),
         ])) {
@@ -592,6 +592,7 @@ class DB implements DBInterface
         }
         return $results;
     }
+
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool
     {
         if (null === $this->createTxStmt) {
@@ -602,6 +603,7 @@ class DB implements DBInterface
             $status, $blockHashHex, $blockHeight,
         ]);
     }
+
     public function deleteTx(int $walletId, BufferInterface $txid): bool
     {
         if (null === $this->deleteTxStmt) {

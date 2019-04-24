@@ -7,9 +7,13 @@ namespace BitWasp\Test\Wallet\DB;
 use BitWasp\Bitcoin\Block\BlockHeader;
 use BitWasp\Bitcoin\Chain\ProofOfWork;
 use BitWasp\Bitcoin\Math\Math;
+use BitWasp\Bitcoin\Script\Script;
+use BitWasp\Bitcoin\Transaction\OutPoint;
+use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\DB\DbHeader;
+use BitWasp\Wallet\DB\DbUtxo;
 use BitWasp\Wallet\DB\DbWalletTx;
 
 class DBTest extends DbTestCase
@@ -189,5 +193,26 @@ class DBTest extends DbTestCase
         $this->assertEquals(DbWalletTx::STATUS_UNCONFIRMED, $tx->getStatus());
         $this->assertNull($tx->getConfirmedHash());
         $this->assertNull($tx->getConfirmedHeight());
+    }
+
+    public function testCreateUtxo()
+    {
+        $walletId = 2;
+        $txidReceive = new Buffer("txid2", 32);
+        $outpointReceive = new OutPoint($txidReceive, 0);
+        $txoutReceive = new TransactionOutput(500000, new Script());
+        $valueChange = 500000;
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->sessionDb->createUtxo($walletId, 1, $outpointReceive, $txoutReceive);
+
+        $getUtxo = $this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive);
+        $this->assertInstanceOf(DbUtxo::class, $getUtxo);
+        $this->assertEquals($walletId, $getUtxo->getWalletId());
+        $this->assertEquals($txoutReceive->getValue(), $getUtxo->getValue());
+        $this->assertEquals($txoutReceive->getValue(), $getUtxo->getTxOut()->getValue());
+        $this->assertEquals($txoutReceive->getScript()->getHex(), $getUtxo->getTxOut()->getScript()->getHex());
+        $this->assertEquals($outpointReceive->getTxId()->getHex(), $getUtxo->getOutPoint()->getTxId()->getHex());
+        $this->assertEquals($outpointReceive->getVout(), $getUtxo->getOutPoint()->getVout());
+        $this->assertNull($getUtxo->getSpendOutPoint());
     }
 }

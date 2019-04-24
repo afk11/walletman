@@ -56,7 +56,7 @@ class DbUtxoSet implements UtxoSet
 
     public function createUtxo(DbWallet $wallet, DbScript $script, OutPointInterface $outPoint, TransactionOutputInterface $txOut): void
     {
-        $this->db->createUtxo($wallet, $script, $outPoint, $txOut);
+        $this->db->createUtxo($wallet->getId(), $script->getId(), $outPoint, $txOut);
     }
 
     public function undoUtxo(int $walletId, BufferInterface $txId, int $vout): void

@@ -106,7 +106,7 @@ class MemoryUtxoSet implements UtxoSet
 
     public function createUtxo(DbWallet $wallet, DbScript $script, OutPointInterface $outPoint, TransactionOutputInterface $txOut): void
     {
-        $this->db->createUtxo($wallet, $script, $outPoint, $txOut);
+        $this->db->createUtxo($wallet->getId(), $script->getId(), $outPoint, $txOut);
         $utxo = $this->db->searchUnspentUtxo($wallet->getId(), $outPoint);
         $key = $this->outPointSerializer->serialize($outPoint)->getBinary();
         if (!array_key_exists($key, $this->utxoSet)) {

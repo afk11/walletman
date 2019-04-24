@@ -142,7 +142,7 @@ class WalletTest extends DbTestCase
             $outPoint = new OutPoint($txid, $i);
             $shouldSpend[] = $outPoint;
             $totalIn += $amount;
-            $this->sessionDb->createUtxo($wallet->getDbWallet(), $script, $outPoint, new TransactionOutput($amount, $spk));
+            $this->sessionDb->createUtxo($wallet->getDbWallet()->getId(), $script->getId(), $outPoint, new TransactionOutput($amount, $spk));
         }
 
         $prepared = $wallet->sendAllCoins($destAddr->getScriptPubKey(), $feeRate);
@@ -227,7 +227,7 @@ class WalletTest extends DbTestCase
         $feeRate = 5;
         $amount = 1;
         $outPoint = new OutPoint($txid, 0);
-        $this->sessionDb->createUtxo($wallet->getDbWallet(), $script, $outPoint, new TransactionOutput($amount, $spk));
+        $this->sessionDb->createUtxo($wallet->getDbWallet()->getId(), $script->getId(), $outPoint, new TransactionOutput($amount, $spk));
 
         $wallet->sendAllCoins($destAddr->getScriptPubKey(), $feeRate);
     }
@@ -259,9 +259,9 @@ class WalletTest extends DbTestCase
         $txOut3 = new TransactionOutput(10000000, $spk);
         $totalIn = $txOut1->getValue() + $txOut2->getValue();
 
-        $this->sessionDb->createUtxo($wallet->getDbWallet(), $script, $outPoint1, $txOut1);
-        $this->sessionDb->createUtxo($wallet->getDbWallet(), $script, $outPoint2, $txOut2);
-        $this->sessionDb->createUtxo($wallet->getDbWallet(), $script, $outPoint3, $txOut3);
+        $this->sessionDb->createUtxo($wallet->getDbWallet()->getId(), $script->getId(), $outPoint1, $txOut1);
+        $this->sessionDb->createUtxo($wallet->getDbWallet()->getId(), $script->getId(), $outPoint2, $txOut2);
+        $this->sessionDb->createUtxo($wallet->getDbWallet()->getId(), $script->getId(), $outPoint3, $txOut3);
 
         $feeRate = 5;
         $sendTxOut = new TransactionOutput(120000000, $destAddr->getScriptPubKey());

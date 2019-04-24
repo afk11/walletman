@@ -235,7 +235,7 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, OutPointInterface $outPoint, TransactionOutputInterface $txOut)
+    public function createUtxo(int $walletId, int $dbScriptId, OutPointInterface $outPoint, TransactionOutputInterface $txOut)
     {
         return $this->call(__FUNCTION__, func_get_args());
     }

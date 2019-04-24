@@ -113,7 +113,7 @@ class WalletTest extends DbTestCase
             $outPoint = new OutPoint($txid, $i);
             $shouldSpend[] = $outPoint;
             $totalIn += $amount;
-            $this->sessionDb->createUtxo($wallet->getDbWallet(), $script, $outPoint, new TransactionOutput($amount, $spk));
+            $this->sessionDb->createUtxo($wallet->getDbWallet()->getId(), $script->getId(), $outPoint, new TransactionOutput($amount, $spk));
         }
 
         $prepared = $wallet->sendAllCoins($destAddr->getScriptPubKey(), $feeRate);

@@ -93,7 +93,7 @@ interface DBInterface
      */
     public function getWalletUtxosWithUnspentUtxo(OutPointInterface $outPoint): array;
 
-    public function createUtxo(DbWallet $dbWallet, DbScript $dbScript, OutPointInterface $outPoint, TransactionOutputInterface $txOut);
+    public function createUtxo(int $walletId, int $dbScriptId, OutPointInterface $outPoint, TransactionOutputInterface $txOut);
     public function deleteUtxo(int $walletId, BufferInterface $txId, int $vout);
 
     public function searchUnspentUtxo(int $walletId, OutPointInterface $outPoint): ?DbUtxo;
