@@ -59,11 +59,6 @@ class DbUtxoSet implements UtxoSet
         $this->db->createUtxo($wallet->getId(), $script->getId(), $outPoint, $txOut);
     }
 
-    public function undoUtxo(int $walletId, BufferInterface $txId, int $vout): void
-    {
-        $this->db->deleteUtxo($walletId, $txId, $vout);
-    }
-
     /**
      * @param int $walletId
      * @param OutPointInterface $outPoint
@@ -76,13 +71,4 @@ class DbUtxoSet implements UtxoSet
         $this->db->markUtxoSpent($walletId, $outPoint, $spendTxId, $spendVout);
     }
 
-    /**
-     * @param int $walletId
-     * @param OutPointInterface $outPoint
-     * @throws \Exception
-     */
-    public function unspendUtxo(int $walletId, OutPointInterface $outPoint): void
-    {
-        $this->db->markUtxoUnspent($walletId, $outPoint);
-    }
 }
