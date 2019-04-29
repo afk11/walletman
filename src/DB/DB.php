@@ -39,6 +39,7 @@ class DB implements DBInterface
     private $getBip44WalletKey;
     private $getWalletUtxosStmt;
     private $createTxStmt;
+    private $updateTxStatusStmt;
     private $deleteTxStmt;
     private $getConfirmedBalanceStmt;
     private $createUtxoStmt;
@@ -78,7 +79,7 @@ class DB implements DBInterface
             `walletId`     INTEGER NOT NULL,
             `valueChange`  INTEGER NOT NULL,
             `status`       INTEGER NOT NULL,
-            `txid`         TEXT NOT NULL,
+            `txid`         VARCHAR(64) NOT NULL,
             `confirmedHash`    TEXT,
             `confirmedHeight`  TEXT
         );")) {
@@ -86,6 +87,21 @@ class DB implements DBInterface
         }
 
         if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_tx on tx(walletId, txid)")) {
+            throw new \RuntimeException("failed add index on tx table");
+        }
+    }
+
+    public function createRawTxTable()
+    {
+        if (false === $this->pdo->exec("CREATE TABLE `rawTx` (
+            `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+            `txid`  VARCHAR(64) NOT NULL,
+            `tx`    TEXT NOT NULL
+        );")) {
+            throw new \RuntimeException("failed to create tx table");
+        }
+
+        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_tx on tx(txid)")) {
             throw new \RuntimeException("failed add index on tx table");
         }
     }
@@ -604,6 +620,16 @@ class DB implements DBInterface
         ]);
     }
 
+    public function updateTxStatus(int $walletId, BufferInterface $txid, int $status): bool
+    {
+        if (null === $this->updateTxStatusStmt) {
+            $this->updateTxStatusStmt = $this->pdo->prepare("UPDATE tx SET status = ? where walletId = ? and txid = ?");
+        }
+        return $this->updateTxStatusStmt->execute([
+            $walletId, $txid->getHex(), $status,
+        ]);
+    }
+
     public function deleteTx(int $walletId, BufferInterface $txid): bool
     {
         if (null === $this->deleteTxStmt) {
@@ -652,4 +678,30 @@ class DB implements DBInterface
         ]);
         return $stmt;
     }
+
+    public function saveRawTx(BufferInterface $txId, BufferInterface $tx)
+    {
+        // todo prepared statement
+        $stmt = $this->pdo->prepare("insert into rawTx (txId, tx) values (?, ?)");
+        $stmt->execute([
+            $txId->getHex(), $tx->getBinary(),
+        ]);
+        return $stmt;
+    }
+    public function getRawTx(BufferInterface $txId): string
+    {
+        // todo prepared statement
+        $stmt = $this->pdo->prepare("select * from rawTx where txId = ?");
+        $stmt->execute([
+            $txId->getHex(),
+        ]);
+        if (!($tx = $stmt->fetchColumn(0))) {
+            throw new \RuntimeException("failed to find raw Tx?");
+        }
+        print_R($tx);
+        die();
+        return $tx;
+    }
+
+
 }

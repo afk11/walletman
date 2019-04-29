@@ -258,7 +258,10 @@ class DBDecorator implements DBInterface
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
-
+    public function updateTxStatus(int $walletId, BufferInterface $txid, int $status): bool
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
     public function getConfirmedBalance(int $walletId): int
     {
         return $this->call(__FUNCTION__, func_get_args());
@@ -285,6 +288,7 @@ class DBDecorator implements DBInterface
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
+
     public function deleteUtxo(int $walletId, BufferInterface $txId, int $vout)
     {
         return $this->call(__FUNCTION__, func_get_args());

@@ -489,51 +489,11 @@ class P2pSyncDaemon
                             echo "newBlock: {$headerIndex->getHeight()} {$hash->getHex()} \n";
                         }
 
+                        $processor = new BlockProcessor($this->db, ...$this->wallets);
+                        $processor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $block);
+
                         if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
-                            $candidateHashes = [$headerIndex->getHeight() => $headerIndex->getHash()->getBinary()];
-
-                            // Unwind until lastCommonHeight and lastCommonHash are determined.
-                            $lastCommonHash = $header->getPrevBlock();
-                            $lastCommonHeight = $headerIndex->getHeight() - 1;
-                            while ($lastCommonHeight != 0 && $this->chain->getBlockHash($lastCommonHeight)->getBinary() !== $lastCommonHash->getBinary()) {
-                                // If the hashes differ, keep our previous attempt
-                                // in candidateHashes because we need to apply them later
-                                $candidateHashes[$lastCommonHeight] = $lastCommonHash->getBinary();
-                                $p = $this->db->getHeader($lastCommonHash);
-                                if (null === $p) {
-                                    throw new \RuntimeException("failed to find prevblock");
-                                }
-                                // need for prevBlock, and arguably status too
-                                $lastCommonHash = $p->getHeader()->getPrevBlock();
-                                $lastCommonHeight--;
-                            }
-                            if ($debugReorg) {
-                                echo "lastCommon: {$lastCommonHeight} {$lastCommonHash->getHex()}\n";
-                            }
-                            // Undo blocks [lastCommonHeight+1, currentTipHeight]
-                            for ($i = $prevTip->getHeight(); $i >= $lastCommonHeight + 1; $i--) {
-                                $prevH = new Buffer($candidateHashes[$i], 32);
-                                if ($debugReorg) {
-                                    echo "unconfirm block {$i} {$prevH->getHex()}\n";
-                                }
-                                /** @var DbHeader $headerIndex */
-                                $processor = new BlockProcessor($this->db, ...$this->wallets);
-                                $processor->unconfirm($headerIndex->getHeight(), $prevH);
-                            }
-
-                            // Insert [lastCommonHeight+1, candidateTipHeight] to the header chain
-                            for ($i = $lastCommonHeight + 1; $i <= $headerIndex->getHeight(); $i++) {
-                                // If we are adding our birthday to the chain, we need to update
-                                // bestBlockIndex now so block sync starts from the correct height.
-                                // Not necessary in unwind, because no way for another header to
-                                // be used at that height.
-                                if ($debugReorg) {
-                                    echo "apply block $i\n";
-                                }
-                                /** @var DbHeader $headerIndex */
-                                $processor = new BlockProcessor($this->db, ...$this->wallets);
-                                $processor->process($headerIndex->getHeight(), $hash, $block);
-                            }
+                            $this->chain->updateChain($this->db, $processor, $headerIndex, true);
                         }
 
                         $this->db->getPdo()->commit();
