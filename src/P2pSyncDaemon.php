@@ -323,13 +323,12 @@ class P2pSyncDaemon
             if (($index = $this->db->getHeader($peerInfo->lastUnknownBlockHash))) {
                 if (!$peerInfo->bestKnownBlock || gmp_cmp($index->getWork(), $peerInfo->bestKnownBlock->getWork()) > 0) {
                     $peerInfo->bestKnownBlock = $index;
-                    echo "RefreshBlockAvailability: lastUnknown became bestKnown";
                 }
                 $peerInfo->lastUnknownBlockHash = null;
-                echo "RefreshBlockAvailability: lastUnknown now known";
             }
         }
     }
+
     private function recordAdvertisedBlock(Peer $peer, PeerInfo $peerInfo, BufferInterface $blkHash)
     {
         $this->refreshBlockAvailability($peer, $peerInfo);
@@ -337,10 +336,8 @@ class P2pSyncDaemon
         if (($index = $this->db->getHeader($blkHash))) {
             if (!$peerInfo->bestKnownBlock || gmp_cmp($index->getWork(), $peerInfo->bestKnownBlock->getWork()) > 0) {
                 $peerInfo->bestKnownBlock = $index;
-                echo "RecordAdvertisedBlock: set bestKnownBlock";
             }
         } else {
-            echo "RecordAdvertisedBlock: dunno, set lastUnknown block";
             $peerInfo->lastUnknownBlockHash = $index->getHash();
         }
     }
@@ -350,20 +347,13 @@ class P2pSyncDaemon
         if (!$this->initialized) {
             throw new \LogicException("Cannot sync, not initialized");
         }
+
         $netFactory = new Factory($loop, $this->network);
-
-
-        $requiredServices = 0;
-        $myServices = 0;
-        if ($this->segwit) {
-            $requiredServices = $requiredServices | Services::WITNESS;
-            $myServices = $myServices | Services::WITNESS;
-        }
 
         $connParams = new ConnectionParams();
         $connParams->setBestBlockHeight($this->chain->getBestHeader()->getHeight());
-        $connParams->setRequiredServices($requiredServices);
-        $connParams->setLocalServices($myServices);
+        $connParams->setRequiredServices($this->segwit ? Services::WITNESS : 0);
+        $connParams->setLocalServices($this->segwit ? Services::WITNESS : 0);
         $connParams->setProtocolVersion(70013); // above this causes problems, todo
         $connParams->setUserAgent($this->getUserAgent());
 
@@ -377,7 +367,6 @@ class P2pSyncDaemon
             ->then(function (Peer $peer) use ($loop) {
                 $this->peer = $peer;
                 $peerInfo = new PeerInfo();
-                $this->peerInfo = $peerInfo;
                 $timeLastPing = null;
                 $pingLastNonce = null;
 
@@ -511,18 +500,12 @@ class P2pSyncDaemon
                     $processStart = microtime(true);
                     $prevTip = $this->chain->getBestBlock();
                     $this->db->getPdo()->beginTransaction();
-                    $debugReorg = true;
                     try {
                         $headerIndex = null;
                         if (!$this->chain->acceptBlock($this->db, $hash, $block, $headerIndex)) {
                             throw new \RuntimeException("Failed to process block");
                         }
                         /** @var DbHeader $headerIndex */
-
-                        if ($debugReorg) {
-                            echo "prevTip: {$prevTip->getHeight()} {$prevTip->getHash()->getHex()} \n";
-                            echo "newBlock: {$headerIndex->getHeight()} {$hash->getHex()} \n";
-                        }
 
                         $processor = new BlockProcessor($this->db, ...$this->wallets);
                         $processor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $block);
@@ -613,6 +596,7 @@ class P2pSyncDaemon
      * $this->toDownload until we have enough of a batch.
      * It traces the existing 'best header' chain
      * @param Peer $peer
+     * @param PeerInfo $peerInfo
      */
     public function requestBlocks(Peer $peer, PeerInfo $peerInfo)
     {
@@ -654,7 +638,6 @@ class P2pSyncDaemon
             }
             // need for prevBlock, and arguably status too
             $peerInfo->lastCommonBlock = $p;
-            echo "doesnt match, get next previous block\n";
         }
 
         $downloadHeight = $peerInfo->lastCommonBlock->getHeight() + 1;
@@ -696,6 +679,7 @@ class P2pSyncDaemon
      * It outputs the log and triggers downloading only if we are not currently
      * downloading, as blocks being received continue the process.
      * @param Peer $peer
+     * @param PeerInfo $peerInfo
      */
     public function downloadBlocks(Peer $peer, PeerInfo $peerInfo)
     {
