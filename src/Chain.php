@@ -357,7 +357,7 @@ class Chain
         if (!$prev) {
             return false;
         }
-        $blockProcessor->unconfirm($tip->getHash());
+        $blockProcessor->undoBlock($tip->getHash());
         unset($this->blocks[$tip->getHeight()]);
         $this->bestBlockIndex = $prev;
         return true;

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\BlockInterface;
-use BitWasp\Bitcoin\Serializer\Transaction\OutPointSerializer;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializerInterface;
 use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
@@ -42,17 +41,69 @@ class BlockProcessor
         //$this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
     }
 
-    // called before activation, saves as rejected
-    public function saveConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx)
+    public function saveBlock(int $height, BufferInterface $blockHash, BlockInterface $block)
     {
-        $txId = null;
-        $getTxid = function () use (&$txId, $tx) {
-            if (null === $txId) {
-                $txId = $tx->getTxId();
-            }
-            return $txId;
-        };
+        $blockHashHex = $blockHash->getHex();
 
+        // 1. receive only wallet
+        try {
+            $nTx = count($block->getTransactions());
+            for ($iTx = 0; $iTx < $nTx; $iTx++) {
+                $tx = $block->getTransaction($iTx);
+                $this->processConfirmedTx($height, $blockHashHex, $tx);
+            }
+        } catch (\Error $e) {
+            echo $e->getMessage().PHP_EOL;
+            echo $e->getTraceAsString().PHP_EOL;
+            sleep(20);
+            die();
+        } catch (\Exception $e) {
+            echo $e->getMessage().PHP_EOL;
+            echo $e->getTraceAsString().PHP_EOL;
+            sleep(20);
+            die();
+        }
+    }
+
+    public function applyBlock(BufferInterface $blockHash, TransactionSerializerInterface $serializer)
+    {
+        $txs = $this->db->fetchBlockTxs($blockHash, array_keys($this->wallets));
+
+        $rawTxs = [];
+        foreach ($txs as $tx) {
+            /** @var DbWalletTx $tx */
+            $txId = $tx->getTxId();
+            $binTxId = $txId->getBinary();
+            if (array_key_exists($binTxId, $rawTxs)) {
+                $rawTx = $rawTxs[$binTxId];
+            } else {
+                $rawTxBin = $this->db->getRawTx($txId);
+                $rawTx = $rawTxs[$binTxId] = $serializer->parse(new Buffer($rawTxBin));
+            }
+            $this->applyConfirmedTx($txId, $rawTx);
+        }
+    }
+
+    public function undoBlock(BufferInterface $blockHash)
+    {
+        $walletIds = [];
+        foreach ($this->wallets as $wallet) {
+            $walletIds[] = $wallet->getDbWallet()->getId();
+        }
+
+        $txs = $this->db->fetchBlockTxs($blockHash, $walletIds);
+        foreach ($txs as $tx) {
+            /** @var DbWalletTx $tx */
+            // tx may have spent some utxos, and
+            // created some utxos. undo these.
+            $txId = $tx->getTxId();
+            $this->utxoSet->undoTx($txId, $tx->getWalletId());
+        }
+    }
+
+    // called before activation, saves as rejected
+    public function processConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx)
+    {
         $ins = $tx->getInputs();
         $nIn = count($ins);
         $valueChange = [];
@@ -87,7 +138,6 @@ class BlockProcessor
                 $wallet = $this->wallets[$walletId];
                 $dbWallet = $wallet->getDbWallet();
                 if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
-                    $txId = $getTxid();
                     if (!array_key_exists($dbWallet->getId(), $valueChange)) {
                         $valueChange[$dbWallet->getId()] = 0;
                     }
@@ -96,23 +146,19 @@ class BlockProcessor
             }
         }
 
-        foreach ($valueChange as $walletId => $change) {
-            // note: used to be when save/activate were in same step.
-            $this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $blockHashHex, $blockHeight);
-            // need to update now because tx is stored as rejected until activated (in block accept codepath)
+        if (count($valueChange) > 0) {
+            $txId = $tx->getTxId();
+            foreach ($valueChange as $walletId => $change) {
+                // note: used to be when save/activate were in same step.
+                $this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $blockHashHex, $blockHeight);
+                // need to update now because tx is stored as rejected until activated (in block accept codepath)
+            }
         }
     }
-    // called in Activate step
-    public function processConfirmedTx(TransactionInterface $tx)
-    {
-        $txId = null;
-        $getTxid = function () use (&$txId, $tx) {
-            if (null === $txId) {
-                $txId = $tx->getTxId();
-            }
-            return $txId;
-        };
 
+    // called in Activate step
+    public function applyConfirmedTx(BufferInterface $txId, TransactionInterface $tx)
+    {
         $ins = $tx->getInputs();
         $nIn = count($ins);
         $walletIds = [];
@@ -125,7 +171,7 @@ class BlockProcessor
             for ($i = 0; $i < $nUtxos; $i++) {
                 $dbUtxo = $dbUtxos[$i];
                 $walletIds[] = $dbUtxo->getWalletId();
-                $this->utxoSet->spendUtxo($dbUtxo->getWalletId(), $outPoint, $getTxid(), $iIn);
+                $this->utxoSet->spendUtxo($dbUtxo->getWalletId(), $outPoint, $txId, $iIn);
                 echo "wallet({$dbUtxo->getWalletId()}).utxoSpent {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}\n";
             }
         }
@@ -146,7 +192,6 @@ class BlockProcessor
                 $wallet = $this->wallets[$walletId];
                 $dbWallet = $wallet->getDbWallet();
                 if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
-                    $txId = $getTxid();
                     echo "wallet({$dbWallet->getId()}).newUtxo {$txId->getHex()} {$iOut}\n";
                     $this->utxoSet->createUtxo($dbWallet, $script, new OutPoint($txId, $iOut), $txOut);
                 }
@@ -159,72 +204,13 @@ class BlockProcessor
             // need to update now because tx is stored as rejected until activated (in block accept codepath)
             $this->db->updateTxStatus($walletId, $txId, DbWalletTx::STATUS_CONFIRMED);
         }
+
+        // save the full transaction if wallets are interested in it
         if (count($walletIds) > 0) {
             $this->db->saveRawTx($txId, $tx->getBuffer());
         }
-        // need full raw tx so activate can properly search for inputs/outputs
     }
 
-    public function unconfirm(BufferInterface $blockHash)
-    {
-        $walletIds = [];
-        foreach ($this->wallets as $wallet) {
-            $walletIds[] = $wallet->getDbWallet()->getId();
-        }
 
-        $txs = $this->db->fetchBlockTxs($blockHash, $walletIds);
-        foreach ($txs as $tx) {
-            /** @var DbWalletTx $tx */
-            // tx may have spent some utxos, and
-            // created some utxos. undo these.
-            $txId = $tx->getTxId();
-            $this->utxoSet->undoTx($txId, $tx->getWalletId());
-        }
-    }
 
-    public function applyBlock(BufferInterface $blockHash, TransactionSerializerInterface $serializer)
-    {
-        $txs = $this->db->fetchBlockTxs($blockHash, array_keys($this->wallets));
-
-        $rawTxs = [];
-        foreach ($txs as $tx) {
-            /** @var DbWalletTx $tx */
-            $txId = $tx->getTxId();
-            $binTxId = $txId->getBinary();
-            if (array_key_exists($binTxId, $rawTxs)) {
-                $rawTx = $rawTxs[$binTxId];
-            } else {
-                $rawTxBin = $this->db->getRawTx($txId);
-                $rawTx = $rawTxs[$binTxId] = $serializer->parse(new Buffer($rawTxBin));
-            }
-            $this->processConfirmedTx($rawTx);
-        }
-    }
-    public function saveBlock(int $height, BufferInterface $blockHash, BlockInterface $block)
-    {
-        $blockHashHex = $blockHash->getHex();
-
-        // 1. receive only wallet
-        try {
-            $nTx = count($block->getTransactions());
-            for ($iTx = 0; $iTx < $nTx; $iTx++) {
-                $tx = $block->getTransaction($iTx);
-                $this->saveConfirmedTx($height, $blockHashHex, $tx);
-            }
-
-//            if ($height === 181) {
-//                die("bail");
-//            }
-        } catch (\Error $e) {
-            echo $e->getMessage().PHP_EOL;
-            echo $e->getTraceAsString().PHP_EOL;
-            sleep(20);
-            die();
-        } catch (\Exception $e) {
-            echo $e->getMessage().PHP_EOL;
-            echo $e->getTraceAsString().PHP_EOL;
-            sleep(20);
-            die();
-        }
-    }
 }

@@ -391,7 +391,7 @@ class ChainTest extends DbTestCase
         $this->assertEquals($block2aHash->getHex(), $chain->getBestBlock()->getHash()->getHex());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestHeader()->getHash()->getHex());
 
-        // Add block 2b
+        // Add block 2b - should be no disconnects/connects, just save
         $block2b = $this->makeBlock($block1b->getHeader(), $cbScript2);
         $block2bHash = $block2b->getHeader()->getHash();
         $header2b = null;
