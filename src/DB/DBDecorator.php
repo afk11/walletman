@@ -73,6 +73,14 @@ class DBDecorator implements DBInterface
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
+    public function getRawTx(BufferInterface $txId): string
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+    public function saveRawTx(BufferInterface $txId, BufferInterface $tx)
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
 
     public function createWalletTable()
     {

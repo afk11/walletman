@@ -25,7 +25,7 @@ class BlockProcessor
     /**
      * @var WalletInterface[]
      */
-    private $wallets;
+    private $wallets = [];
 
     /**
      * @var UtxoSet
@@ -43,7 +43,8 @@ class BlockProcessor
     }
 
     // called before activation, saves as rejected
-    public function saveConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx) {
+    public function saveConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx)
+    {
         $txId = null;
         $getTxid = function () use (&$txId, $tx) {
             if (null === $txId) {
@@ -164,7 +165,7 @@ class BlockProcessor
         // need full raw tx so activate can properly search for inputs/outputs
     }
 
-    public function unconfirm(int $height, BufferInterface $blockHash)
+    public function unconfirm(BufferInterface $blockHash)
     {
         $walletIds = [];
         foreach ($this->wallets as $wallet) {
@@ -173,7 +174,6 @@ class BlockProcessor
 
         $txs = $this->db->fetchBlockTxs($blockHash, $walletIds);
         foreach ($txs as $tx) {
-
             /** @var DbWalletTx $tx */
             // tx may have spent some utxos, and
             // created some utxos. undo these.

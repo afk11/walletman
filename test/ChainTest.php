@@ -23,6 +23,7 @@ use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Test\Wallet\DbTestCase;
+use BitWasp\Wallet\BlockProcessor;
 use BitWasp\Wallet\Chain;
 use BitWasp\Wallet\DB\DbHeader;
 
@@ -109,7 +110,8 @@ class ChainTest extends DbTestCase
         $this->assertEquals(1, $chain->getBestHeader()->getHeight());
         $this->assertEquals($block1Hash->getHex(), $chain->getBlockHash(1)->getHex());
 
-        $chain->acceptBlock($this->sessionDb, $block1Hash, $block1);
+        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block1Hash, $block1));
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $header1, false);
         $this->assertEquals(1, $chain->getBestBlockHeight());
 
         // Add block 2
@@ -121,7 +123,8 @@ class ChainTest extends DbTestCase
         $this->assertEquals(2, $chain->getBestHeader()->getHeight());
         $this->assertEquals($block2Hash->getHex(), $chain->getBlockHash(2)->getHex());
 
-        $chain->acceptBlock($this->sessionDb, $block2Hash, $block2);
+        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block2Hash, $block2));
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $header2, false);
         $this->assertEquals(2, $chain->getBestBlockHeight());
     }
 
@@ -171,6 +174,7 @@ class ChainTest extends DbTestCase
         $this->assertEquals(1, $chain->getBestHeader()->getHeight());
 
         $chain->acceptBlock($this->sessionDb, $block1Hash, $block1);
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $header1, false);
         $this->assertEquals(1, $chain->getBestBlockHeight());
 
         // Reload and ensure it's the same
@@ -233,6 +237,7 @@ class ChainTest extends DbTestCase
         $this->assertEquals(1, $chain->getBestHeader()->getHeight());
         $this->assertEquals($block1aHash->getHex(), $chain->getBestHeader()->getHash()->getHex());
         $this->assertTrue($chain->acceptBlock($this->sessionDb, $block1aHash, $block1a));
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $header1a, false);
 
         // Add header 2a
         $block2a = $this->makeBlock($block1a->getHeader(), $cbScript);
@@ -242,6 +247,7 @@ class ChainTest extends DbTestCase
         $this->assertEquals(2, $chain->getBestHeader()->getHeight());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestHeader()->getHash()->getHex());
         $this->assertTrue($chain->acceptBlock($this->sessionDb, $block2aHash, $block2a));
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $header2a, false);
 
         // Add header 1b
         $block1b = $this->makeBlock($genesis->getHeader(), $cbScript2);
@@ -357,7 +363,9 @@ class ChainTest extends DbTestCase
         $block1a = $this->makeBlock($genesis->getHeader(), $cbScript);
         $block1aHash = $block1a->getHeader()->getHash();
         $header1a = null;
-        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block1aHash, $block1a));
+        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block1aHash, $block1a, $header1a));
+        $mostWork = $header1a;
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $mostWork, false);
         $this->assertEquals(1, $chain->getBestBlock()->getHeight());
         $this->assertEquals($block1aHash->getHex(), $chain->getBestBlock()->getHash()->getHex());
         $this->assertEquals($block1aHash->getHex(), $chain->getBestHeader()->getHash()->getHex());
@@ -366,16 +374,19 @@ class ChainTest extends DbTestCase
         $block2a = $this->makeBlock($block1a->getHeader(), $cbScript);
         $block2aHash = $block2a->getHeader()->getHash();
         $header2a = null;
-        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block2aHash, $block2a));
+        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block2aHash, $block2a, $header2a));
+        $mostWork = $header2a;
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $mostWork, false);
         $this->assertEquals(2, $chain->getBestBlock()->getHeight());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestBlock()->getHash()->getHex());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestHeader()->getHash()->getHex());
 
-        // Add block 1b
+        // Add block 1b - should be no disconnects/connects, just save
         $block1b = $this->makeBlock($genesis->getHeader(), $cbScript2);
         $block1bHash = $block1b->getHeader()->getHash();
         $header1b = null;
-        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block1bHash, $block1b));
+        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block1bHash, $block1b, $header1b));
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $mostWork, false);
         $this->assertEquals(2, $chain->getBestBlock()->getHeight());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestBlock()->getHash()->getHex());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestHeader()->getHash()->getHex());
@@ -384,7 +395,8 @@ class ChainTest extends DbTestCase
         $block2b = $this->makeBlock($block1b->getHeader(), $cbScript2);
         $block2bHash = $block2b->getHeader()->getHash();
         $header2b = null;
-        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block2bHash, $block2b));
+        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block2bHash, $block2b, $header2b));
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $mostWork, false);
         $this->assertEquals(2, $chain->getBestBlock()->getHeight());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestBlock()->getHash()->getHex());
         $this->assertEquals($block2aHash->getHex(), $chain->getBestHeader()->getHash()->getHex());
@@ -393,7 +405,9 @@ class ChainTest extends DbTestCase
         $block3b = $this->makeBlock($block2b->getHeader(), $cbScript2);
         $block3bHash = $block3b->getHeader()->getHash();
         $header3b = null;
-        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block3bHash, $block3b));
+        $this->assertTrue($chain->acceptBlock($this->sessionDb, $block3bHash, $block3b, $header3b));
+        $mostWork = $header3b;
+        $chain->updateChain($this->sessionDb, new BlockProcessor($this->sessionDb, ...[]), $mostWork, false);
         $this->assertEquals(3, $chain->getBestBlock()->getHeight());
         $this->assertEquals($block3bHash->getHex(), $chain->getBestBlock()->getHash()->getHex());
         $this->assertEquals($block3bHash->getHex(), $chain->getBestHeader()->getHash()->getHex());

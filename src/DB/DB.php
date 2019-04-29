@@ -702,6 +702,4 @@ class DB implements DBInterface
         die();
         return $tx;
     }
-
-
 }

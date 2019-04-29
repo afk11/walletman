@@ -22,12 +22,14 @@ use BitWasp\Bitcoin\Networking\Messages\Tx;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
 use BitWasp\Bitcoin\Networking\Services;
+use BitWasp\Bitcoin\Networking\Settings\MainnetSettings;
 use BitWasp\Bitcoin\Networking\Structure\Inventory;
 use BitWasp\Bitcoin\Serializer\Block\BlockHeaderSerializer;
 use BitWasp\Bitcoin\Serializer\Block\BlockSerializer;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
 use BitWasp\Buffertools\Buffer;
+use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DbHeader;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\Wallet\HdWallet\Bip44Wallet;
@@ -315,12 +317,41 @@ class P2pSyncDaemon
         });
     }
 
+    private function refreshBlockAvailability(Peer $peer, PeerInfo $peerInfo)
+    {
+        if (null !== $peerInfo->lastUnknownBlockHash) {
+            if (($index = $this->db->getHeader($peerInfo->lastUnknownBlockHash))) {
+                if (!$peerInfo->bestKnownBlock || gmp_cmp($index->getWork(), $peerInfo->bestKnownBlock->getWork()) > 0) {
+                    $peerInfo->bestKnownBlock = $index;
+                    echo "RefreshBlockAvailability: lastUnknown became bestKnown";
+                }
+                $peerInfo->lastUnknownBlockHash = null;
+                echo "RefreshBlockAvailability: lastUnknown now known";
+            }
+        }
+    }
+    private function recordAdvertisedBlock(Peer $peer, PeerInfo $peerInfo, BufferInterface $blkHash)
+    {
+        $this->refreshBlockAvailability($peer, $peerInfo);
+
+        if (($index = $this->db->getHeader($blkHash))) {
+            if (!$peerInfo->bestKnownBlock || gmp_cmp($index->getWork(), $peerInfo->bestKnownBlock->getWork()) > 0) {
+                $peerInfo->bestKnownBlock = $index;
+                echo "RecordAdvertisedBlock: set bestKnownBlock";
+            }
+        } else {
+            echo "RecordAdvertisedBlock: dunno, set lastUnknown block";
+            $peerInfo->lastUnknownBlockHash = $index->getHash();
+        }
+    }
+
     public function sync(LoopInterface $loop)
     {
         if (!$this->initialized) {
             throw new \LogicException("Cannot sync, not initialized");
         }
         $netFactory = new Factory($loop, $this->network);
+
 
         $requiredServices = 0;
         $myServices = 0;
@@ -345,6 +376,8 @@ class P2pSyncDaemon
             ->connect($netFactory->getAddress(new Ipv4($this->host), $this->port))
             ->then(function (Peer $peer) use ($loop) {
                 $this->peer = $peer;
+                $peerInfo = new PeerInfo();
+                $this->peerInfo = $peerInfo;
                 $timeLastPing = null;
                 $pingLastNonce = null;
 
@@ -403,7 +436,7 @@ class P2pSyncDaemon
                     }
                     $peer->getdata($txs);
                 });
-                $peer->on(Message::HEADERS, function (Peer $peer, Headers $headers) {
+                $peer->on(Message::HEADERS, function (Peer $peer, Headers $headers) use ($peerInfo) {
                     if (count($headers->getHeaders()) > 0) {
                         /** @var DbHeader null|$lastHeader */
                         $lastHeader = null;
@@ -425,6 +458,8 @@ class P2pSyncDaemon
                             $this->db->getPdo()->rollBack();
                             throw $e;
                         }
+
+                        $this->recordAdvertisedBlock($peer, $peerInfo, $lastHeader->getHash());
 
                         $newTip = $lastHeader->getHash()->equals($this->chain->getBestHeader()->getHash());
                         $this->logger->info(sprintf(
@@ -452,12 +487,12 @@ class P2pSyncDaemon
                         if (count($this->wallets) === 0) {
                             $this->logger->info("synced header chain, but no wallets. Not downloading blocks.");
                         } else if (!$this->chain->getBestBlock()->getHash()->equals($bestHeader->getHash())) {
-                            $this->downloadBlocks($peer);
+                            $this->downloadBlocks($peer, $peerInfo);
                         }
                     }
                 });
 
-                $peer->on(Message::BLOCK, function (Peer $peer, Block $blockMsg) {
+                $peer->on(Message::BLOCK, function (Peer $peer, Block $blockMsg) use ($peerInfo) {
                     $beforeDeserialize = microtime(true);
                     $block = $this->blockSerializer->parse($blockMsg->getBlock());
                     $taken = microtime(true)-$beforeDeserialize;
@@ -553,7 +588,7 @@ class P2pSyncDaemon
                         $this->downloading = false;
                         $this->resetBlockStats();
                     } else {
-                        $this->requestBlocks($peer);
+                        $this->requestBlocks($peer, $peerInfo);
                     }
                 });
 
@@ -579,7 +614,7 @@ class P2pSyncDaemon
      * It traces the existing 'best header' chain
      * @param Peer $peer
      */
-    public function requestBlocks(Peer $peer)
+    public function requestBlocks(Peer $peer, PeerInfo $peerInfo)
     {
         if (!$this->keepRunning) {
             return;
@@ -594,45 +629,52 @@ class P2pSyncDaemon
             $this->blockStatsBegin = \microtime(true);
         }
 
-        echo "requestBlock\n";
-        $downloadStartHeight = $this->chain->getBestBlock()->getHeight() + 1;
-        echo "old download start height: $downloadStartHeight\n";
+        $this->refreshBlockAvailability($peer, $peerInfo);
 
-        // Unwind until lastCommonHeight and lastCommonHash are determined.
-        $lastCommonHash = $this->chain->getBestBlock()->getHash();
-        $lastCommonHeight = $this->chain->getBestBlock()->getHeight();
-        echo "bestBlock: $lastCommonHeight {$lastCommonHash->getHex()}\n";
+        if ($peerInfo->bestKnownBlock === null || gmp_cmp($peerInfo->bestKnownBlock->getWork(), $this->chain->getBestBlock()->getWork()) < 0) {
+            // nothing to download.
+            return;
+        }
 
-        while ($lastCommonHeight != 0 && $this->chain->getBlockHash($lastCommonHeight)->getBinary() !== $lastCommonHash->getBinary()) {
+        if ($peerInfo->lastCommonBlock === null) {
+            if ($peerInfo->bestKnownBlock->getHeight() < $this->chain->getBestBlockHeight()) {
+                $peerInfo->lastCommonBlock = $peerInfo->bestKnownBlock;
+            } else {
+                $peerInfo->lastCommonBlock = $this->chain->getBestBlock();
+            }
+        }
+
+        // Reestablish lastCommonBlock if the most recent blocks don't match
+        while ($peerInfo->lastCommonBlock->getHeight() != 0 && $this->chain->getBlockHash($peerInfo->lastCommonBlock->getHeight())->getBinary() !== $peerInfo->lastCommonBlock->getHash()->getBinary()) {
             // If the hashes differ, keep our previous attempt
             // in candidateHashes because we need to apply them later
-            $p = $this->db->getHeader($lastCommonHash);
+            $p = $this->db->getHeader($peerInfo->lastCommonBlock->getPrevBlock());
             if (null === $p) {
                 throw new \RuntimeException("failed to find prevblock");
             }
             // need for prevBlock, and arguably status too
-            $lastCommonHash = $p->getPrevBlock();
-            $lastCommonHeight--;
+            $peerInfo->lastCommonBlock = $p;
             echo "doesnt match, get next previous block\n";
         }
-        echo "lastCommon $lastCommonHeight {$lastCommonHash->getHex()}\n";
-        $downloadStartHeight = $lastCommonHeight + 1;
-        echo "download start height: $downloadStartHeight\n";
+
+        $downloadHeight = $peerInfo->lastCommonBlock->getHeight() + 1;
 
         // this is our best header, which should match remote peer.
         // if we later use multiple peers, ensure we don't download blocks > than peer.bestKnownHeight
         $heightBestHeader = $this->chain->getBestHeader()->getHeight();
         $numBlocksInFlight = count($this->blocksInFlight);
 
-        while ($numBlocksInFlight + count($this->toDownload) < $this->batchSize && $downloadStartHeight + $numBlocksInFlight + count($this->toDownload) <= $heightBestHeader) {
-            $height = $downloadStartHeight + count($this->blocksInFlight) + count($this->toDownload);
+        // queue blocks into toDownload until we have a full batch window,
+        // or we have reached the header tip.
+        while ($numBlocksInFlight + count($this->toDownload) < $this->batchSize && $downloadHeight + $numBlocksInFlight + count($this->toDownload) <= $heightBestHeader) {
+            $height = $downloadHeight++;
             $hash = $this->chain->getBlockHash($height);
             if ($this->segwit) {
                 $this->toDownload[] = Inventory::witnessBlock($hash);
             } else {
                 $this->toDownload[] = Inventory::block($hash);
             }
-            echo "REQUEST: {$height} {$hash->getHex()}\n";
+            $peerInfo->lastCommonBlock = $this->db->getHeader($hash);
         }
 
         if (count($this->toDownload) > 0) {
@@ -647,7 +689,6 @@ class P2pSyncDaemon
                 $this->toDownload = [];
             }
         }
-        echo "requestBlock DONE\n";
     }
 
     /**
@@ -656,7 +697,7 @@ class P2pSyncDaemon
      * downloading, as blocks being received continue the process.
      * @param Peer $peer
      */
-    public function downloadBlocks(Peer $peer)
+    public function downloadBlocks(Peer $peer, PeerInfo $peerInfo)
     {
         if ($this->downloading) {
             return;
@@ -666,6 +707,6 @@ class P2pSyncDaemon
         $bestBlock = $this->chain->getBestBlock();
         $this->logger->info("requesting blocks from {$bestBlock->getHeight()} {$bestBlock->getHash()->getHex()}");
 
-        $this->requestBlocks($peer);
+        $this->requestBlocks($peer, $peerInfo);
     }
 }
