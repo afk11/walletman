@@ -81,7 +81,7 @@ class DbUtxo
 
     public function getSpendOutPoint(): ?OutPointInterface
     {
-        if ($this->spentTxid && $this->spentIdx) {
+        if ($this->spentTxid != null && $this->spentIdx !== null) {
             return new OutPoint(Buffer::hex($this->spentTxid), (int) $this->spentIdx);
         }
         return null;

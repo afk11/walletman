@@ -604,7 +604,7 @@ class P2pSyncDaemon
                     $bestHeader->getHash()->getHex()
                 ));
 
-                $peer->getheaders(new BlockLocator([$bestHeader->getHash()], new Buffer('', 32)));
+                $peer->getheaders(new BlockLocator([$bestHeader->getPrevBlock()], new Buffer('', 32)));
                 $peer->sendheaders();
 
                 return $peer;
@@ -634,7 +634,31 @@ class P2pSyncDaemon
             $this->blockStatsBegin = \microtime(true);
         }
 
+        echo "requestBlock\n";
         $downloadStartHeight = $this->chain->getBestBlock()->getHeight() + 1;
+        echo "old download start height: $downloadStartHeight\n";
+
+        // Unwind until lastCommonHeight and lastCommonHash are determined.
+        $lastCommonHash = $this->chain->getBestBlock()->getHash();
+        $lastCommonHeight = $this->chain->getBestBlock()->getHeight();
+        echo "bestBlock: $lastCommonHeight {$lastCommonHash->getHex()}\n";
+
+        while ($lastCommonHeight != 0 && $this->chain->getBlockHash($lastCommonHeight)->getBinary() !== $lastCommonHash->getBinary()) {
+            // If the hashes differ, keep our previous attempt
+            // in candidateHashes because we need to apply them later
+            $p = $this->db->getHeader($lastCommonHash);
+            if (null === $p) {
+                throw new \RuntimeException("failed to find prevblock");
+            }
+            // need for prevBlock, and arguably status too
+            $lastCommonHash = $p->getPrevBlock();
+            $lastCommonHeight--;
+            echo "doesnt match, get next previous block\n";
+        }
+        echo "lastCommon $lastCommonHeight {$lastCommonHash->getHex()}\n";
+        $downloadStartHeight = $lastCommonHeight + 1;
+        echo "download start height: $downloadStartHeight\n";
+
         // this is our best header, which should match remote peer.
         // if we later use multiple peers, ensure we don't download blocks > than peer.bestKnownHeight
         $heightBestHeader = $this->chain->getBestHeader()->getHeight();
@@ -648,6 +672,7 @@ class P2pSyncDaemon
             } else {
                 $this->toDownload[] = Inventory::block($hash);
             }
+            echo "REQUEST: {$height} {$hash->getHex()}\n";
         }
 
         if (count($this->toDownload) > 0) {
@@ -662,6 +687,7 @@ class P2pSyncDaemon
                 $this->toDownload = [];
             }
         }
+        echo "requestBlock DONE\n";
     }
 
     /**

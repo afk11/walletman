@@ -71,4 +71,10 @@ class DbUtxoSet implements UtxoSet
         $this->db->markUtxoSpent($walletId, $outPoint, $spendTxId, $spendVout);
     }
 
+    public function undoTx(BufferInterface $txId, int $walletId)
+    {
+        $this->db->deleteTxUtxos($txId, [$walletId]);
+        $this->db->unspendTxUtxos($txId, [$walletId]);
+        $this->db->deleteTx($walletId, $txId);
+    }
 }

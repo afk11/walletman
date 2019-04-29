@@ -115,4 +115,10 @@ class MemoryUtxoSet implements UtxoSet
             $this->utxoSet[$key][$wallet->getId()] = $utxo;
         }
     }
+
+    public function undoTx(BufferInterface $txId, int $walletId)
+    {
+        // todo: ... don't have a way to access utxos by txid here
+        // maybe query for utxos first, but that sucks :/
+    }
 }

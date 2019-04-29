@@ -108,16 +108,15 @@ class BlockProcessor
         foreach ($this->wallets as $wallet) {
             $walletIds[] = $wallet->getDbWallet()->getId();
         }
+
         $txs = $this->db->fetchBlockTxs($blockHash, $walletIds);
         foreach ($txs as $tx) {
 
             /** @var DbWalletTx $tx */
-            // tx may have some spent utxos, and
-            // some created utxos. undo these.
+            // tx may have spent some utxos, and
+            // created some utxos. undo these.
             $txId = $tx->getTxId();
-            $this->db->deleteTxUtxos($txId, $walletIds);
-            $this->db->unspendTxUtxos($txId, $walletIds);
-            $this->db->deleteTx($tx->getWalletId(), $txId);
+            $this->utxoSet->undoTx($txId, $tx->getWalletId());
         }
     }
 
