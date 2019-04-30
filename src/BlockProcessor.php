@@ -217,7 +217,4 @@ class BlockProcessor
             $this->db->updateTxStatus($walletId, $txId, DbWalletTx::STATUS_CONFIRMED);
         }
     }
-
-
-
 }

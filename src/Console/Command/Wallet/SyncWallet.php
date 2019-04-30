@@ -44,6 +44,7 @@ class SyncWallet extends Command
 
             // general options
             ->addOption('mempool', 'm', InputOption::VALUE_NONE, "Synchronize the mempool")
+            ->addOption('stopatheight', null, InputOption::VALUE_REQUIRED, "Stop the node after the specified height is reached")
 
             // debug options
             ->addOption('daemon', null, InputOption::VALUE_NONE, "Start the node in daemon mode")
@@ -76,6 +77,8 @@ class SyncWallet extends Command
         $fDaemon = $input->getOption('daemon');
         $fDebugPerBlock = $input->getOption('debug-perblock');
         $fBlockStatsToFile = $input->getOption('blockstats');
+        $stopAtHeight = (int) $input->getOption('stopatheight');
+
         $fBlockWindow = $this->parseBlockWindow($input);
         $ip = $this->getStringOption($input, 'ip');
 
@@ -130,6 +133,9 @@ class SyncWallet extends Command
         }
         if ($fBlockStatsToFile) {
             $daemon->produceBlockStatsCsv(__DIR__ . "/../../../../blockstats");
+        }
+        if ($stopAtHeight) {
+            $daemon->setStopAtHeight($stopAtHeight);
         }
         $daemon->init($hdSerializer);
 

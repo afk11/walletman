@@ -22,7 +22,6 @@ use BitWasp\Bitcoin\Networking\Messages\Tx;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;
 use BitWasp\Bitcoin\Networking\Services;
-use BitWasp\Bitcoin\Networking\Settings\MainnetSettings;
 use BitWasp\Bitcoin\Networking\Structure\Inventory;
 use BitWasp\Bitcoin\Serializer\Block\BlockHeaderSerializer;
 use BitWasp\Bitcoin\Serializer\Block\BlockSerializer;
@@ -110,6 +109,11 @@ class P2pSyncDaemon
      * @var bool
      */
     private $perBlockDebug = false;
+
+    /**
+     * @var null|int
+     */
+    private $stopAtHeight;
 
     /**
      * @var bool
@@ -237,6 +241,11 @@ class P2pSyncDaemon
         $this->blockStatsCount = null;
     }
 
+    public function setStopAtHeight(int $height)
+    {
+        $this->stopAtHeight = $height;
+    }
+
     public function getUserAgent(): string
     {
         return $this->userAgent;
@@ -320,6 +329,7 @@ class P2pSyncDaemon
                     $this->peer->intentionalClose();
                 }
                 $loop->cancelTimer($timer);
+                $loop->stop();
             }
         });
     }
@@ -488,7 +498,7 @@ class P2pSyncDaemon
                     }
                 });
 
-                $peer->on(Message::BLOCK, function (Peer $peer, Block $blockMsg) use ($peerInfo) {
+                $peer->on(Message::BLOCK, function (Peer $peer, Block $blockMsg) use ($loop, $peerInfo) {
                     $beforeDeserialize = microtime(true);
                     $block = $this->blockSerializer->parse($blockMsg->getBlock());
 
@@ -562,6 +572,10 @@ class P2pSyncDaemon
                         $this->blockDeserializeNTx = 0;
                         $this->blockStatsCount = 0;
                         $this->blockStatsBegin = microtime(true);
+                    }
+
+                    if (null !== $this->stopAtHeight && $headerIndex->getHeight() === $this->stopAtHeight) {
+                        $this->close($loop);
                     }
 
                     if ($headerIndex->getHash()->equals($this->chain->getBestHeader()->getHash())) {
