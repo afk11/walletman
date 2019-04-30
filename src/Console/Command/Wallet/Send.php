@@ -7,6 +7,7 @@ namespace BitWasp\Wallet\Console\Command\Wallet;
 use BitWasp\Bitcoin\Address\AddressCreator;
 use BitWasp\Bitcoin\Amount;
 use BitWasp\Bitcoin\Bitcoin;
+use BitWasp\Bitcoin\Exceptions\UnrecognizedAddressException;
 use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\GlobalPrefixConfig;
 use BitWasp\Bitcoin\Key\Deterministic\HdPrefix\NetworkConfig;
 use BitWasp\Bitcoin\Key\Deterministic\Slip132\Slip132;
@@ -42,7 +43,6 @@ class Send extends Command
             ->setDescription('Generate a transaction paying the specified destinations')
 
             // mandatory arguments
-            ->addArgument('database', InputArgument::REQUIRED, "Database for wallet services")
             ->addArgument('identifier', InputArgument::REQUIRED, "Wallet identifier")
 
             ->addOption('destination', null, InputOption::VALUE_REQUIRED |InputOption::VALUE_IS_ARRAY, "Set one or many destinations, btcvalue,address")
@@ -76,11 +76,14 @@ class Send extends Command
         foreach ($destinations as $destination) {
             $row = explode(",", $destination);
             if (count($row) !== 2) {
-                throw new \RuntimeException("Destination should be in format: btcvalue,address");
+                throw new \RuntimeException("Invalid format for destination");
             }
             list ($btcValue, $address) = $row;
-
-            $addr = $addrCreator->fromString($address, $net);
+            try {
+                $addr = $addrCreator->fromString($address, $net);
+            } catch (UnrecognizedAddressException $e) {
+                throw new \RuntimeException("Unrecognized address format: " . $address);
+            }
             $satoshi = $amount->toSatoshis($btcValue);
             $outputs[] = new TransactionOutput($satoshi, $addr->getScriptPubKey());
         }
@@ -107,6 +110,7 @@ class Send extends Command
             $outputs = $this->parseOutputs($input, $addrCreator, $net);
         } catch (\Exception $e) {
             $output->write("Failed to parse destinations: {$e->getMessage()}");
+            $output->write("Destinations should be in format: btcvalue,address");
             return -1;
         }
 

@@ -12,6 +12,7 @@ class Application extends \Symfony\Component\Console\Application
         $commands[] = new Command\Db\Init();
         $commands[] = new Command\Benchmark\MemoryAllHeaders();
         $commands[] = new Command\Wallet\Create();
+        $commands[] = new Command\Wallet\Broadcast();
         $commands[] = new Command\Wallet\NukeChainState();
         $commands[] = new Command\Wallet\SyncWallet();
         $commands[] = new Command\Wallet\ListWallets();

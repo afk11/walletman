@@ -6,7 +6,6 @@ namespace BitWasp\Wallet\DB;
 
 use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Bitcoin\Crypto\EcAdapter\Key\PublicKeyInterface;
-use BitWasp\Bitcoin\Key\Deterministic\ElectrumKey;
 use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
@@ -98,11 +97,11 @@ class DB implements DBInterface
             `txid`  VARCHAR(64) NOT NULL,
             `tx`    TEXT NOT NULL
         );")) {
-            throw new \RuntimeException("failed to create tx table");
+            throw new \RuntimeException("failed to create raw tx table");
         }
 
-        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_tx on tx(txid)")) {
-            throw new \RuntimeException("failed add index on tx table");
+        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_rawTx on rawTx(txid)")) {
+            throw new \RuntimeException("failed add index on rawtx table");
         }
     }
 
@@ -626,7 +625,7 @@ class DB implements DBInterface
             $this->updateTxStatusStmt = $this->pdo->prepare("UPDATE tx SET status = ? where walletId = ? and txid = ?");
         }
         return $this->updateTxStatusStmt->execute([
-            $walletId, $txid->getHex(), $status,
+            $status, $walletId, $txid->getHex(),
         ]);
     }
 
@@ -688,18 +687,17 @@ class DB implements DBInterface
         ]);
         return $stmt;
     }
+
     public function getRawTx(BufferInterface $txId): string
     {
         // todo prepared statement
-        $stmt = $this->pdo->prepare("select * from rawTx where txId = ?");
+        $stmt = $this->pdo->prepare("select tx from rawTx where txId = ?");
         $stmt->execute([
             $txId->getHex(),
         ]);
         if (!($tx = $stmt->fetchColumn(0))) {
             throw new \RuntimeException("failed to find raw Tx?");
         }
-        print_R($tx);
-        die();
         return $tx;
     }
 }

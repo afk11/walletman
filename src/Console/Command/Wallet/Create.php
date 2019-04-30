@@ -282,6 +282,9 @@ class Create extends Command
             $wallet = $walletFactory->createBip44WalletFromRootKey($identifier, $rootKey, $path, $fGapLimit, $birthday);
         }
 
+        // don't forget to prime with change addresses
+        $wallet->getChangeScriptGenerator()->generate();
+
         $dbScript = $wallet->getScriptGenerator()->generate();
         $addrCreator = new AddressCreator();
         $addrString = $dbScript->getAddress($addrCreator)->getAddress($net);

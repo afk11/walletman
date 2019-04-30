@@ -349,7 +349,6 @@ class P2pSyncDaemon
     private function recordAdvertisedBlock(Peer $peer, PeerInfo $peerInfo, BufferInterface $blkHash)
     {
         $this->refreshBlockAvailability($peer, $peerInfo);
-
         if (($index = $this->db->getHeader($blkHash))) {
             if (!$peerInfo->bestKnownBlock || gmp_cmp($index->getWork(), $peerInfo->bestKnownBlock->getWork()) > 0) {
                 $peerInfo->bestKnownBlock = $index;
@@ -515,6 +514,7 @@ class P2pSyncDaemon
 
                     $processStart = microtime(true);
                     $this->db->getPdo()->beginTransaction();
+                    $prevTip = $this->chain->getBestBlock();
                     try {
                         $headerIndex = null;
                         if (!$this->chain->acceptBlock($this->db, $hash, $block, $headerIndex)) {
@@ -522,7 +522,9 @@ class P2pSyncDaemon
                         }
                         /** @var DbHeader $headerIndex */
                         $this->processor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $block);
-                        $this->chain->updateChain($this->db, $this->processor, $this->chain->getBestBlock());
+                        if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
+                            $this->chain->updateChain($this->db, $this->processor, $headerIndex);
+                        }
                         $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
                         $this->db->getPdo()->rollBack();

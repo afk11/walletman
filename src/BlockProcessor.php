@@ -76,7 +76,6 @@ class BlockProcessor
     public function applyBlock(BufferInterface $blockHash)
     {
         $txs = $this->db->fetchBlockTxs($blockHash, array_keys($this->wallets));
-
         $rawTxs = [];
         foreach ($txs as $tx) {
             /** @var DbWalletTx $tx */
@@ -136,6 +135,7 @@ class BlockProcessor
             $txOut = $outs[$iOut];
             $walletIds = $this->utxoSet->getWalletsForScriptPubKey($txOut->getScript());
             $numIds = count($walletIds);
+
             for ($i = 0; $i < $numIds; $i++) {
                 $walletId = $walletIds[$i];
                 // does this allow skipping wallets which are already synced? so resync?
@@ -150,13 +150,15 @@ class BlockProcessor
                         $valueChange[$dbWallet->getId()] = 0;
                     }
                     $valueChange[$dbWallet->getId()] += $txOut->getValue();
+                } else {
+                    throw new \RuntimeException("somehow, we didn't find the script in script storage");
                 }
             }
         }
 
         if (count($valueChange) > 0) {
             $txBin = $this->txSerializer->serialize($tx);
-            $txId = Hash::sha256d($txBin)->flip();
+            $txId = $tx->getTxId();
             foreach ($valueChange as $walletId => $change) {
                 // note: used to be when save/activate were in same step.
                 $this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $blockHashHex, $blockHeight);
@@ -182,7 +184,7 @@ class BlockProcessor
             $nUtxos = count($dbUtxos);
             for ($i = 0; $i < $nUtxos; $i++) {
                 $dbUtxo = $dbUtxos[$i];
-                $walletIds[] = $dbUtxo->getWalletId();
+                $walletIds[$dbUtxo->getWalletId()] = 1;
                 $this->utxoSet->spendUtxo($dbUtxo->getWalletId(), $outPoint, $txId, $iIn);
                 echo "wallet({$dbUtxo->getWalletId()}).utxoSpent {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}\n";
             }
@@ -192,15 +194,17 @@ class BlockProcessor
         $nOut = count($outs);
         for ($iOut = 0; $iOut < $nOut; $iOut++) {
             $txOut = $outs[$iOut];
-            $walletIds = $this->utxoSet->getWalletsForScriptPubKey($txOut->getScript());
-            $numIds = count($walletIds);
+            $scriptWalletIds = $this->utxoSet->getWalletsForScriptPubKey($txOut->getScript());
+
+            $numIds = count($scriptWalletIds);
             for ($i = 0; $i < $numIds; $i++) {
-                $walletId = $walletIds[$i];
+                $walletId = $scriptWalletIds[$i];
                 // does this allow skipping wallets which are already synced? so resync?
                 if (!array_key_exists($walletId, $this->wallets)) {
                     continue;
                 }
 
+                $walletIds[$walletId] = 1;
                 $wallet = $this->wallets[$walletId];
                 $dbWallet = $wallet->getDbWallet();
                 if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
@@ -210,11 +214,10 @@ class BlockProcessor
             }
         }
 
-        foreach ($walletIds as $walletId => $change) {
-            // note: used to be when save/activate were in same step.
-            //$this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_CONFIRMED, $blockHashHex, $blockHeight);
-            // need to update now because tx is stored as rejected until activated (in block accept codepath)
-            $this->db->updateTxStatus($walletId, $txId, DbWalletTx::STATUS_CONFIRMED);
+        foreach (array_keys($walletIds) as $walletId) {
+            if (!$this->db->updateTxStatus($walletId, $txId, DbWalletTx::STATUS_CONFIRMED)) {
+                throw new \RuntimeException("failed to update tx status");
+            }
         }
     }
 }

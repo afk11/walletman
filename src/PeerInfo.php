@@ -16,5 +16,8 @@ class PeerInfo
      */
     public $lastUnknownBlockHash;
 
+    /**
+     * @var DbHeader
+     */
     public $lastCommonBlock;
 }
