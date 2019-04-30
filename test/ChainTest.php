@@ -22,7 +22,6 @@ use BitWasp\Bitcoin\Transaction\TransactionInput;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutput;
 use BitWasp\Buffertools\Buffer;
-use BitWasp\Test\Wallet\DbTestCase;
 use BitWasp\Wallet\BlockProcessor;
 use BitWasp\Wallet\Chain;
 use BitWasp\Wallet\DB\DbHeader;

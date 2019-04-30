@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\BlockInterface;
+use BitWasp\Bitcoin\Crypto\Hash;
+use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializerInterface;
 use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
@@ -22,6 +24,11 @@ class BlockProcessor
     private $db;
 
     /**
+     * @var TransactionSerializerInterface
+     */
+    private $txSerializer;
+
+    /**
      * @var WalletInterface[]
      */
     private $wallets = [];
@@ -34,6 +41,7 @@ class BlockProcessor
     public function __construct(DBInterface $db, WalletInterface... $wallets)
     {
         $this->db = $db;
+        $this->txSerializer = new TransactionSerializer();
         foreach ($wallets as $wallet) {
             $this->wallets[$wallet->getDbWallet()->getId()] = $wallet;
         }
@@ -65,7 +73,7 @@ class BlockProcessor
         }
     }
 
-    public function applyBlock(BufferInterface $blockHash, TransactionSerializerInterface $serializer)
+    public function applyBlock(BufferInterface $blockHash)
     {
         $txs = $this->db->fetchBlockTxs($blockHash, array_keys($this->wallets));
 
@@ -78,7 +86,7 @@ class BlockProcessor
                 $rawTx = $rawTxs[$binTxId];
             } else {
                 $rawTxBin = $this->db->getRawTx($txId);
-                $rawTx = $rawTxs[$binTxId] = $serializer->parse(new Buffer($rawTxBin));
+                $rawTx = $rawTxs[$binTxId] = $this->txSerializer->parse(new Buffer($rawTxBin));
             }
             $this->applyConfirmedTx($txId, $rawTx);
         }
@@ -147,12 +155,16 @@ class BlockProcessor
         }
 
         if (count($valueChange) > 0) {
-            $txId = $tx->getTxId();
+            $txBin = $this->txSerializer->serialize($tx);
+            $txId = Hash::sha256d($txBin)->flip();
             foreach ($valueChange as $walletId => $change) {
                 // note: used to be when save/activate were in same step.
                 $this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $blockHashHex, $blockHeight);
                 // need to update now because tx is stored as rejected until activated (in block accept codepath)
             }
+
+            // save the full transaction if wallets are interested in it
+            $this->db->saveRawTx($txId, $txBin);
         }
     }
 
@@ -203,11 +215,6 @@ class BlockProcessor
             //$this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_CONFIRMED, $blockHashHex, $blockHeight);
             // need to update now because tx is stored as rejected until activated (in block accept codepath)
             $this->db->updateTxStatus($walletId, $txId, DbWalletTx::STATUS_CONFIRMED);
-        }
-
-        // save the full transaction if wallets are interested in it
-        if (count($walletIds) > 0) {
-            $this->db->saveRawTx($txId, $tx->getBuffer());
         }
     }
 

@@ -200,6 +200,11 @@ class P2pSyncDaemon
     private $peer;
 
     /**
+     * @var BlockProcessor
+     */
+    private $processor;
+
+    /**
      * @var WalletInterface[]
      */
     private $wallets = [];
@@ -295,6 +300,8 @@ class P2pSyncDaemon
         if ($startBlockRef) {
             $this->chain->setBirthdayBlock($startBlockRef, $this->db);
         }
+
+        $this->processor = new BlockProcessor($this->db, ...$this->wallets);
 
         // would normally come from wallet birthday
         $this->initialized = true;
@@ -484,9 +491,8 @@ class P2pSyncDaemon
                 $peer->on(Message::BLOCK, function (Peer $peer, Block $blockMsg) use ($peerInfo) {
                     $beforeDeserialize = microtime(true);
                     $block = $this->blockSerializer->parse($blockMsg->getBlock());
-                    $taken = microtime(true)-$beforeDeserialize;
 
-                    $this->blockDeserializeTime += $taken;
+                    $this->blockDeserializeTime += microtime(true)-$beforeDeserialize;
                     $this->blockDeserializeBytes += $blockMsg->getBlock()->getSize();
                     $this->blockDeserializeNTx += count($block->getTransactions());
 
@@ -498,7 +504,6 @@ class P2pSyncDaemon
                     unset($this->blocksInFlight[$hash->getBinary()]);
 
                     $processStart = microtime(true);
-                    $prevTip = $this->chain->getBestBlock();
                     $this->db->getPdo()->beginTransaction();
                     try {
                         $headerIndex = null;
@@ -506,14 +511,8 @@ class P2pSyncDaemon
                             throw new \RuntimeException("Failed to process block");
                         }
                         /** @var DbHeader $headerIndex */
-
-                        $processor = new BlockProcessor($this->db, ...$this->wallets);
-                        $processor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $block);
-
-                        if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
-                            $this->chain->updateChain($this->db, $processor, $headerIndex, true);
-                        }
-
+                        $this->processor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $block);
+                        $this->chain->updateChain($this->db, $this->processor, $this->chain->getBestBlock());
                         $this->db->getPdo()->commit();
                     } catch (\Exception $e) {
                         $this->db->getPdo()->rollBack();

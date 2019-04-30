@@ -8,8 +8,6 @@ use BitWasp\Bitcoin\Block\BlockHeaderInterface;
 use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Chain\ParamsInterface;
 use BitWasp\Bitcoin\Chain\ProofOfWork;
-use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
-use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializerInterface;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\DB\DbHeader;
@@ -28,11 +26,11 @@ class Chain
      */
     private $bestHeaderIndex;
 
-    /**
+    /*
      * allows for tracking more than one chain
      * @var int[] - maps hashes to height
      */
-    private $hashMapToHeight = [];
+    //private $hashMapToHeight = [];
 
     /**
      * locked to a single chain
@@ -91,8 +89,8 @@ class Chain
             $height = $row->getHeight();
             $prevBlock = $row->getPrevBlock();
 
-            // every header is added to hashMapToHeight
-            $this->hashMapToHeight[$hashKey] = $height;
+            // todo: why was this added? every header is added to hashMapToHeight
+            //$this->hashMapToHeight[$hashKey] = $height;
 
             if ($height === 0) {
                 $candidates[$hashKey] = $row;
@@ -177,7 +175,7 @@ class Chain
 
         if ($lowestBirthdayBlock->getHeight() <= $this->getBestHeader()->getHeight()) {
             // have header chain up to birthday block - check hash
-            $hashAtBirthday = new Buffer($this->heightMapToHash[$lowestBirthdayBlock->getHeight()]);
+            $hashAtBirthday = new Buffer($this->heightMapToHash[$lowestBirthdayBlock->getHeight()], 32);
             if (!$lowestBirthdayBlock->getHash()->equals($hashAtBirthday)) {
                 throw new \RuntimeException(sprintf(
                     "Initialized chain has header at birthday height %d, and birthday hash %s != chain hash %s",
@@ -222,6 +220,44 @@ class Chain
             throw new \RuntimeException("No chain header with height {$headerHeight}");
         }
         return new Buffer($this->heightMapToHash[$headerHeight]);
+    }
+
+    public function isBlockInChain(DbHeader $block): bool
+    {
+        if (!array_key_exists($block->getHeight(), $this->blocks)) {
+            return false;
+        }
+        return $this->blocks[$block->getHeight()] === $block->getHash()->getBinary();
+    }
+
+    public function isHeaderInChain(DbHeader $header): bool
+    {
+        if (!array_key_exists($header->getHeight(), $this->blocks)) {
+            return false;
+        }
+        return $this->heightMapToHash[$header->getHeight()] === $header->getHash()->getBinary();
+    }
+
+    private function findLastBlockInCommon(DBInterface $db, DbHeader $blockIndex, DbHeader &$lastInCommon = null)
+    {
+        if ($blockIndex->getHeight() > $this->bestBlockIndex->getHeight()) {
+            while ($blockIndex->getHeight() > $this->bestBlockIndex->getHeight()) {
+                $blockIndex = $db->getHeader($blockIndex->getPrevBlock());
+                if (!$blockIndex) {
+                    throw new \RuntimeException("can't find prev of block we're searching for - wtf");
+                }
+            }
+        }
+
+        while ($blockIndex->getHeight() > 0 && !$this->isBlockInChain($blockIndex)) {
+            $blockIndex = $db->getHeader($blockIndex->getPrevBlock());
+            if (!$blockIndex) {
+                throw new \RuntimeException("can't find prev of block we're searching for - wtf");
+            }
+        }
+
+        $lastInCommon = $blockIndex;
+        return true;
     }
 
     public function acceptHeader(DBInterface $db, BufferInterface $hash, BlockHeaderInterface $header, DbHeader &$headerIndex = null): bool
@@ -314,105 +350,16 @@ class Chain
         return true;
     }
 
-    public function isBlockInChain(DbHeader $block): bool
+    private function acceptHeaderToIndex(DBInterface $db, int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header): DbHeader
     {
-        if (!array_key_exists($block->getHeight(), $this->blocks)) {
-            return false;
-        }
-        return $this->blocks[$block->getHeight()] === $block->getHash()->getBinary();
-    }
-    public function isHeaderInChain(DbHeader $header): bool
-    {
-        if (!array_key_exists($header->getHeight(), $this->blocks)) {
-            return false;
-        }
-        return $this->heightMapToHash[$header->getHeight()] === $header->getHash()->getBinary();
-    }
-    private function findLastBlockInCommon(DBInterface $db, DbHeader $blockIndex, DbHeader &$lastInCommon = null)
-    {
-        if ($blockIndex->getHeight() > $this->bestBlockIndex->getHeight()) {
-            while ($blockIndex->getHeight() > $this->bestBlockIndex->getHeight()) {
-                $blockIndex = $db->getHeader($blockIndex->getPrevBlock());
-                if (!$blockIndex) {
-                    throw new \RuntimeException("can't find prev of block we're searching for - wtf");
-                }
-            }
-        }
+        $db->addHeader($height, $work, $hash, $header, DbHeader::HEADER_VALID);
+        // todo: why was this added?
+        //$this->hashMapToHeight[$hash->getBinary()] = $height;
 
-        while ($blockIndex->getHeight() > 0 && !$this->isBlockInChain($blockIndex)) {
-            $blockIndex = $db->getHeader($blockIndex->getPrevBlock());
-            if (!$blockIndex) {
-                throw new \RuntimeException("can't find prev of block we're searching for - wtf");
-            }
-        }
+        /** @var DbHeader $headerIndex */
+        $headerIndex = $db->getHeader($hash);
 
-        $lastInCommon = $blockIndex;
-        return true;
-    }
-
-    public function disconnectTip(DBInterface $db, BlockProcessor $blockProcessor): bool
-    {
-        $tip = $this->getBestBlock();
-        $prev = $db->getHeader($tip->getPrevBlock());
-        if (!$prev) {
-            return false;
-        }
-        $blockProcessor->undoBlock($tip->getHash());
-        unset($this->blocks[$tip->getHeight()]);
-        $this->bestBlockIndex = $prev;
-        return true;
-    }
-
-    public function connectTip(BlockProcessor $blockProcessor, TransactionSerializerInterface $txSer, DbHeader $blockIdx): bool
-    {
-        if (!$blockIdx->getPrevBlock()->equals($this->bestBlockIndex->getHash())) {
-            throw new \RuntimeException("Failed to connect block - block doesn't point to prev!");
-        }
-        /** @var DbHeader $bestBlock */
-        $blockProcessor->applyBlock($blockIdx->getHash(), $txSer);
-        $this->blocks[$blockIdx->getHeight()] = $blockIdx->getHash()->getBinary();
-        $this->bestBlockIndex = $blockIdx;
-        return true;
-    }
-
-    public function updateChain(DBInterface $db, BlockProcessor $blockProcessor, DbHeader $bestBlock, bool $debugReorg)
-    {
-        $txSerializer = new TransactionSerializer();
-        $lastCommonBlock = null;
-        if (!$this->findLastBlockInCommon($db, $bestBlock, $lastCommonBlock)) {
-            throw new \RuntimeException("srs problems = no block in common?");
-        }
-        /** @var DbHeader $lastCommonBlock */
-
-        while (($tip = $this->getBestBlock()) && !$tip->getHash()->equals($lastCommonBlock->getHash())) {
-            if ($debugReorg) {
-                echo "disconnect tip\n";
-            }
-            if (!$this->disconnectTip($db, $blockProcessor)) {
-                throw new \RuntimeException("Failed to disconnect tip!");
-            }
-        }
-
-        // leave these for now - reorgs not handled yet
-        if (!($lastCommonBlock->getHeight() === ($tip->getHeight())) ||
-            !($lastCommonBlock->getHash()->equals($tip->getHash()))) {
-            throw new \RuntimeException("weird conditions");
-        }
-
-        // Insert [lastCommonHeight+1, candidateTipHeight] to the header chain
-        for ($i = $lastCommonBlock->getHeight() + 1; $i <= $bestBlock->getHeight(); $i++) {
-            if ($debugReorg) {
-                echo "apply block $i\n";
-            }
-            $hash = $this->getBlockHash($i);
-            $block = $db->getHeader($hash);
-            if (!$block) {
-                throw new \RuntimeException("failed to load block from hash in chain! $i - {$hash->getHex()}");
-            }
-            if (!$this->connectTip($blockProcessor, $txSerializer, $block)) {
-                throw new \RuntimeException("failed to connect tip");
-            }
-        }
+        return $headerIndex;
     }
 
     public function acceptBlock(DBInterface $db, BufferInterface $hash, BlockInterface $block, DbHeader &$headerIndex = null): bool
@@ -445,14 +392,62 @@ class Chain
         return true;
     }
 
-    private function acceptHeaderToIndex(DBInterface $db, int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header): DbHeader
+    public function disconnectTip(DBInterface $db, BlockProcessor $blockProcessor): bool
     {
-        $db->addHeader($height, $work, $hash, $header, DbHeader::HEADER_VALID);
-        $this->hashMapToHeight[$hash->getBinary()] = $height;
-
-        /** @var DbHeader $headerIndex */
-        $headerIndex = $db->getHeader($hash);
-
-        return $headerIndex;
+        $tip = $this->getBestBlock();
+        $prev = $db->getHeader($tip->getPrevBlock());
+        if (!$prev) {
+            return false;
+        }
+        $blockProcessor->undoBlock($tip->getHash());
+        unset($this->blocks[$tip->getHeight()]);
+        $this->bestBlockIndex = $prev;
+        return true;
     }
+
+    public function connectTip(BlockProcessor $blockProcessor, DbHeader $blockIdx): bool
+    {
+        if (!$blockIdx->getPrevBlock()->equals($this->bestBlockIndex->getHash())) {
+            throw new \RuntimeException("Failed to connect block - block doesn't point to prev!");
+        }
+        /** @var DbHeader $bestBlock */
+        $blockProcessor->applyBlock($blockIdx->getHash());
+        $this->blocks[$blockIdx->getHeight()] = $blockIdx->getHash()->getBinary();
+        $this->bestBlockIndex = $blockIdx;
+        return true;
+    }
+
+    public function updateChain(DBInterface $db, BlockProcessor $blockProcessor, DbHeader $bestBlock)
+    {
+        $lastCommonBlock = null;
+        if (!$this->findLastBlockInCommon($db, $bestBlock, $lastCommonBlock)) {
+            throw new \RuntimeException("srs problems = no block in common?");
+        }
+        /** @var DbHeader $lastCommonBlock */
+
+        while (($tip = $this->getBestBlock()) && !$tip->getHash()->equals($lastCommonBlock->getHash())) {
+            if (!$this->disconnectTip($db, $blockProcessor)) {
+                throw new \RuntimeException("Failed to disconnect tip!");
+            }
+        }
+
+        // leave these for now - reorgs not handled yet
+        if (!($lastCommonBlock->getHeight() === ($tip->getHeight())) ||
+            !($lastCommonBlock->getHash()->equals($tip->getHash()))) {
+            throw new \RuntimeException("weird conditions");
+        }
+
+        // Insert [lastCommonHeight+1, candidateTipHeight] to the header chain
+        for ($i = $lastCommonBlock->getHeight() + 1; $i <= $bestBlock->getHeight(); $i++) {
+            $hash = $this->getBlockHash($i);
+            $block = $db->getHeader($hash);
+            if (!$block) {
+                throw new \RuntimeException("failed to load block from hash in chain! $i - {$hash->getHex()}");
+            }
+            if (!$this->connectTip($blockProcessor, $block)) {
+                throw new \RuntimeException("failed to connect tip");
+            }
+        }
+    }
+
 }
