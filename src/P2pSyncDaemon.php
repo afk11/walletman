@@ -513,24 +513,12 @@ class P2pSyncDaemon
                     unset($this->blocksInFlight[$hash->getBinary()]);
 
                     $processStart = microtime(true);
-                    $this->db->getPdo()->beginTransaction();
-                    $prevTip = $this->chain->getBestBlock();
-                    try {
-                        $headerIndex = null;
-                        if (!$this->chain->acceptBlock($this->db, $hash, $block, $headerIndex)) {
-                            throw new \RuntimeException("Failed to process block");
-                        }
-                        /** @var DbHeader $headerIndex */
-                        $this->processor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $block);
-                        if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
-                            $this->chain->updateChain($this->db, $this->processor, $headerIndex);
-                        }
-                        $this->db->getPdo()->commit();
-                    } catch (\Exception $e) {
-                        $this->db->getPdo()->rollBack();
-                        throw $e;
+                    $headerIndex = null;
+                    if (!$this->chain->processNewBlock($this->db, $this->processor, $hash, $block, $headerIndex)) {
+                        throw new \RuntimeException("failed to process block");
                     }
 
+                    /** @var DbHeader $headerIndex */
                     $blockProcessTime = microtime(true) - $processStart;
                     $this->blockProcessTime += $blockProcessTime;
                     $this->blockStatsCount++;

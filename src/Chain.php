@@ -449,4 +449,27 @@ class Chain
             }
         }
     }
+
+    public function processNewBlock(DBInterface $db, BlockProcessor $blockProcessor, BufferInterface $hash, BlockInterface $block, DbHeader &$index = null): bool
+    {
+        $db->getPdo()->beginTransaction();
+        $prevTip = $this->getBestBlock();
+        try {
+            $headerIndex = null;
+            if (!$this->acceptBlock($db, $hash, $block, $headerIndex)) {
+                return false;
+            }
+            /** @var DbHeader $headerIndex */
+            $blockProcessor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $block);
+            if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
+                $this->updateChain($db, $blockProcessor, $headerIndex);
+            }
+            $db->getPdo()->commit();
+            $index = $headerIndex;
+            return true;
+        } catch (\Exception $e) {
+            $db->getPdo()->rollBack();
+            return false;
+        }
+    }
 }
