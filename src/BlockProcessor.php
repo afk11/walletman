@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\BlockInterface;
-use BitWasp\Bitcoin\Crypto\Hash;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializerInterface;
 use BitWasp\Bitcoin\Transaction\OutPoint;
@@ -73,41 +72,6 @@ class BlockProcessor
         }
     }
 
-    public function applyBlock(BufferInterface $blockHash)
-    {
-        $txs = $this->db->fetchBlockTxs($blockHash, array_keys($this->wallets));
-        $rawTxs = [];
-        foreach ($txs as $tx) {
-            /** @var DbWalletTx $tx */
-            $txId = $tx->getTxId();
-            $binTxId = $txId->getBinary();
-            if (array_key_exists($binTxId, $rawTxs)) {
-                $rawTx = $rawTxs[$binTxId];
-            } else {
-                $rawTxBin = $this->db->getRawTx($txId);
-                $rawTx = $rawTxs[$binTxId] = $this->txSerializer->parse(new Buffer($rawTxBin));
-            }
-            $this->applyConfirmedTx($txId, $rawTx);
-        }
-    }
-
-    public function undoBlock(BufferInterface $blockHash)
-    {
-        $walletIds = [];
-        foreach ($this->wallets as $wallet) {
-            $walletIds[] = $wallet->getDbWallet()->getId();
-        }
-
-        $txs = $this->db->fetchBlockTxs($blockHash, $walletIds);
-        foreach ($txs as $tx) {
-            /** @var DbWalletTx $tx */
-            // tx may have spent some utxos, and
-            // created some utxos. undo these.
-            $txId = $tx->getTxId();
-            $this->utxoSet->undoTx($txId, $tx->getWalletId());
-        }
-    }
-
     // called before activation, saves as rejected
     public function processConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx)
     {
@@ -170,6 +134,24 @@ class BlockProcessor
         }
     }
 
+    public function applyBlock(BufferInterface $blockHash)
+    {
+        $txs = $this->db->fetchBlockTxs($blockHash, array_keys($this->wallets));
+        $rawTxs = [];
+        foreach ($txs as $tx) {
+            /** @var DbWalletTx $tx */
+            $txId = $tx->getTxId();
+            $binTxId = $txId->getBinary();
+            if (array_key_exists($binTxId, $rawTxs)) {
+                $rawTx = $rawTxs[$binTxId];
+            } else {
+                $rawTxBin = $this->db->getRawTx($txId);
+                $rawTx = $rawTxs[$binTxId] = $this->txSerializer->parse(new Buffer($rawTxBin));
+            }
+            $this->applyConfirmedTx($txId, $rawTx);
+        }
+    }
+
     // called in Activate step
     public function applyConfirmedTx(BufferInterface $txId, TransactionInterface $tx)
     {
@@ -208,7 +190,7 @@ class BlockProcessor
                 $wallet = $this->wallets[$walletId];
                 $dbWallet = $wallet->getDbWallet();
                 if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
-                    echo "wallet({$dbWallet->getId()}).newUtxo {$txId->getHex()} {$iOut}\n";
+                    echo "wallet({$dbWallet->getId()}).newUtxo {$txId->getHex()} {$iOut} {$txOut->getValue()}\n";
                     $this->utxoSet->createUtxo($dbWallet, $script, new OutPoint($txId, $iOut), $txOut);
                 }
             }
@@ -218,6 +200,23 @@ class BlockProcessor
             if (!$this->db->updateTxStatus($walletId, $txId, DbWalletTx::STATUS_CONFIRMED)) {
                 throw new \RuntimeException("failed to update tx status");
             }
+        }
+    }
+
+    public function undoBlock(BufferInterface $blockHash)
+    {
+        $walletIds = [];
+        foreach ($this->wallets as $wallet) {
+            $walletIds[] = $wallet->getDbWallet()->getId();
+        }
+
+        $txs = $this->db->fetchBlockTxs($blockHash, $walletIds);
+        foreach ($txs as $tx) {
+            /** @var DbWalletTx $tx */
+            // tx may have spent some utxos, and
+            // created some utxos. undo these.
+            $txId = $tx->getTxId();
+            $this->utxoSet->undoTx($txId, $tx->getWalletId());
         }
     }
 }

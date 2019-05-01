@@ -12,6 +12,7 @@ use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbScript;
 use BitWasp\Wallet\DB\DbUtxo;
 use BitWasp\Wallet\DB\DbWallet;
+use BitWasp\Wallet\DB\DbWalletTx;
 use BitWasp\Wallet\Wallet\WalletInterface;
 
 class DbUtxoSet implements UtxoSet
@@ -75,6 +76,8 @@ class DbUtxoSet implements UtxoSet
     {
         $this->db->deleteTxUtxos($txId, [$walletId]);
         $this->db->unspendTxUtxos($txId, [$walletId]);
-        $this->db->deleteTx($walletId, $txId);
+        if (!$this->db->updateTxStatus($walletId, $txId, DbWalletTx::STATUS_REJECT)) {
+            throw new \RuntimeException("failed to update tx status");
+        }
     }
 }

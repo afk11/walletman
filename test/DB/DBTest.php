@@ -204,23 +204,6 @@ class DBTest extends DbTestCase
         $this->assertNull($tx->getConfirmedHeight());
     }
 
-    public function testDeleteTx()
-    {
-        $walletId = 89;
-        $txid = new Buffer("txid", 32);
-        $valueChange = -100000000;
-        $this->assertTrue($this->sessionDb->createTx($walletId, $txid, $valueChange, DbWalletTx::STATUS_UNCONFIRMED, null, null));
-
-        $stmt = $this->sessionDb->getTransactions($walletId);
-        $tx = $stmt->fetchObject(DbWalletTx::class);
-        $this->assertInstanceOf(DbWalletTx::class, $tx);
-
-        $this->assertTrue($this->sessionDb->deleteTx($walletId, $txid));
-        $stmt = $this->sessionDb->getTransactions($walletId);
-        $tx = $stmt->fetchObject(DbWalletTx::class);
-        $this->assertFalse($tx);
-    }
-
     public function testCreateUtxo()
     {
         $walletId = 2;

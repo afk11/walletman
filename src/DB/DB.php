@@ -39,7 +39,6 @@ class DB implements DBInterface
     private $getWalletUtxosStmt;
     private $createTxStmt;
     private $updateTxStatusStmt;
-    private $deleteTxStmt;
     private $getConfirmedBalanceStmt;
     private $createUtxoStmt;
     private $deleteUtxoStmt;
@@ -629,17 +628,7 @@ class DB implements DBInterface
         ]);
     }
 
-    public function deleteTx(int $walletId, BufferInterface $txid): bool
-    {
-        if (null === $this->deleteTxStmt) {
-            $this->deleteTxStmt = $this->pdo->prepare("DELETE FROM tx WHERE walletId = ? and txid = ?");
-        }
-        return $this->deleteTxStmt->execute([
-            $walletId, $txid->getHex(),
-        ]);
-    }
-
-    public function deleteTxUtxos(BufferInterface $txId, array $walletIds): array
+    public function deleteTxUtxos(BufferInterface $txId, array $walletIds)
     {
         $stmt = $this->pdo->query("DELETE FROM utxo WHERE txid = ? and walletId IN (" . implode(",", $walletIds) . ")");
         if (!$stmt->execute([
@@ -669,9 +658,13 @@ class DB implements DBInterface
         return (int) $this->getConfirmedBalanceStmt->fetch()['balance'];
     }
 
-    public function getTransactions(int $walletId): \PDOStatement
+    public function getTransactions(int $walletId, bool $includeRejected = false): \PDOStatement
     {
-        $stmt = $this->pdo->prepare("select * from tx where walletId = ? order by id asc");
+        $sql = "select * from tx where walletId = ? " .
+            ($includeRejected ? "" : " AND status != -1 ") .
+            "order by id asc";
+
+        $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             $walletId,
         ]);

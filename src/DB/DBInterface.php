@@ -113,16 +113,15 @@ interface DBInterface
     public function getWalletScriptPubKeys(int $walletId): array;
 
     public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array;
-    public function deleteTxUtxos(BufferInterface $txId, array $walletIds): array;
+    public function deleteTxUtxos(BufferInterface $txId, array $walletIds);
     public function unspendTxUtxos(BufferInterface $txId, array $walletIds);
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool;
     public function updateTxStatus(int $walletId, BufferInterface $txid, int $status): bool;
-    public function deleteTx(int $walletId, BufferInterface $txid): bool;
 
     public function saveRawTx(BufferInterface $txId, BufferInterface $tx);
     public function getRawTx(BufferInterface $txId): string;
 
     public function getConfirmedBalance(int $walletId): int;
 
-    public function getTransactions(int $walletId): \PDOStatement;
+    public function getTransactions(int $walletId, bool $includeRejected = false): \PDOStatement;
 }

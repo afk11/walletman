@@ -279,7 +279,7 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function getTransactions(int $walletId): \PDOStatement
+    public function getTransactions(int $walletId, bool $includeRejected = false): \PDOStatement
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
@@ -288,11 +288,7 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
-    public function deleteTx(int $walletId, BufferInterface $txid): bool
-    {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
-    public function deleteTxUtxos(BufferInterface $txId, array $walletIds): array
+    public function deleteTxUtxos(BufferInterface $txId, array $walletIds)
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
