@@ -610,7 +610,7 @@ class DB implements DBInterface
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool
     {
         if (null === $this->createTxStmt) {
-            $this->createTxStmt = $this->pdo->prepare("INSERT INTO tx (walletId, txid, valueChange, status, confirmedHash, confirmedHeight) values (?, ?, ?, ?, ?, ?)");
+            $this->createTxStmt = $this->pdo->prepare("INSERT OR REPLACE INTO tx (walletId, txid, valueChange, status, confirmedHash, confirmedHeight) values (?, ?, ?, ?, ?, ?)");
         }
         return $this->createTxStmt->execute([
             $walletId, $txid->getHex(), $valueChange,

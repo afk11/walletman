@@ -66,9 +66,13 @@ class BlockProcessorTest extends DbTestCase
         return (int) $obj;
     }
 
-    private function getWalletTransactionCount(int $walletId): int
+    private function getWalletTransactionCount(int $walletId, bool $includeRejected): int
     {
-        $query = $this->sessionDb->getPdo()->query("select count(*) from tx where walletId = ?");
+        $sql = "select count(*) from tx where walletId = ? " .
+            ($includeRejected ? "" : " AND status != -1 ") .
+            "order by id asc";
+
+        $query = $this->sessionDb->getPdo()->query($sql);
         if (!$query->execute([$walletId])) {
             throw new \RuntimeException("failed to execute query");
         }
@@ -136,7 +140,7 @@ class BlockProcessorTest extends DbTestCase
 
         // check: one wallet received 1 transaction, despite two being in the block:
         $this->assertEquals(1, $this->getTransactionCount());
-        $this->assertEquals(1, $this->getWalletTransactionCount(10001));
+        $this->assertEquals(1, $this->getWalletTransactionCount(10001, true));
         $this->assertEquals(0, $this->getUtxoCount());
 
         // check transaction: rejected, details otherwise correct
@@ -196,7 +200,7 @@ class BlockProcessorTest extends DbTestCase
 
         // check: now two transaction in wallet
         $this->assertEquals(2, $this->getTransactionCount());
-        $this->assertEquals(2, $this->getWalletTransactionCount(10001));
+        $this->assertEquals(2, $this->getWalletTransactionCount(10001, true));
         $this->assertEquals(1, $this->getUtxoCount());
 
         // check utxos: only 1 for tx1, unspent until 'applyBlock'
@@ -242,7 +246,7 @@ class BlockProcessorTest extends DbTestCase
      * block 1 coinbase pays into our wallet
      * block 2a contains a spend of block1a coinbase
      * block 2b contains no spends
-     * block 3b contains spendTx
+     * block 3b contains no spends
      * @throws \BitWasp\Bitcoin\Exceptions\InvalidHashLengthException
      * @throws \BitWasp\Bitcoin\Exceptions\RandomBytesFailure
      */
@@ -307,7 +311,7 @@ class BlockProcessorTest extends DbTestCase
         $this->assertEquals($block2aHash->getHex(), $chain->getBestBlock()->getHash()->getHex());
 
         // check: spend of tx has been applied
-        $this->assertEquals(2, $this->getWalletTransactionCount($walletId));
+        $this->assertEquals(2, $this->getWalletTransactionCount($walletId, true));
 
         $dbSpend = $this->loadTransaction($walletId, $spendTx->getTxId());
         $this->assertEquals(DbWalletTx::STATUS_CONFIRMED, $dbSpend->getStatus());
@@ -340,24 +344,39 @@ class BlockProcessorTest extends DbTestCase
         $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block3bHash, $block3b, $header3b));
         $this->assertEquals($block3bHash->getHex(), $chain->getBestBlock()->getHash()->getHex());
 
-        // only one tx which is NOT rejected
-        $query = $this->sessionDb->getTransactions($walletId);
-        $txs = [];
-        while (($tx = $query->fetchObject(DbWalletTx::class))) {
-            $txs[] = $tx;
-        }
-        $this->assertCount(1, $txs);
+        // check: wallet only has 1 valid tx
+        $this->assertEquals(1, $this->getWalletTransactionCount($walletId, false));
+        $dbFund = $this->loadTransaction($walletId, $cbTx1->getTxId());
+        $this->assertEquals(DbWalletTx::STATUS_CONFIRMED, $dbFund->getStatus());
 
-        // two txs including rejected - bingo
-        $query = $this->sessionDb->getTransactions($walletId, true);
-        $txs = [];
-        while (($tx = $query->fetchObject(DbWalletTx::class))) {
-            $txs[] = $tx;
-        }
-        $this->assertCount(2, $txs);
+        // check: spendTx status is now rejected, and is included when we request rejected txs in tx count
+        $this->assertEquals(2, $this->getWalletTransactionCount($walletId, true));
+        $dbSpend = $this->loadTransaction($walletId, $spendTx->getTxId());
+        $this->assertEquals(DbWalletTx::STATUS_REJECT, $dbSpend->getStatus());
 
         // check: original utxos marked unspent
         $spentUtxo = $this->loadRawUtxo($walletId, $spendTx->getInput(0)->getOutPoint());
         $this->assertNull($spentUtxo->getSpendOutPoint());
+
+        // block 4b is created, includes spendTx again
+        $cbPrivKey4b = $privKeyFactory->generateCompressed($rand);
+        $cbScript4b = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey4b->getPubKeyHash());
+
+        $block4b = BlockMaker::makeBlock($this->sessionChainParams, $block3b->getHeader(), $cbScript4b, $spendTx);
+        $block4bHash = $block4b->getHeader()->getHash();
+        $header4b = null;
+
+        $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block4bHash, $block4b, $header4b));
+        $this->assertEquals($block4bHash->getHex(), $chain->getBestBlock()->getHash()->getHex());
+
+        // check tx created again
+        $dbSpend = $this->loadTransaction($walletId, $spendTx->getTxId());
+        $this->assertEquals(DbWalletTx::STATUS_CONFIRMED, $dbSpend->getStatus());
+
+        // check: original utxos spent by spendTx
+        $spentUtxo = $this->loadRawUtxo($walletId, $spendTx->getInput(0)->getOutPoint());
+        $this->assertNotNull($spentUtxo->getSpendOutPoint());
+        $this->assertEquals($spendTx->getTxId()->getHex(), $spentUtxo->getSpendOutPoint()->getTxId()->getHex());
+        $this->assertEquals(0, $spentUtxo->getSpendOutPoint()->getVout());
     }
 }
