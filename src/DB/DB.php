@@ -595,14 +595,19 @@ class DB implements DBInterface
         return $utxos;
     }
 
+    /**
+     * @param BufferInterface $hash
+     * @param array $walletIds
+     * @return DbBlockTx[]
+     */
     public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array
     {
-        $stmt = $this->pdo->query("SELECT * FROM tx where confirmedHash = ? AND walletId IN (" . implode(",", $walletIds) . ") ORDER BY ID");
+        $stmt = $this->pdo->query("SELECT distinct coinbase, txid from tx where confirmedHash = ? AND walletId IN (" . implode(",", $walletIds) . ") ORDER BY ID");
         if (!$stmt->execute([$hash->getHex()])) {
             throw new \RuntimeException("failed to fetch block txns");
         }
         $results = [];
-        while ($tx = $stmt->fetchObject(DbWalletTx::class)) {
+        while ($tx = $stmt->fetchObject(DbBlockTx::class)) {
             $results[] = $tx;
         }
         return $results;
