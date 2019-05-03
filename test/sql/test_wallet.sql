@@ -16,3 +16,21 @@ insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witness
 insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10001, "M/44'/0'/0'/1/3", "76a914522553d2baf04b57e3a0b2dcb68fec7e4a799fad88ac", NULL, NULL);
 insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10001, "M/44'/0'/0'/1/4", "76a914994e189feadb5af026d7bb7610f91639c79552db88ac", NULL, NULL);
 
+insert into wallet (id, type, identifier, birthday_hash, birthday_height, gapLimit) values (10002, 1, "bip84", "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943", 0, 5);
+
+insert into `key` (walletId, path, childSequence, depth, `key`, keyIndex, status, isLeaf) values (10002, "M/89'/0'/0'", 0, 3, "vpub5ZVzGbKr459YJYEPVy6aJaoxde4StU8wBUrMjpXYkYqhLY2fwTG7PVvQ6s6eh7viXMh1moQ1XYfLs3CAzB9hEJVveHcFXeohrZEegaFpHzd", 0, 0, 0);
+insert into key (walletId, path, childSequence, depth, `key`, keyIndex, status, isLeaf) values (10002, "M/89'/0'/0'/0", 0, 4, "vpub5anxAE9pSNv488ci56wsM6e4zgajGM9DZWeVtMPxJmhLmaswJ25ivzHENAZ8sTrxuN7Pt449kFJ3Px8haCtuxHqr6BCZdYm6NNVTuAkV7rN", 0, 0, 0);
+insert into `key` (walletId, path, childSequence, depth, `key`, keyIndex, status, isLeaf) values (10002, "M/89'/0'/0'/1", 0, 4, "vpub5anxAE9pSNv4BcFiCQEqeZnewnB4q5fNR77ojhoSTDxeUB9wcZugkZrAjok1RiP1SYNWYdyQyafJA4ascRZMbWqgfkdzSHVKgxXPR6Vpegb", 0, 0, 0);
+
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/0/0", "0014efc22b20c7d51c1549da81b4e86baaf585a47afd", NULL, NULL);
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/0/1", "0014f5eed4c937f5f4039dc740b83f2c3e8bf535eaae", NULL, NULL);
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/0/2", "00146cbf57c01f6eb32de87c6fc9204c6c03746509d5", NULL, NULL);
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/0/3", "00149f5fd808d3ffa35a32d7efcb0db92ba9d066afe1", NULL, NULL);
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/0/4", "0014b40db83f032703502defded75fa2c41a91bab4d6", NULL, NULL);
+
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/1/0", "0014274093bcfd40cb31b72ad2c8813812a93bc0f6b3", NULL, NULL);
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/1/1", "0014327f005edf7fc4841b829887c3c6ed7a03c44cd4", NULL, NULL);
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/1/2", "00141374d1ebdef3abc72faabaaeab9a6832bee91695", NULL, NULL);
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/1/3", "00142278fcc87f6e127cc03b113034cc8d26228571e6", NULL, NULL);
+insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/1/4", "0014072b7d4d39299ee11ad5729f4a64e46e6b90b58a", NULL, NULL);
+
