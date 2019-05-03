@@ -597,7 +597,7 @@ class DB implements DBInterface
 
     public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array
     {
-        $stmt = $this->pdo->query("SELECT * FROM tx where confirmedHash = ? AND walletId IN (" . implode(",", $walletIds) . ")");
+        $stmt = $this->pdo->query("SELECT * FROM tx where confirmedHash = ? AND walletId IN (" . implode(",", $walletIds) . ") ORDER BY ID");
         if (!$stmt->execute([$hash->getHex()])) {
             throw new \RuntimeException("failed to fetch block txns");
         }

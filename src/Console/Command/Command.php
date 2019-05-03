@@ -78,11 +78,11 @@ abstract class Command extends \Symfony\Component\Console\Command\Command
         return $helper->ask($input, $output, $pwFirst);
     }
 
-    protected function promptForMnemonic(Bip39Mnemonic $bip39, InputInterface $input, OutputInterface $output): string
+    protected function promptForMnemonic(Bip39Mnemonic $bip39, bool $disablePinEntry, InputInterface $input, OutputInterface $output): string
     {
         $validator = new Bip39MnemonicValidator($bip39);
 
-        if (file_exists("/usr/bin/pinentry")) {
+        if (!$disablePinEntry && file_exists("/usr/bin/pinentry")) {
             $request = new PinRequest();
             $request->withTitle("BIP39mnemonic");
             $request->withDesc("mnemonic required");

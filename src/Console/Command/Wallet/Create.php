@@ -82,6 +82,7 @@ class Create extends Command
 
             // Data directory
             ->addOption("datadir", "d", InputOption::VALUE_REQUIRED, 'Data directory, defaults to $HOME/.walletman')
+            ->addOption("disable-pinentry", null, InputOption::VALUE_NONE, 'Disable prompts with pinentry')
 
             // the full command description shown when running the command with
             // the "--help" option
@@ -97,11 +98,11 @@ class Create extends Command
         }
     }
 
-    private function getBip39Mnemonic(InputInterface $input, OutputInterface $output, Bip39WordListInterface $wordList): string
+    private function getBip39Mnemonic(InputInterface $input, bool $disablePinEntry, OutputInterface $output, Bip39WordListInterface $wordList): string
     {
         $bip39 = MnemonicFactory::bip39($wordList);
         if ($input->getOption('bip39-recovery')) {
-            return $this->promptForMnemonic($bip39, $input, $output);
+            return $this->promptForMnemonic($bip39, $disablePinEntry, $input, $output);
         }
 
         $random = new Random();
@@ -195,6 +196,7 @@ class Create extends Command
         $fPublic = $input->getOption('from-public');
         $fUseBip44 = $input->getOption('bip44');
         $fUseBip49 = $input->getOption('bip49');
+        $disablePinEntry = $input->getOption('disable-pinentry');
         $fUseBip84 = $input->getOption('bip84');
         $fBip39Pass = $input->getOption('bip39-passphrase');
         $fGapLimit = $this->parseGapLimit($input);
@@ -269,7 +271,7 @@ class Create extends Command
             $wallet = $walletFactory->createBip44WalletFromAccountKey($identifier, $accountKey, $path, $fGapLimit, $birthday);
         } else {
             $path = "M/{$bip44Purpose}'/{$coinType}'/{$account}'";
-            $mnemonic = $this->getBip39Mnemonic($input, $output, $wordlist);
+            $mnemonic = $this->getBip39Mnemonic($input, $disablePinEntry, $output, $wordlist);
             $passphrase = '';
             if ($fBip39Pass) {
                 $passphrase = $this->promptForPassphrase($input, $output);

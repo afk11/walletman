@@ -80,7 +80,7 @@ class BlockProcessorTest extends DbTestCase
         return (int) $obj;
     }
 
-    private function loadRawUtxo(int $walletId, OutPointInterface $outPoint): DbUtxo
+    private function loadRawUtxo(int $walletId, OutPointInterface $outPoint): ?DbUtxo
     {
         $query = $this->sessionDb->getPdo()->query("select * from utxo where walletId = ? and txid = ? AND vout = ?");
         if (!$query->execute([$walletId, $outPoint->getTxId()->getHex(), $outPoint->getVout()])) {
@@ -88,7 +88,7 @@ class BlockProcessorTest extends DbTestCase
         }
         $obj = $query->fetchObject(DbUtxo::class);
         if (!$obj) {
-            throw new \RuntimeException("no utxo returned");
+            return null;
         }
         return $obj;
     }
@@ -449,5 +449,148 @@ class BlockProcessorTest extends DbTestCase
         $this->assertNotNull($spentUtxo->getSpendOutPoint());
         $this->assertEquals($spendTx->getTxId()->getHex(), $spentUtxo->getSpendOutPoint()->getTxId()->getHex());
         $this->assertEquals(0, $spentUtxo->getSpendOutPoint()->getVout());
+    }
+
+    public function testMultiplePaymentsInBlock()
+    {
+        // two wallets.
+        // wallet 1: [receive] -> [ wallet2, change ] -> [ out, change ]
+
+        $lines = explode("\n", file_get_contents(__DIR__ . "/sql/test_wallet.sql"));
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line != "") {
+                $this->sessionDb->getPdo()->exec($line) or die("sorry, query failed: $line");
+            }
+        }
+
+        $privKeyFactory = new PrivateKeyFactory();
+        $cbPrivKey = $privKeyFactory->generateCompressed(new Random());
+        $cbPrivKey = $privKeyFactory->fromHexCompressed('4242424242424242424242424242424242424242424242424242424242424242');
+        $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
+
+
+        $walletScript1 = ScriptFactory::fromHex("76a9145947fbf644461dd030a795469721042a96a572aa88ac");
+        $walletScript2 = ScriptFactory::fromHex("76a91433496192592d0bcba7b30ac208eeb88f667e8d4388ac");
+        $changeScript1 = ScriptFactory::fromHex("76a9143803b3f6910d1155a0907d072c2420e872c60c0688ac");
+        $changeScript2 = ScriptFactory::fromHex("76a9140195c36e8d06d56bde6ac2f5415b4fb20cb5e5b488ac");
+
+        $ec = Bitcoin::getEcAdapter();
+        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ec)), $ec);
+        $wallet = $walletFactory->loadWallet("bip44");
+        $walletId = $wallet->getDbWallet()->getId();
+        $processor = new BlockProcessor($this->sessionDb, $wallet);
+
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+
+        $genesis = $chain->getBestHeader();
+
+        // Add block 1 - pays to our wallet to start test
+        $block1 = BlockMaker::makeBlock($this->sessionChainParams, $genesis->getHeader(), $walletScript1);
+        $block1Hash = $block1->getHeader()->getHash();
+        $cbTx1 = $block1->getTransaction(0);
+        $header1 = null;
+        $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block1Hash, $block1, $header1));
+
+        // add block 2 - creates second utxo for test
+        $block2 = BlockMaker::makeBlock($this->sessionChainParams, $block1->getHeader(), $walletScript2);
+        $block2Hash = $block2->getHeader()->getHash();
+        $cbTx2 = $block2->getTransaction(0);
+        $txFundAmt = $cbTx1->getValueOut();
+        $header2 = null;
+        $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block2Hash, $block2, $header2));
+
+        // add block 3 - containing lots of spends
+        $sendAmount1 = 250000;
+        $fee = 250;
+        $change1 = $txFundAmt - $sendAmount1 - $fee;
+
+        // sends some out, some to
+        $spend1 = (new TxBuilder())
+            ->spendOutputFrom($cbTx1, 0)
+            ->spendOutputFrom($cbTx2, 0)
+            ->output($sendAmount1, $cbScript)
+            ->output($change1, $changeScript1)
+            ->get()
+        ;
+
+        $sendAmount2 = 150000000;
+        $fee2 = 350;
+        $change2 = $change1 - $sendAmount2 - $fee2;
+        $spend2 = (new TxBuilder())
+            ->spendOutputFrom($spend1, 1)
+            ->output($change2, $changeScript2)
+            ->output($sendAmount2, $cbScript)
+            ->get();
+
+        $sendAmount3 = 2500000000;
+        $fee3 = 290;
+        $change3 = $change2 - $sendAmount3 - $fee3;
+        $spend3 = (new TxBuilder())
+            ->spendOutputFrom($spend2, 0)
+            ->output($sendAmount3, $walletScript2)
+            ->output($change3, $changeScript2)
+            ->get();
+
+        $txs = [$spend1, $spend2, $spend3];
+        $block3 = BlockMaker::makeBlock($this->sessionChainParams, $block2->getHeader(), $cbScript, ...$txs);
+        $block3Hash = $block3->getHeader()->getHash();
+        $header3 = null;
+
+        foreach ($txs as $tx) {
+            echo $tx->getTxId()->getHex().PHP_EOL;
+        }
+        $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block3Hash, $block3, $header3));
+        $this->assertEquals($block3Hash->getHex(), $chain->getBestBlock()->getHash()->getHex());
+        $txs = [];
+        $gettxs = $this->sessionDb->getTransactions($walletId, false);
+        while ($tx = $gettxs->fetchObject(DbWalletTx::class)) {
+            $txs[$tx->getTxId()->getHex()] = $tx;
+        }
+
+        foreach ($txs as $tx) {
+            $txid = $tx->getTxId();
+            $this->assertArrayHasKey($txid->getHex(), $txs, "should have tx in list {$txid->getHex()}");
+        }
+
+        // cb1 utxo spent by spend1 idx 0
+        $cb1Utxo = $this->loadRawUtxo($walletId, $cbTx1->makeOutPoint(0));
+        $this->assertTrue($cb1Utxo->isSpent());
+        $this->assertEquals($spend1->getTxId()->getHex(), $cb1Utxo->getSpendOutPoint()->getTxId()->getHex());
+        $this->assertEquals(0, $cb1Utxo->getSpendOutPoint()->getVout());
+
+        // cb2 utxo spent by spend1 idx 1
+        $cb2Utxo = $this->loadRawUtxo($walletId, $cbTx2->makeOutPoint(0));
+        $this->assertTrue($cb2Utxo->isSpent());
+        $this->assertEquals($spend1->getTxId()->getHex(), $cb2Utxo->getSpendOutPoint()->getTxId()->getHex());
+        $this->assertEquals(1, $cb2Utxo->getSpendOutPoint()->getVout());
+
+        // spend1 vout 0 went outside our wallet, ignored
+        $this->assertNull($this->loadRawUtxo($walletId, $spend1->makeOutPoint(0)));
+
+        // spend1 vout 1 spent by spend2 idx 1
+        $spendUtxo = $this->loadRawUtxo($walletId, $spend1->makeOutPoint(1));
+        $this->assertTrue($spendUtxo->isSpent());
+        $this->assertEquals($spend2->getTxId()->getHex(), $spendUtxo->getSpendOutPoint()->getTxId()->getHex());
+        $this->assertEquals(0, $spendUtxo->getSpendOutPoint()->getVout());
+
+        // spend2 vout 1 went outside our wallet, ignored
+        $this->assertNull($this->loadRawUtxo($walletId, $spend2->makeOutPoint(1)));
+
+        // spend2 vout 0 spent by spend3 idx 0
+        $spendUtxo = $this->loadRawUtxo($walletId, $spend2->makeOutPoint(0));
+        $this->assertTrue($spendUtxo->isSpent());
+        $this->assertEquals($spend3->getTxId()->getHex(), $spendUtxo->getSpendOutPoint()->getTxId()->getHex());
+        $this->assertEquals(0, $spendUtxo->getSpendOutPoint()->getVout());
+
+        // spend3 vout 0 sent to normal address, unspent
+        $spendUtxo = $this->loadRawUtxo($walletId, $spend3->makeOutPoint(0));
+        $this->assertFalse($spendUtxo->isSpent());
+
+        // spend3 vout 1 sent to change address, unspent
+        $spendUtxo = $this->loadRawUtxo($walletId, $spend3->makeOutPoint(0));
+        $this->assertFalse($spendUtxo->isSpent());
     }
 }
