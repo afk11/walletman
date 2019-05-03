@@ -72,10 +72,12 @@ class DbUtxoSet implements UtxoSet
         $this->db->markUtxoSpent($walletId, $outPoint, $spendTxId, $spendVout);
     }
 
-    public function undoTx(BufferInterface $txId, int $walletId)
+    public function undoTx(BufferInterface $txId, bool $isCoinbase, int $walletId)
     {
+        if (!$isCoinbase) {
+            $this->db->unspendTxUtxos($txId, [$walletId]);
+        }
         $this->db->deleteTxUtxos($txId, [$walletId]);
-        $this->db->unspendTxUtxos($txId, [$walletId]);
         if (!$this->db->updateTxStatus($walletId, $txId, DbWalletTx::STATUS_REJECT)) {
             throw new \RuntimeException("failed to update tx status");
         }

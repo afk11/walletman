@@ -379,4 +379,71 @@ class BlockProcessorTest extends DbTestCase
         $this->assertEquals($spendTx->getTxId()->getHex(), $spentUtxo->getSpendOutPoint()->getTxId()->getHex());
         $this->assertEquals(0, $spentUtxo->getSpendOutPoint()->getVout());
     }
+
+    public function testProcessSeveralPaymentsInBlock()
+    {
+        $lines = explode("\n", file_get_contents(__DIR__ . "/sql/test_wallet.sql"));
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line != "") {
+                $this->sessionDb->getPdo()->exec($line) or die("sorry, query failed: $line");
+            }
+        }
+
+        $ec = Bitcoin::getEcAdapter();
+        $walletFactory = new Factory($this->sessionDb, $this->sessionNetwork, new Base58ExtendedKeySerializer(new ExtendedKeySerializer($ec)), $ec);
+        $wallet = $walletFactory->loadWallet("bip44");
+        $walletId = $wallet->getDbWallet()->getId();
+        $processor = new BlockProcessor($this->sessionDb, $wallet);
+
+        // from wallet
+        $walletScript0 = ScriptFactory::fromHex("76a9145947fbf644461dd030a795469721042a96a572aa88ac");
+
+        $privKeyFactory = new PrivateKeyFactory();
+        $rand = new Random();
+        $cbPrivKey2 = $privKeyFactory->generateCompressed($rand);
+        $cbScript2 = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey2->getPubKeyHash());
+        $cbPrivKey3 = $privKeyFactory->generateCompressed($rand);
+        $cbScript3 = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey3->getPubKeyHash());
+
+        $pow = new ProofOfWork(new Math(), $this->sessionChainParams);
+        $chain = new Chain($pow);
+        $chain->init($this->sessionDb, $this->sessionChainParams);
+
+        $genesis = $chain->getBestHeader();
+
+        // Add block 1a - single payment to wallet in coinbase
+        $block1a = BlockMaker::makeBlock($this->sessionChainParams, $genesis->getHeader(), $walletScript0);
+        $block1aHash = $block1a->getHeader()->getHash();
+        $cbTx1 = $block1a->getTransaction(0);
+        $header1a = null;
+
+        // accept & saveblock
+        $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block1aHash, $block1a));
+
+        // check: one wallet received 1 transaction, despite two being in the block:
+        $this->assertEquals(1, $this->getTransactionCount());
+        $this->assertEquals(1, $this->getWalletTransactionCount(10001, true));
+        $this->assertEquals(1, $this->getUtxoCount());
+
+        // Add block 1b - pays someone else
+        $block1b = BlockMaker::makeBlock($this->sessionChainParams, $genesis->getHeader(), $cbScript2);
+        $block1bHash = $block1b->getHeader()->getHash();
+        $header1a = null;
+
+        // accept & saveblock
+        $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block1bHash, $block1b));
+
+        // Add block 2b - reorg, no more cb 1a
+        $block1c = BlockMaker::makeBlock($this->sessionChainParams, $block1b->getHeader(), $cbScript3);
+        $block1cHash = $block1c->getHeader()->getHash();
+        $header1a = null;
+
+        // accept & saveblock
+        $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block1cHash, $block1c));
+
+        // check: one wallet received 1 transaction, despite two being in the block:
+        $this->assertEquals(0, $this->getWalletTransactionCount(10001, false));
+        $this->assertEquals(0, $this->getUtxoCount());
+    }
 }

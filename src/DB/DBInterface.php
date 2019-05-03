@@ -115,7 +115,7 @@ interface DBInterface
     public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array;
     public function deleteTxUtxos(BufferInterface $txId, array $walletIds);
     public function unspendTxUtxos(BufferInterface $txId, array $walletIds);
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool;
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, bool $coinbase, ?string $blockHashHex, ?int $blockHeight): bool;
     public function updateTxStatus(int $walletId, BufferInterface $txid, int $status): bool;
 
     public function saveRawTx(BufferInterface $txId, BufferInterface $tx);

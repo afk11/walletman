@@ -190,7 +190,8 @@ class DBTest extends DbTestCase
         $walletId = 1;
         $txid = new Buffer("txid", 32);
         $valueChange = -100000000;
-        $this->assertTrue($this->sessionDb->createTx($walletId, $txid, $valueChange, DbWalletTx::STATUS_UNCONFIRMED, null, null));
+        $coinbase = false;
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txid, $valueChange, DbWalletTx::STATUS_UNCONFIRMED, $coinbase, null, null));
 
         $stmt = $this->sessionDb->getTransactions($walletId);
         $tx = $stmt->fetchObject(DbWalletTx::class);
@@ -199,9 +200,58 @@ class DBTest extends DbTestCase
         $this->assertEquals($walletId, $tx->getWalletId());
         $this->assertEquals($txid->getHex(), $tx->getTxId()->getHex());
         $this->assertEquals($valueChange, $tx->getValueChange());
+        $this->assertEquals($coinbase, $tx->isCoinbase());
         $this->assertEquals(DbWalletTx::STATUS_UNCONFIRMED, $tx->getStatus());
         $this->assertNull($tx->getConfirmedHash());
         $this->assertNull($tx->getConfirmedHeight());
+    }
+
+    public function testCreateTxCoinbase()
+    {
+        $walletId = 2;
+        $txid1 = new Buffer("txid1", 32);
+        $txid2 = new Buffer("txid2", 32);
+        $valueChange = 500000;
+
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txid1, $valueChange, DbWalletTx::STATUS_CONFIRMED, true, null, null));
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txid2, $valueChange, DbWalletTx::STATUS_CONFIRMED, false, null, null));
+
+        $stmt = $this->sessionDb->getTransactions($walletId);
+        while ($tx = $stmt->fetchObject(DbWalletTx::class)) {
+            $this->assertInstanceOf(DbWalletTx::class, $tx);
+            if ($tx->getTxId()->equals($txid1)) {
+                $this->assertTrue($tx->isCoinbase());
+            } else {
+                $this->assertFalse($tx->isCoinbase());
+            }
+        }
+    }
+
+    public function testCreateTxBlockInfo()
+    {
+        $walletId = 2;
+        $txid1 = new Buffer("txid1", 32);
+        $blockHash = new Buffer('block1', 32);
+        $blockHeight = mt_rand(1, 100);
+        $valueChange = 500000;
+
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txid1, $valueChange, DbWalletTx::STATUS_UNCONFIRMED, false, null, null));
+
+        $stmt = $this->sessionDb->getTransactions($walletId);
+        $tx = $stmt->fetchObject(DbWalletTx::class);
+        /** @var DbWalletTx $tx */
+        $this->assertEquals($valueChange, $tx->getValueChange());
+        $this->assertNull($tx->getConfirmedHash());
+        $this->assertNull($tx->getConfirmedHeight());
+
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txid1, $valueChange, DbWalletTx::STATUS_CONFIRMED, false, $blockHash->getHex(), $blockHeight));
+
+        $stmt = $this->sessionDb->getTransactions($walletId);
+        $tx = $stmt->fetchObject(DbWalletTx::class);
+        $this->assertEquals($valueChange, $tx->getValueChange());
+        /** @var DbWalletTx $tx */
+        $this->assertEquals($blockHash->getHex(), $tx->getConfirmedHash()->getHex());
+        $this->assertEquals($blockHeight, $tx->getConfirmedHeight());
     }
 
     public function testCreateUtxo()
@@ -211,7 +261,7 @@ class DBTest extends DbTestCase
         $outpointReceive = new OutPoint($txidReceive, 0);
         $txoutReceive = new TransactionOutput(500000, new Script());
         $valueChange = 500000;
-        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, false, null, null));
         $this->sessionDb->createUtxo($walletId, 1, $outpointReceive, $txoutReceive);
 
         // first utxo is SPENT, spend utxo exists
@@ -233,7 +283,7 @@ class DBTest extends DbTestCase
         $outpointReceive = new OutPoint($txidReceive, 0);
         $txoutReceive = new TransactionOutput(500000, new Script());
         $valueChange = 500000;
-        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, false, null, null));
 
         $this->sessionDb->createUtxo($walletId, 1, $outpointReceive, $txoutReceive);
         $this->assertInstanceOf(DbUtxo::class, $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getHex(), 0));
@@ -250,7 +300,7 @@ class DBTest extends DbTestCase
         $outpointReceive = new OutPoint($txidReceive, 129);
         $txoutReceive = new TransactionOutput(500000, new Script());
         $valueChange = 500000;
-        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, false, null, null));
 
         $this->sessionDb->createUtxo($walletId, 1, $outpointReceive, $txoutReceive);
         $this->assertInstanceOf(DbUtxo::class, $this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive));
@@ -282,7 +332,7 @@ class DBTest extends DbTestCase
         $txoutSpend = new TransactionOutput(400000, new Script());
 
         // create tx, and utxo
-        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $txoutReceive->getValue(), DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $txoutReceive->getValue(), DbWalletTx::STATUS_CONFIRMED, false, null, null));
         $this->sessionDb->createUtxo($walletId, $scriptId, $outpointReceive, $txoutReceive);
 
         // check it exists
@@ -290,7 +340,7 @@ class DBTest extends DbTestCase
         $this->assertInstanceOf(DbUtxo::class, $getUtxo);
 
         // create spend tx, delete prev utxo, create newer one
-        $this->assertTrue($this->sessionDb->createTx($walletId, $txidSpend, -100000, DbWalletTx::STATUS_CONFIRMED, null, null));
+        $this->assertTrue($this->sessionDb->createTx($walletId, $txidSpend, -100000, DbWalletTx::STATUS_CONFIRMED, false, null, null));
         $this->sessionDb->markUtxoSpent($walletId, $outpointReceive, $txidSpend, 0);
         $this->sessionDb->createUtxo($walletId, $scriptId, $outpointSpend, $txoutSpend);
 

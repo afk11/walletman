@@ -75,6 +75,7 @@ class DB implements DBInterface
         if (false === $this->pdo->exec("CREATE TABLE `tx` (
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `walletId`     INTEGER NOT NULL,
+            `coinbase`     TINYINT(1) NOT NULL,
             `valueChange`  INTEGER NOT NULL,
             `status`       INTEGER NOT NULL,
             `txid`         VARCHAR(64) NOT NULL,
@@ -607,14 +608,14 @@ class DB implements DBInterface
         return $results;
     }
 
-    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, ?string $blockHashHex, ?int $blockHeight): bool
+    public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, bool $coinbase, ?string $blockHashHex, ?int $blockHeight): bool
     {
         if (null === $this->createTxStmt) {
-            $this->createTxStmt = $this->pdo->prepare("INSERT OR REPLACE INTO tx (walletId, txid, valueChange, status, confirmedHash, confirmedHeight) values (?, ?, ?, ?, ?, ?)");
+            $this->createTxStmt = $this->pdo->prepare("INSERT OR REPLACE INTO tx (walletId, txid, valueChange, status, coinbase, confirmedHash, confirmedHeight) values (?, ?, ?, ?, ?, ?, ?)");
         }
         return $this->createTxStmt->execute([
             $walletId, $txid->getHex(), $valueChange,
-            $status, $blockHashHex, $blockHeight,
+            $status, $coinbase, $blockHashHex, $blockHeight,
         ]);
     }
 

@@ -30,5 +30,5 @@ interface UtxoSet
 
     public function createUtxo(DbWallet $wallet, DbScript $script, OutPointInterface $outPoint, TransactionOutputInterface $txOut): void;
 
-    public function undoTx(BufferInterface $txId, int $walletId);
+    public function undoTx(BufferInterface $txId, bool $isCoinbase, int $walletId);
 }

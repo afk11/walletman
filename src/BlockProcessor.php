@@ -78,18 +78,21 @@ class BlockProcessor
         $ins = $tx->getInputs();
         $nIn = count($ins);
         $valueChange = [];
+        $isCoinbase = $tx->isCoinbase();
 
-        for ($iIn = 0; $iIn < $nIn; $iIn++) {
-            $outPoint = $ins[$iIn]->getOutPoint();
-            // load this utxo from wallets, update valueChange
-            $dbUtxos = $this->utxoSet->getUtxosForOutPoint($outPoint);
-            $nUtxos = count($dbUtxos);
-            for ($i = 0; $i < $nUtxos; $i++) {
-                $dbUtxo = $dbUtxos[$i];
-                if (!array_key_exists($dbUtxo->getWalletId(), $valueChange)) {
-                    $valueChange[$dbUtxo->getWalletId()] = 0;
+        if (!$isCoinbase) {
+            for ($iIn = 0; $iIn < $nIn; $iIn++) {
+                $outPoint = $ins[$iIn]->getOutPoint();
+                // load this utxo from wallets, update valueChange
+                $dbUtxos = $this->utxoSet->getUtxosForOutPoint($outPoint);
+                $nUtxos = count($dbUtxos);
+                for ($i = 0; $i < $nUtxos; $i++) {
+                    $dbUtxo = $dbUtxos[$i];
+                    if (!array_key_exists($dbUtxo->getWalletId(), $valueChange)) {
+                        $valueChange[$dbUtxo->getWalletId()] = 0;
+                    }
+                    $valueChange[$dbUtxo->getWalletId()] -= $dbUtxo->getValue();
                 }
-                $valueChange[$dbUtxo->getWalletId()] -= $dbUtxo->getValue();
             }
         }
 
@@ -125,7 +128,7 @@ class BlockProcessor
             $txId = $tx->getTxId();
             foreach ($valueChange as $walletId => $change) {
                 // note: used to be when save/activate were in same step.
-                $this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $blockHashHex, $blockHeight);
+                $this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $isCoinbase, $blockHashHex, $blockHeight);
                 // need to update now because tx is stored as rejected until activated (in block accept codepath)
             }
 
@@ -141,6 +144,7 @@ class BlockProcessor
         foreach ($txs as $tx) {
             /** @var DbWalletTx $tx */
             $txId = $tx->getTxId();
+            $isCoinbase = $tx->isCoinbase();
             $binTxId = $txId->getBinary();
             if (array_key_exists($binTxId, $rawTxs)) {
                 $rawTx = $rawTxs[$binTxId];
@@ -148,27 +152,29 @@ class BlockProcessor
                 $rawTxBin = $this->db->getRawTx($txId);
                 $rawTx = $rawTxs[$binTxId] = $this->txSerializer->parse(new Buffer($rawTxBin));
             }
-            $this->applyConfirmedTx($txId, $rawTx);
+            $this->applyConfirmedTx($txId, $isCoinbase, $rawTx);
         }
     }
 
     // called in Activate step
-    public function applyConfirmedTx(BufferInterface $txId, TransactionInterface $tx)
+    public function applyConfirmedTx(BufferInterface $txId, bool $coinbase, TransactionInterface $tx)
     {
         $ins = $tx->getInputs();
         $nIn = count($ins);
         $walletIds = [];
 
-        for ($iIn = 0; $iIn < $nIn; $iIn++) {
-            $outPoint = $ins[$iIn]->getOutPoint();
-            // load this utxo from wallets, and mark spent
-            $dbUtxos = $this->utxoSet->getUtxosForOutPoint($outPoint);
-            $nUtxos = count($dbUtxos);
-            for ($i = 0; $i < $nUtxos; $i++) {
-                $dbUtxo = $dbUtxos[$i];
-                $walletIds[$dbUtxo->getWalletId()] = 1;
-                $this->utxoSet->spendUtxo($dbUtxo->getWalletId(), $outPoint, $txId, $iIn);
-                echo "wallet({$dbUtxo->getWalletId()}).utxoSpent {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}\n";
+        if (!$coinbase) {
+            for ($iIn = 0; $iIn < $nIn; $iIn++) {
+                $outPoint = $ins[$iIn]->getOutPoint();
+                // load this utxo from wallets, and mark spent
+                $dbUtxos = $this->utxoSet->getUtxosForOutPoint($outPoint);
+                $nUtxos = count($dbUtxos);
+                for ($i = 0; $i < $nUtxos; $i++) {
+                    $dbUtxo = $dbUtxos[$i];
+                    $walletIds[$dbUtxo->getWalletId()] = 1;
+                    $this->utxoSet->spendUtxo($dbUtxo->getWalletId(), $outPoint, $txId, $iIn);
+                    echo "wallet({$dbUtxo->getWalletId()}).utxoSpent {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}\n";
+                }
             }
         }
 
@@ -216,7 +222,8 @@ class BlockProcessor
             // tx may have spent some utxos, and
             // created some utxos. undo these.
             $txId = $tx->getTxId();
-            $this->utxoSet->undoTx($txId, $tx->getWalletId());
+            echo "undo wallet tx: {$txId->getHex()}\n";
+            $this->utxoSet->undoTx($txId, $tx->isCoinbase(), $tx->getWalletId());
         }
     }
 }

@@ -16,6 +16,7 @@ class DbWalletTx
     private $txid;
     private $valueChange;
     private $status;
+    private $coinbase;
     private $confirmedHash;
     private $confirmedHeight;
 
@@ -37,6 +38,11 @@ class DbWalletTx
     public function getStatus(): int
     {
         return (int) $this->status;
+    }
+
+    public function isCoinbase(): bool
+    {
+        return (bool) $this->coinbase;
     }
 
     public function getConfirmedHash(): ?BufferInterface

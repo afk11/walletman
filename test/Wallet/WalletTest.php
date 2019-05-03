@@ -32,12 +32,12 @@ class WalletTest extends DbTestCase
 {
     protected $regtest = true;
 
-    private function insertTx(\PDO $pdo, DbWallet $dbWallet, string $txid, int $valueChange, int $status, string $blockHash, int $blockHeight): bool
+    private function insertTx(\PDO $pdo, DbWallet $dbWallet, string $txid, int $valueChange, int $status, bool $coinbase, string $blockHash, int $blockHeight): bool
     {
-        $stmt = $pdo->prepare("INSERT INTO tx (walletId, txid, valueChange, status, confirmedHash, confirmedHeight) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO tx (walletId, txid, valueChange, status, coinbase, confirmedHash, confirmedHeight) VALUES (?, ?, ?, ?, ?, ?, ?)");
         return $stmt->execute([
             $dbWallet->getId(), $txid, $valueChange,
-            $status, $blockHash, $blockHeight,
+            $status, $coinbase, $blockHash, $blockHeight,
         ]);
     }
 
@@ -61,6 +61,7 @@ class WalletTest extends DbTestCase
             "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
             $oneBtc,
             DbWalletTx::STATUS_CONFIRMED,
+            false,
             "0000000090909090909090909090909090909090909090909090909090909090",
             1
         ));

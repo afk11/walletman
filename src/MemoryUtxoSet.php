@@ -116,7 +116,7 @@ class MemoryUtxoSet implements UtxoSet
         }
     }
 
-    public function undoTx(BufferInterface $txId, int $walletId)
+    public function undoTx(BufferInterface $txId, bool $isCoinbase, int $walletId)
     {
         // todo: ... don't have a way to access utxos by txid here
         // maybe query for utxos first, but that sucks :/
