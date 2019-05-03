@@ -262,6 +262,15 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
+    /**
+     * @param BufferInterface $hash
+     * @param array $walletIds
+     * @return DbBlockTx[]
+     */
+    public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, bool $coinbase, ?string $blockHashHex, ?int $blockHeight): bool
     {
         return $this->call(__FUNCTION__, func_get_args());
@@ -280,10 +289,6 @@ class DBDecorator implements DBInterface
     }
 
     public function getTransactions(int $walletId, bool $includeRejected = false): \PDOStatement
-    {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
-    public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array
     {
         return $this->call(__FUNCTION__, func_get_args());
     }

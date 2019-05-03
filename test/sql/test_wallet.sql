@@ -18,9 +18,9 @@ insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witness
 
 insert into wallet (id, type, identifier, birthday_hash, birthday_height, gapLimit) values (10002, 1, "bip84", "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943", 0, 5);
 
-insert into `key` (walletId, path, childSequence, depth, `key`, keyIndex, status, isLeaf) values (10002, "M/89'/0'/0'", 0, 3, "vpub5ZVzGbKr459YJYEPVy6aJaoxde4StU8wBUrMjpXYkYqhLY2fwTG7PVvQ6s6eh7viXMh1moQ1XYfLs3CAzB9hEJVveHcFXeohrZEegaFpHzd", 0, 0, 0);
-insert into key (walletId, path, childSequence, depth, `key`, keyIndex, status, isLeaf) values (10002, "M/89'/0'/0'/0", 0, 4, "vpub5anxAE9pSNv488ci56wsM6e4zgajGM9DZWeVtMPxJmhLmaswJ25ivzHENAZ8sTrxuN7Pt449kFJ3Px8haCtuxHqr6BCZdYm6NNVTuAkV7rN", 0, 0, 0);
-insert into `key` (walletId, path, childSequence, depth, `key`, keyIndex, status, isLeaf) values (10002, "M/89'/0'/0'/1", 0, 4, "vpub5anxAE9pSNv4BcFiCQEqeZnewnB4q5fNR77ojhoSTDxeUB9wcZugkZrAjok1RiP1SYNWYdyQyafJA4ascRZMbWqgfkdzSHVKgxXPR6Vpegb", 0, 0, 0);
+insert into `key` (walletId, path, childSequence, depth, `key`, keyIndex, status, isLeaf) values (10002, "M/84'/0'/0'", 0, 3, "vpub5ZVzGbKr459YJYEPVy6aJaoxde4StU8wBUrMjpXYkYqhLY2fwTG7PVvQ6s6eh7viXMh1moQ1XYfLs3CAzB9hEJVveHcFXeohrZEegaFpHzd", 0, 0, 0);
+insert into key (walletId, path, childSequence, depth, `key`, keyIndex, status, isLeaf) values (10002, "M/84'/0'/0'/0", 0, 4, "vpub5anxAE9pSNv488ci56wsM6e4zgajGM9DZWeVtMPxJmhLmaswJ25ivzHENAZ8sTrxuN7Pt449kFJ3Px8haCtuxHqr6BCZdYm6NNVTuAkV7rN", 0, 0, 0);
+insert into `key` (walletId, path, childSequence, depth, `key`, keyIndex, status, isLeaf) values (10002, "M/84'/0'/0'/1", 0, 4, "vpub5anxAE9pSNv4BcFiCQEqeZnewnB4q5fNR77ojhoSTDxeUB9wcZugkZrAjok1RiP1SYNWYdyQyafJA4ascRZMbWqgfkdzSHVKgxXPR6Vpegb", 0, 0, 0);
 
 insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/0/0", "0014efc22b20c7d51c1549da81b4e86baaf585a47afd", NULL, NULL);
 insert into script (walletId, keyIdentifier, scriptPubKey, redeemScript, witnessScript) values (10002, "M/84'/0'/0'/0/1", "0014f5eed4c937f5f4039dc740b83f2c3e8bf535eaae", NULL, NULL);

@@ -469,6 +469,7 @@ class Chain
             return true;
         } catch (\Exception $e) {
             $db->getPdo()->rollBack();
+            echo "processNewBlock failed\n";
             echo $e->getMessage().PHP_EOL;
             echo $e->getTraceAsString().PHP_EOL;
 

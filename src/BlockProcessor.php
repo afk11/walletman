@@ -11,6 +11,7 @@ use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
+use BitWasp\Wallet\DB\DbBlockTx;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbWalletTx;
 use BitWasp\Wallet\Wallet\WalletInterface;
@@ -128,7 +129,9 @@ class BlockProcessor
             $txId = $tx->getTxId();
             foreach ($valueChange as $walletId => $change) {
                 // note: used to be when save/activate were in same step.
-                $this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $isCoinbase, $blockHashHex, $blockHeight);
+                if (!$this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $isCoinbase, $blockHashHex, $blockHeight)) {
+                    throw new \RuntimeException("failed to create tx");
+                }
                 // need to update now because tx is stored as rejected until activated (in block accept codepath)
             }
 
@@ -171,6 +174,10 @@ class BlockProcessor
                 $nUtxos = count($dbUtxos);
                 for ($i = 0; $i < $nUtxos; $i++) {
                     $dbUtxo = $dbUtxos[$i];
+                    if (!array_key_exists($dbUtxo->getWalletId(), $this->wallets)) {
+                        continue;
+                    }
+
                     $walletIds[$dbUtxo->getWalletId()] = 1;
                     $this->utxoSet->spendUtxo($dbUtxo->getWalletId(), $outPoint, $txId, $iIn);
                     echo "wallet({$dbUtxo->getWalletId()}).utxoSpent {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}\n";
@@ -218,12 +225,21 @@ class BlockProcessor
 
         $txs = $this->db->fetchBlockTxs($blockHash, $walletIds);
         foreach ($txs as $tx) {
-            /** @var DbWalletTx $tx */
-            // tx may have spent some utxos, and
-            // created some utxos. undo these.
-            $txId = $tx->getTxId();
-            echo "undo wallet tx: {$txId->getHex()}\n";
-            $this->utxoSet->undoTx($txId, $tx->isCoinbase(), $tx->getWalletId());
+            /** @var DbBlockTx $tx */
+            $this->undoConfirmedTx($tx->getTxId(), $tx->isCoinbase(), $walletIds);
+        }
+    }
+
+    public function undoConfirmedTx(BufferInterface $txId, bool $isCoinbase, array $walletIds)
+    {
+        if (!$isCoinbase) {
+            $this->db->unspendTxUtxos($txId, $walletIds);
+        }
+        $this->db->deleteTxUtxos($txId, $walletIds);
+        foreach ($walletIds as $walletId) {
+            if (!$this->db->updateTxStatus($walletId, $txId, DbWalletTx::STATUS_REJECT)) {
+                throw new \RuntimeException("failed to update tx status");
+            }
         }
     }
 }

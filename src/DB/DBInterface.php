@@ -112,6 +112,11 @@ interface DBInterface
      */
     public function getWalletScriptPubKeys(int $walletId): array;
 
+    /**
+     * @param BufferInterface $hash
+     * @param array $walletIds
+     * @return DbBlockTx[]
+     */
     public function fetchBlockTxs(BufferInterface $hash, array $walletIds): array;
     public function deleteTxUtxos(BufferInterface $txId, array $walletIds);
     public function unspendTxUtxos(BufferInterface $txId, array $walletIds);
