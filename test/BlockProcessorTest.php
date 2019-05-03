@@ -513,14 +513,16 @@ class BlockProcessorTest extends DbTestCase
         $block2 = BlockMaker::makeBlock($this->sessionChainParams, $block1->getHeader(), $walletScript2);
         $block2Hash = $block2->getHeader()->getHash();
         $cbTx2 = $block2->getTransaction(0);
-        $txFundAmt = $cbTx1->getValueOut();
+
         $header2 = null;
         $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block2Hash, $block2, $header2));
 
         // add block 3 - containing lots of spends
         $sendAmount1 = 250000;
+        $sendAmount2 = 150000000;
+        $sendAmount3 = 2500000000;
         $fee = 250;
-        $change1 = $txFundAmt - $sendAmount1 - $fee;
+        $change1 = ($cbTx1->getValueOut()+$cbTx2->getValueOut()) - $sendAmount1 - $fee;
 
         // sends some out, some to
         $spend1 = (new TxBuilder())
@@ -531,7 +533,8 @@ class BlockProcessorTest extends DbTestCase
             ->get()
         ;
 
-        $sendAmount2 = 150000000;
+        echo "change1: $change1\n";
+
         $fee2 = 350;
         $change2 = $change1 - $sendAmount2 - $fee2;
         $spend2 = (new TxBuilder())
@@ -539,8 +542,8 @@ class BlockProcessorTest extends DbTestCase
             ->output($change2, $changeScript2)
             ->output($sendAmount2, $wallet2Script2)
             ->get();
+        echo "change2: $change2\n";
 
-        $sendAmount3 = 2500000000;
         $fee3 = 290;
         $change3 = $change2 - $sendAmount3 - $fee3;
         $spend3 = (new TxBuilder())
@@ -548,6 +551,7 @@ class BlockProcessorTest extends DbTestCase
             ->output($sendAmount3, $walletScript2)
             ->output($change3, $changeScript2)
             ->get();
+        echo "change3: $change3\n";
 
         $blockTxs = [$spend1, $spend2, $spend3];
         $block3 = BlockMaker::makeBlock($this->sessionChainParams, $block2->getHeader(), $cbScript, ...$blockTxs);
@@ -559,15 +563,19 @@ class BlockProcessorTest extends DbTestCase
 
         $wallet1Txs = [];
         $gettxs = $this->sessionDb->getTransactions($walletId1);
+        echo "wallet1\n";
         while ($tx = $gettxs->fetchObject(DbWalletTx::class)) {
             $wallet1Txs[$tx->getTxId()->getHex()] = $tx;
+            echo "{$tx->getTxId()->getHex()} {$tx->getValueChange()}\n";
         }
-
         $wallet2Txs = [];
+        echo "wlalet2\n";
         $gettxs = $this->sessionDb->getTransactions($walletId2);
         while ($tx = $gettxs->fetchObject(DbWalletTx::class)) {
             $wallet2Txs[$tx->getTxId()->getHex()] = $tx;
+            echo "{$tx->getTxId()->getHex()} {$tx->getValueChange()}\n";
         }
+
         $this->assertArrayHasKey($spend1->getTxId()->getHex(), $wallet1Txs, "should have tx in list 1 {$spend1->getTxId()->getHex()}");
         $this->assertArrayHasKey($spend2->getTxId()->getHex(), $wallet1Txs, "should have tx in list 1 {$spend2->getTxId()->getHex()}");
         $this->assertArrayHasKey($spend3->getTxId()->getHex(), $wallet1Txs, "should have tx in list 1 {$spend3->getTxId()->getHex()}");
@@ -587,7 +595,11 @@ class BlockProcessorTest extends DbTestCase
         $this->assertEquals($spend1->getTxId()->getHex(), $cb2Utxo->getSpendOutPoint()->getTxId()->getHex());
         $this->assertEquals(1, $cb2Utxo->getSpendOutPoint()->getVout());
 
-        // spend1 vout 0 went outside our wallet, ignored
+        // spend1 vout 0: wallet2 received this, unspent
+        $spendUtxo = $this->loadRawUtxo($walletId2, $spend1->makeOutPoint(0));
+        $this->assertFalse($spendUtxo->isSpent());
+
+        // spend1 vout0: wallet1 has no reason to track this
         $this->assertNull($this->loadRawUtxo($walletId1, $spend1->makeOutPoint(0)));
 
         // spend1 vout 1 spent by spend2 idx 1
@@ -595,6 +607,10 @@ class BlockProcessorTest extends DbTestCase
         $this->assertTrue($spendUtxo->isSpent());
         $this->assertEquals($spend2->getTxId()->getHex(), $spendUtxo->getSpendOutPoint()->getTxId()->getHex());
         $this->assertEquals(0, $spendUtxo->getSpendOutPoint()->getVout());
+
+        // spend1 vout 1: wallet2 received this, unspent
+        $spendUtxo = $this->loadRawUtxo($walletId2, $spend2->makeOutPoint(1));
+        $this->assertFalse($spendUtxo->isSpent());
 
         // spend2 vout 1 went outside our wallet, ignored
         $this->assertNull($this->loadRawUtxo($walletId1, $spend2->makeOutPoint(1)));
@@ -612,5 +628,7 @@ class BlockProcessorTest extends DbTestCase
         // spend3 vout 1 sent to change address, unspent
         $spendUtxo = $this->loadRawUtxo($walletId1, $spend3->makeOutPoint(0));
         $this->assertFalse($spendUtxo->isSpent());
+
+        // tx value_change is broken because it's calculated in process
     }
 }

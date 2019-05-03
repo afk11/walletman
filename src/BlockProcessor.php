@@ -76,6 +76,7 @@ class BlockProcessor
     // called before activation, saves as rejected
     public function processConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx)
     {
+        echo "processTx: {$tx->getTxId()->getHex()}\n";
         $ins = $tx->getInputs();
         $nIn = count($ins);
         $valueChange = [];
@@ -93,8 +94,11 @@ class BlockProcessor
                         $valueChange[$dbUtxo->getWalletId()] = 0;
                     }
                     $valueChange[$dbUtxo->getWalletId()] -= $dbUtxo->getValue();
+                    echo "in: wallet {$dbUtxo->getWalletId()} value change: -{$dbUtxo->getValue()}\n";
                 }
             }
+        } else {
+            echo "coinbase, skip inputs\n";
         }
 
         $outs = $tx->getOutputs();
@@ -118,6 +122,7 @@ class BlockProcessor
                         $valueChange[$dbWallet->getId()] = 0;
                     }
                     $valueChange[$dbWallet->getId()] += $txOut->getValue();
+                    echo "out: wallet $walletId value change: +{$txOut->getValue()}\n";
                 } else {
                     throw new \RuntimeException("somehow, we didn't find the script in script storage");
                 }
@@ -129,6 +134,7 @@ class BlockProcessor
             $txId = $tx->getTxId();
             foreach ($valueChange as $walletId => $change) {
                 // note: used to be when save/activate were in same step.
+                echo "createTx:: $walletId: {$txId->getHex()} value change: $change\n";
                 if (!$this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $isCoinbase, $blockHashHex, $blockHeight)) {
                     throw new \RuntimeException("failed to create tx");
                 }
