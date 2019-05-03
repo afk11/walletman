@@ -453,9 +453,6 @@ class BlockProcessorTest extends DbTestCase
 
     public function testMultiplePaymentsInBlock()
     {
-        // two wallets.
-        // wallet 1: [receive] -> [ wallet2, change ] -> [ out, change ]
-
         $lines = explode("\n", file_get_contents(__DIR__ . "/sql/test_wallet.sql"));
         foreach ($lines as $line) {
             $line = trim($line);
@@ -466,9 +463,7 @@ class BlockProcessorTest extends DbTestCase
 
         $privKeyFactory = new PrivateKeyFactory();
         $cbPrivKey = $privKeyFactory->generateCompressed(new Random());
-        $cbPrivKey = $privKeyFactory->fromHexCompressed('4242424242424242424242424242424242424242424242424242424242424242');
         $cbScript = ScriptFactory::scriptPubKey()->p2pkh($cbPrivKey->getPubKeyHash());
-
 
         $walletScript1 = ScriptFactory::fromHex("76a9145947fbf644461dd030a795469721042a96a572aa88ac");
         $walletScript2 = ScriptFactory::fromHex("76a91433496192592d0bcba7b30ac208eeb88f667e8d4388ac");
@@ -539,9 +534,6 @@ class BlockProcessorTest extends DbTestCase
         $block3Hash = $block3->getHeader()->getHash();
         $header3 = null;
 
-        foreach ($txs as $tx) {
-            echo $tx->getTxId()->getHex().PHP_EOL;
-        }
         $this->assertTrue($chain->processNewBlock($this->sessionDb, $processor, $block3Hash, $block3, $header3));
         $this->assertEquals($block3Hash->getHex(), $chain->getBestBlock()->getHash()->getHex());
         $txs = [];
