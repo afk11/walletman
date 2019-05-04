@@ -663,18 +663,18 @@ class P2pSyncDaemon
             $peerInfo->lastCommonBlock = $this->db->getHeader($hash);
         }
 
-        if (count($this->toDownload) > 0) {
+        //if (count($this->toDownload) > 0) {
             // if nearTip don't bother sending a batch request, submit immediately
             // otherwise, send when we have batch/2 or batch items
-            $nearTip = count($this->blocksInFlight) + count($this->toDownload) < $this->batchSize;
-            if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
+//            $nearTip = count($this->blocksInFlight) + count($this->toDownload) < $this->batchSize;
+  //          if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
                 foreach ($this->toDownload as $inv) {
                     $this->blocksInFlight[$inv->getHash()->getBinary()] = 1;
                 }
                 $peer->getdata($this->toDownload);
                 $this->toDownload = [];
-            }
-        }
+    //        }
+      //  }
     }
 
     /**

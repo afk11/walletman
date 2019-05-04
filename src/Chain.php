@@ -480,13 +480,12 @@ class Chain
             if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
                 $this->updateChain($db, $blockProcessor, $headerIndex, $block);
             }
-            $db->getPdo()->commit();
-
-            $index = $headerIndex;
             $margin = 200;
-            if ($index->getHeight() > $margin) {
-                $db->deleteRawBlock(new Buffer($this->blocks[$index->getHeight()-$margin]));
+            if ($headerIndex->getHeight() > $margin) {
+                $db->deleteRawBlock(new Buffer($this->blocks[$headerIndex->getHeight()-$margin]));
             }
+            $db->getPdo()->commit();
+            $index = $headerIndex;
             return true;
         } catch (\Exception $e) {
             $db->getPdo()->rollBack();
