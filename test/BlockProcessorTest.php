@@ -617,5 +617,6 @@ class BlockProcessorTest extends DbTestCase
         $this->assertFalse($spendUtxo->isSpent());
 
         $this->assertEquals($sendAmount3 + $change3, $wallet1->getConfirmedBalance());
+        $this->assertEquals($sendAmount1 + $sendAmount2, $wallet2->getConfirmedBalance());
     }
 }
