@@ -293,6 +293,14 @@ class DBDecorator implements DBInterface
         return $this->call(__FUNCTION__, func_get_args());
     }
 
+    public function saveRawBlock(BufferInterface $blockHash, BufferInterface $blockData): bool
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
+    public function deleteRawBlock(BufferInterface $blockHash): bool
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
     public function deleteTxUtxos(BufferInterface $txId, array $walletIds)
     {
         return $this->call(__FUNCTION__, func_get_args());

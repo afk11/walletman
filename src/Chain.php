@@ -387,6 +387,7 @@ class Chain
             return true;
         }
 
+        $db->saveRawBlock($hash, $block->getBuffer());
         $db->setBlockReceived($hash);
 
         return true;
@@ -466,6 +467,10 @@ class Chain
             }
             $db->getPdo()->commit();
             $index = $headerIndex;
+            $margin = 200;
+            if ($index->getHeight() > $margin) {
+                $db->deleteRawBlock(new Buffer($this->blocks[$index->getHeight()-$margin]));
+            }
             return true;
         } catch (\Exception $e) {
             $db->getPdo()->rollBack();

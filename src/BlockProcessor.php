@@ -76,7 +76,6 @@ class BlockProcessor
     // called before activation, saves as rejected
     public function processConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx)
     {
-        echo "processTx: {$tx->getTxId()->getHex()}\n";
         $ins = $tx->getInputs();
         $nIn = count($ins);
         $valueChange = [];
@@ -97,8 +96,6 @@ class BlockProcessor
                     echo "in: wallet {$dbUtxo->getWalletId()} value change: -{$dbUtxo->getValue()}\n";
                 }
             }
-        } else {
-            echo "coinbase, skip inputs\n";
         }
 
         $outs = $tx->getOutputs();

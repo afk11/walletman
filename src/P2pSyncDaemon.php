@@ -517,8 +517,8 @@ class P2pSyncDaemon
                     if (!$this->chain->processNewBlock($this->db, $this->processor, $hash, $block, $headerIndex)) {
                         throw new \RuntimeException("failed to process block");
                     }
-
                     /** @var DbHeader $headerIndex */
+
                     $blockProcessTime = microtime(true) - $processStart;
                     $this->blockProcessTime += $blockProcessTime;
                     $this->blockStatsCount++;

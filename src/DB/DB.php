@@ -105,6 +105,21 @@ class DB implements DBInterface
         }
     }
 
+    public function createRawBlockTable()
+    {
+        if (false === $this->pdo->exec("CREATE TABLE `rawBlock` (
+            `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+            `hash`  VARCHAR(64) NOT NULL,
+            `block`    TEXT NOT NULL
+        );")) {
+            throw new \RuntimeException("failed to create raw tx table");
+        }
+
+        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_rawBlock on rawBlock(hash)")) {
+            throw new \RuntimeException("failed add index on rawtx table");
+        }
+    }
+
     public function createUtxoTable()
     {
         if (false === $this->pdo->exec("CREATE TABLE `utxo` (
@@ -685,6 +700,23 @@ class DB implements DBInterface
             $txId->getHex(), $tx->getBinary(),
         ]);
         return $stmt;
+    }
+
+    public function deleteRawBlock(BufferInterface $blockHash): bool
+    {
+        // todo prepared statement
+        $stmt = $this->pdo->prepare("delete from rawBlock where hash = ?");
+        return $stmt->execute([
+            $blockHash->getHex(),
+        ]);
+    }
+    public function saveRawBlock(BufferInterface $blockHash, BufferInterface $blockData): bool
+    {
+        // todo prepared statement
+        $stmt = $this->pdo->prepare("insert into rawBlock (hash, block) values (?, ?)");
+        return $stmt->execute([
+            $blockHash->getHex(), $blockData->getBinary(),
+        ]);
     }
 
     public function getRawTx(BufferInterface $txId): string
