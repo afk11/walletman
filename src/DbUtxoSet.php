@@ -52,7 +52,7 @@ class DbUtxoSet implements UtxoSet
      */
     public function getWalletsForScriptPubKey(ScriptInterface $script): array
     {
-        return $this->db->loadWalletIDsByScriptPubKey($script);
+
     }
 
     public function createUtxo(DbWallet $wallet, DbScript $script, OutPointInterface $outPoint, TransactionOutputInterface $txOut): void

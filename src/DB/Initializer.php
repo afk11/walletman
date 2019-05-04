@@ -26,7 +26,6 @@ class Initializer
         $pdo->createScriptTable();
         $pdo->createTxTable();
         $pdo->createRawBlockTable();
-        $pdo->createRawTxTable();
         $pdo->createUtxoTable();
 
         return $pdo;

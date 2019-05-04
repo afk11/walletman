@@ -90,21 +90,6 @@ class DB implements DBInterface
         }
     }
 
-    public function createRawTxTable()
-    {
-        if (false === $this->pdo->exec("CREATE TABLE `rawTx` (
-            `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
-            `txid`  VARCHAR(64) NOT NULL,
-            `tx`    TEXT NOT NULL
-        );")) {
-            throw new \RuntimeException("failed to create raw tx table");
-        }
-
-        if (false === $this->pdo->exec("CREATE UNIQUE INDEX unique_rawTx on rawTx(txid)")) {
-            throw new \RuntimeException("failed add index on rawtx table");
-        }
-    }
-
     public function createRawBlockTable()
     {
         if (false === $this->pdo->exec("CREATE TABLE `rawBlock` (

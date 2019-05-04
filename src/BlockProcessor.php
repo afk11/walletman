@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet;
 
+use BitWasp\Bitcoin\Block\BlockInterface;
 use BitWasp\Bitcoin\Math\Math;
 use BitWasp\Bitcoin\Serializer\Block\BlockHeaderSerializer;
 use BitWasp\Bitcoin\Serializer\Block\BlockSerializer;
@@ -36,11 +37,6 @@ class BlockProcessor
      */
     private $wallets = [];
 
-    /**
-     * @var UtxoSet
-     */
-    private $utxoSet;
-
     public function __construct(DBInterface $db, WalletInterface... $wallets)
     {
         $this->db = $db;
@@ -48,8 +44,6 @@ class BlockProcessor
         foreach ($wallets as $wallet) {
             $this->wallets[$wallet->getDbWallet()->getId()] = $wallet;
         }
-        $this->utxoSet = new DbUtxoSet($db, ...$wallets);
-        //$this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
     }
 
     /**
@@ -86,16 +80,21 @@ class BlockProcessor
      * @throws \BitWasp\Bitcoin\Exceptions\InvalidHashLengthException
      * @throws \BitWasp\Buffertools\Exceptions\ParserOutOfRange
      */
-    public function applyBlock(int $height, BufferInterface $blockHash)
+    public function applyBlock(int $height, BufferInterface $blockHash, BlockInterface & $rawBlock = null)
     {
-        $raw = $this->db->getRawBlock($blockHash);
-        if (!$raw) {
-            throw new \RuntimeException("no raw data for block");
+        $s = microtime(true);
+        if (null === $rawBlock) {
+            $raw = $this->db->getRawBlock($blockHash);
+            if (!$raw) {
+                throw new \RuntimeException("no raw data for block");
+            }
+            $rawBlock = $this->blockSerializer->fromParser(new Parser(new Buffer($raw)));
         }
-        $block = $this->blockSerializer->fromParser(new Parser(new Buffer($raw)));
-        foreach ($block->getTransactions() as $tx) {
+
+        foreach ($rawBlock->getTransactions() as $tx) {
             $this->applyConfirmedTx($height, $blockHash, $tx);
         }
+        echo "apply block took " . (microtime(true) - $s).PHP_EOL;
     }
 
     /**
@@ -116,7 +115,7 @@ class BlockProcessor
             for ($iIn = 0; $iIn < $nIn; $iIn++) {
                 $outPoint = $ins[$iIn]->getOutPoint();
                 // load this utxo from wallets, and mark spent
-                $dbUtxos = $this->utxoSet->getUtxosForOutPoint($outPoint);
+                $dbUtxos = $this->db->getWalletUtxosWithUnspentUtxo($outPoint);
                 $nUtxos = count($dbUtxos);
                 for ($i = 0; $i < $nUtxos; $i++) {
                     $dbUtxo = $dbUtxos[$i];
@@ -131,7 +130,7 @@ class BlockProcessor
                         $txId = $tx->getTxId();
                     }
                     $valueChange[$walletId] -= $dbUtxo->getValue();
-                    $this->utxoSet->spendUtxo($walletId, $outPoint, $txId, $iIn);
+                    $this->db->markUtxoSpent($walletId, $outPoint, $txId, $iIn);
                     echo "wallet({$walletId}).utxoSpent {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}\n";
                 }
             }
@@ -141,7 +140,7 @@ class BlockProcessor
         $nOut = count($outs);
         for ($iOut = 0; $iOut < $nOut; $iOut++) {
             $txOut = $outs[$iOut];
-            $scriptWalletIds = $this->utxoSet->getWalletsForScriptPubKey($txOut->getScript());
+            $scriptWalletIds = $this->db->loadWalletIDsByScriptPubKey($txOut->getScript());
 
             $numIds = count($scriptWalletIds);
             for ($i = 0; $i < $numIds; $i++) {
@@ -161,7 +160,7 @@ class BlockProcessor
                         $txId = $tx->getTxId();
                     }
                     echo "wallet({$dbWallet->getId()}).newUtxo {$txId->getHex()} {$iOut} {$txOut->getValue()}\n";
-                    $this->utxoSet->createUtxo($dbWallet, $script, new OutPoint($txId, $iOut), $txOut);
+                    $this->db->createUtxo($dbWallet->getId(), $script->getId(), new OutPoint($txId, $iOut), $txOut);
                 }
             }
         }

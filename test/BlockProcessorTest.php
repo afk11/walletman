@@ -346,7 +346,7 @@ class BlockProcessorTest extends DbTestCase
         // accept & saveblock
         $this->assertTrue($chain->acceptBlock($this->sessionDb, $block1Hash, $block1, $header1));
         $processor->saveBlock(1, $block1Hash, $block1->getBuffer());
-        $chain->updateChain($this->sessionDb, $processor, $header1);
+        $chain->updateChain($this->sessionDb, $processor, $header1, $block1);
 
         // check transaction: status now CONFIRMED
         $tx = $this->loadTransaction($walletId, $cbTx1->getTxId());

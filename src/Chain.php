@@ -70,7 +70,9 @@ class Chain
             }
         } else {
             $work = $this->proofOfWork->getWork($genesisHeader->getBits());
-            $db->addHeader(0, $work, $genesisHeader->getHash(), $genesisHeader, DbHeader::HEADER_VALID | DbHeader::BLOCK_VALID);
+            if (!$db->addHeader(0, $work, $genesisHeader->getHash(), $genesisHeader, DbHeader::HEADER_VALID | DbHeader::BLOCK_VALID)) {
+                throw new \RuntimeException("failed to insert genesis header");
+            }
         }
 
         // step 1: load (or iterate over) ALL height/hash/headers
@@ -354,7 +356,9 @@ class Chain
 
     private function acceptHeaderToIndex(DBInterface $db, int $height, \GMP $work, BufferInterface $hash, BlockHeaderInterface $header): DbHeader
     {
-        $db->addHeader($height, $work, $hash, $header, DbHeader::HEADER_VALID);
+        if (!$db->addHeader($height, $work, $hash, $header, DbHeader::HEADER_VALID)) {
+            throw new \RuntimeException("failed to add header");
+        }
         // todo: why was this added?
         //$this->hashMapToHeight[$hash->getBinary()] = $height;
 
@@ -407,20 +411,30 @@ class Chain
         return true;
     }
 
-    public function connectTip(BlockProcessor $blockProcessor, DbHeader $blockIdx): bool
+    public function connectTip(BlockProcessor $blockProcessor, DbHeader $blockIdx, BlockInterface &$rawBlock = null): bool
     {
         if (!$blockIdx->getPrevBlock()->equals($this->bestBlockIndex->getHash())) {
             throw new \RuntimeException("Failed to connect block - block doesn't point to prev!");
         }
         /** @var DbHeader $bestBlock */
-        $blockProcessor->applyBlock($blockIdx->getHeight(), $blockIdx->getHash());
+        $blockProcessor->applyBlock($blockIdx->getHeight(), $blockIdx->getHash(), $rawBlock);
         $this->blocks[$blockIdx->getHeight()] = $blockIdx->getHash()->getBinary();
         $this->bestBlockIndex = $blockIdx;
         return true;
     }
 
-    public function updateChain(DBInterface $db, BlockProcessor $blockProcessor, DbHeader $bestBlock)
+    public function updateChain(DBInterface $db, BlockProcessor $blockProcessor, DbHeader $bestBlock, BlockInterface $rawblock)
     {
+        if ($bestBlock->getPrevBlock()->equals($this->getBestBlock()->getHash())) {
+            echo "shortcut\n";
+            if (!$this->connectTip($blockProcessor, $bestBlock, $rawblock)) {
+                echo "err\n";
+                throw new \RuntimeException("failed to connect tip");
+            }
+            echo "ok\n";
+            return;
+        }
+
         $lastCommonBlock = null;
         if (!$this->findLastBlockInCommon($db, $bestBlock, $lastCommonBlock)) {
             throw new \RuntimeException("srs problems = no block in common?");
@@ -446,7 +460,7 @@ class Chain
             if (!$block) {
                 throw new \RuntimeException("failed to load block from hash in chain! $i - {$hash->getHex()}");
             }
-            if (!$this->connectTip($blockProcessor, $block)) {
+            if (!$this->connectTip($blockProcessor, $block, $rawblock)) {
                 throw new \RuntimeException("failed to connect tip");
             }
         }
@@ -460,20 +474,30 @@ class Chain
             $rawBlock = $block->getBuffer();
         }
         try {
+            $accStart = microtime(true);
             $headerIndex = null;
             if (!$this->acceptBlock($db, $hash, $block, $headerIndex)) {
                 return false;
             }
+            echo "accept took ".(microtime(true)-$accStart).PHP_EOL;
             /** @var DbHeader $headerIndex */
+            $saveStart = microtime(true);
             $blockProcessor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $rawBlock);
+            echo "save took ".(microtime(true)-$saveStart).PHP_EOL;
             if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
-                $this->updateChain($db, $blockProcessor, $headerIndex);
+                $updateStart = microtime(true);
+                $this->updateChain($db, $blockProcessor, $headerIndex, $block);
+                echo "updateChain took ".(microtime(true)-$updateStart).PHP_EOL;
             }
+            $commitStart = microtime(true);
             $db->getPdo()->commit();
+            echo "commit: ".(microtime(true)-$commitStart).PHP_EOL;
             $index = $headerIndex;
             $margin = 200;
             if ($index->getHeight() > $margin) {
+                $delStart = microtime(true);
                 $db->deleteRawBlock(new Buffer($this->blocks[$index->getHeight()-$margin]));
+                echo "deleteRawBlock: ".(microtime(true)-$delStart).PHP_EOL;
             }
             return true;
         } catch (\Exception $e) {
