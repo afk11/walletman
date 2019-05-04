@@ -8,9 +8,7 @@ use BitWasp\Bitcoin\Key\Deterministic\HierarchicalKey;
 use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Script\ScriptInterface;
 use BitWasp\Bitcoin\Serializer\Key\HierarchicalKey\Base58ExtendedKeySerializer;
-use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializerInterface;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
-use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Bitcoin\Transaction\TransactionOutputInterface;
 use BitWasp\Buffertools\BufferInterface;
 use BitWasp\Wallet\BlockRef;
@@ -87,7 +85,7 @@ interface DBInterface
     public function loadWalletIDsByScriptPubKey(ScriptInterface $script): array;
 
     public function markUtxoSpent(int $walletId, OutPointInterface $utxoOutPoint, BufferInterface $spendTxid, int $spendIdx);
-    public function markUtxoUnspent(int $walletId, OutPointInterface $utxoOutPoint);
+
 
     /**
      * @param OutPointInterface $outPoint
@@ -107,12 +105,6 @@ interface DBInterface
     public function getUnspentWalletUtxos(int $walletId): array;
 
     /**
-     * @param int $walletId
-     * @return string[]
-     */
-    public function getWalletScriptPubKeys(int $walletId): array;
-
-    /**
      * @param BufferInterface $hash
      * @param array $walletIds
      * @return DbBlockTx[]
@@ -122,9 +114,6 @@ interface DBInterface
     public function unspendTxUtxos(BufferInterface $txId, array $walletIds);
     public function createTx(int $walletId, BufferInterface $txid, int $valueChange, int $status, bool $coinbase, ?string $blockHashHex, ?int $blockHeight): bool;
     public function updateTxStatus(int $walletId, BufferInterface $txid, int $status): bool;
-
-    public function saveRawTx(BufferInterface $txId, BufferInterface $tx);
-    public function getRawTx(BufferInterface $txId): string;
 
     public function getConfirmedBalance(int $walletId): int;
 

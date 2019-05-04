@@ -45,7 +45,6 @@ class DB implements DBInterface
     private $deleteUtxoStmt;
     private $findWalletsWithUtxoStmt;
     private $searchUnspentUtxoStmt;
-    private $getWalletScriptPubKeysStmt;
 
     public function __construct(string $dsn)
     {
@@ -503,18 +502,14 @@ class DB implements DBInterface
             throw new \RuntimeException("failed to delete utxo");
         }
     }
-    public function markUtxoUnspent(int $walletId, OutPointInterface $utxoOutPoint)
+
+    public function unspendTxUtxos(BufferInterface $txId, array $walletIds)
     {
-        $sql = sprintf("UPDATE utxo SET spentTxid = NULL, spentIdx = NULL WHERE walletId = ? and txid = ? and vout = ?");
-        $stmt = $this->pdo->prepare($sql);
-        if (!$stmt->execute([
-            $walletId, $utxoOutPoint->getTxId()->getHex(), $utxoOutPoint->getVout(),
-        ])) {
-            throw new \RuntimeException("Failed to mark utxo unspent");
-        }
-        if ($stmt->rowCount() !== 1) {
-            throw new \RuntimeException("failed to mark utxo unspent - row != 1");
-        }
+        // todo: index on spentTxid?
+        $stmt = $this->pdo->query("UPDATE utxo SET spentTxid = NULL, spentIdx = NULL WHERE spentTxid = ? and walletId IN (" . implode(",", $walletIds) . ")");
+        return $stmt->execute([
+            $txId->getHex(),
+        ]);
     }
 
     /**
@@ -577,20 +572,6 @@ class DB implements DBInterface
             return $utxo;
         }
         return null;
-    }
-    public function getWalletScriptPubKeys(int $walletId): array
-    {
-        if (null === $this->getWalletScriptPubKeysStmt) {
-            $this->getWalletScriptPubKeysStmt = $this->pdo->prepare("SELECT scriptPubKey from script where walletId = ?");
-        }
-        if (!$this->getWalletScriptPubKeysStmt->execute([$walletId])) {
-            throw new \RuntimeException("Failed to query utxos");
-        }
-        $scriptPubKey = [];
-        while ($utxo = $this->getWalletUtxosStmt->fetchColumn(0)) {
-            $scriptPubKey[] = $utxo;
-        }
-        return $scriptPubKey;
     }
     /**
      * @param int $walletId
@@ -660,15 +641,6 @@ class DB implements DBInterface
         }
     }
 
-    public function unspendTxUtxos(BufferInterface $txId, array $walletIds)
-    {
-        // todo: index on spentTxid?
-        $stmt = $this->pdo->query("UPDATE utxo SET spentTxid = NULL, spentIdx = NULL WHERE spentTxid = ? and walletId IN (" . implode(",", $walletIds) . ")");
-        return $stmt->execute([
-            $txId->getHex(),
-        ]);
-    }
-
     public function getConfirmedBalance(int $walletId): int
     {
         if (null === $this->getConfirmedBalanceStmt) {
@@ -693,16 +665,6 @@ class DB implements DBInterface
         return $stmt;
     }
 
-    public function saveRawTx(BufferInterface $txId, BufferInterface $tx)
-    {
-        // todo prepared statement
-        $stmt = $this->pdo->prepare("insert into rawTx (txId, tx) values (?, ?)");
-        $stmt->execute([
-            $txId->getHex(), $tx->getBinary(),
-        ]);
-        return $stmt;
-    }
-
     public function deleteRawBlock(BufferInterface $blockHash): bool
     {
         // todo prepared statement
@@ -720,18 +682,6 @@ class DB implements DBInterface
         ]);
     }
 
-    public function getRawTx(BufferInterface $txId): string
-    {
-        // todo prepared statement
-        $stmt = $this->pdo->prepare("select tx from rawTx where txId = ?");
-        $stmt->execute([
-            $txId->getHex(),
-        ]);
-        if (!($tx = $stmt->fetchColumn(0))) {
-            throw new \RuntimeException("failed to find raw Tx?");
-        }
-        return $tx;
-    }
 
     public function getRawBlock(BufferInterface $blockHash): string
     {

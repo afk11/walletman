@@ -283,10 +283,6 @@ class DBDecorator implements DBInterface
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
-    public function getWalletScriptPubKeys(int $walletId): array
-    {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
 
     public function getTransactions(int $walletId, bool $includeRejected = false): \PDOStatement
     {
@@ -318,10 +314,7 @@ class DBDecorator implements DBInterface
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
-    public function markUtxoUnspent(int $walletId, OutPointInterface $utxoOutPoint)
-    {
-        return $this->call(__FUNCTION__, func_get_args());
-    }
+
     public function getTransaction(int $walletId, BufferInterface $txId): ?DbWalletTx
     {
         return $this->call(__FUNCTION__, func_get_args());
