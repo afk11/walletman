@@ -6,12 +6,17 @@ namespace BitWasp\Wallet;
 
 use BitWasp\Bitcoin\Block\BlockFactory;
 use BitWasp\Bitcoin\Block\BlockInterface;
+use BitWasp\Bitcoin\Math\Math;
+use BitWasp\Bitcoin\Serializer\Block\BlockHeaderSerializer;
+use BitWasp\Bitcoin\Serializer\Block\BlockSerializer;
+use BitWasp\Bitcoin\Serializer\Block\BlockSerializerInterface;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializer;
 use BitWasp\Bitcoin\Serializer\Transaction\TransactionSerializerInterface;
 use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\TransactionInterface;
 use BitWasp\Buffertools\Buffer;
 use BitWasp\Buffertools\BufferInterface;
+use BitWasp\Buffertools\Parser;
 use BitWasp\Wallet\DB\DbBlockTx;
 use BitWasp\Wallet\DB\DBInterface;
 use BitWasp\Wallet\DB\DbWalletTx;
@@ -25,9 +30,9 @@ class BlockProcessor
     private $db;
 
     /**
-     * @var TransactionSerializerInterface
+     * @var BlockSerializerInterface
      */
-    private $txSerializer;
+    private $blockSerializer;
 
     /**
      * @var WalletInterface[]
@@ -42,7 +47,7 @@ class BlockProcessor
     public function __construct(DBInterface $db, WalletInterface... $wallets)
     {
         $this->db = $db;
-        $this->txSerializer = new TransactionSerializer();
+        $this->blockSerializer = new BlockSerializer(new Math(), new BlockHeaderSerializer(), new TransactionSerializer());
         foreach ($wallets as $wallet) {
             $this->wallets[$wallet->getDbWallet()->getId()] = $wallet;
         }
@@ -50,6 +55,12 @@ class BlockProcessor
         //$this->utxoSet = new MemoryUtxoSet($db, new OutPointSerializer(), ...$wallets);
     }
 
+    /**
+     * just save the block here. process for txs/utxos when we 'activate' this block
+     * @param int $height
+     * @param BufferInterface $blockHash
+     * @param BufferInterface $blockData
+     */
     public function saveBlock(int $height, BufferInterface $blockHash, BufferInterface $blockData)
     {
         // 1. receive only wallet
@@ -68,90 +79,38 @@ class BlockProcessor
         }
     }
 
-    // called before activation, saves as rejected
-    public function processConfirmedTx(int $blockHeight, string $blockHashHex, TransactionInterface $tx)
-    {
-//        $ins = $tx->getInputs();
-//        $nIn = count($ins);
-//        $valueChange = [];
-//        $isCoinbase = $tx->isCoinbase();
-//
-//        if (!$isCoinbase) {
-//            for ($iIn = 0; $iIn < $nIn; $iIn++) {
-//                $outPoint = $ins[$iIn]->getOutPoint();
-//                // load this utxo from wallets, update valueChange
-//                $dbUtxos = $this->utxoSet->getUtxosForOutPoint($outPoint);
-//                $nUtxos = count($dbUtxos);
-//                for ($i = 0; $i < $nUtxos; $i++) {
-//                    $dbUtxo = $dbUtxos[$i];
-//                    if (!array_key_exists($dbUtxo->getWalletId(), $valueChange)) {
-//                        $valueChange[$dbUtxo->getWalletId()] = 0;
-//                    }
-//                    $valueChange[$dbUtxo->getWalletId()] -= $dbUtxo->getValue();
-//                    echo "in: wallet {$dbUtxo->getWalletId()} value change: -{$dbUtxo->getValue()}\n";
-//                }
-//            }
-//        }
-//
-//        $outs = $tx->getOutputs();
-//        $nOut = count($outs);
-//        for ($iOut = 0; $iOut < $nOut; $iOut++) {
-//            $txOut = $outs[$iOut];
-//            $walletIds = $this->utxoSet->getWalletsForScriptPubKey($txOut->getScript());
-//            $numIds = count($walletIds);
-//
-//            for ($i = 0; $i < $numIds; $i++) {
-//                $walletId = $walletIds[$i];
-//                // does this allow skipping wallets which are already synced? so resync?
-//                if (!array_key_exists($walletId, $this->wallets)) {
-//                    continue;
-//                }
-//
-//                $wallet = $this->wallets[$walletId];
-//                $dbWallet = $wallet->getDbWallet();
-//                if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
-//                    if (!array_key_exists($dbWallet->getId(), $valueChange)) {
-//                        $valueChange[$dbWallet->getId()] = 0;
-//                    }
-//                    $valueChange[$dbWallet->getId()] += $txOut->getValue();
-//                    echo "out: wallet $walletId value change: +{$txOut->getValue()}\n";
-//                } else {
-//                    throw new \RuntimeException("somehow, we didn't find the script in script storage");
-//                }
-//            }
-//        }
-//
-//        if (count($valueChange) > 0) {
-//            $txBin = $this->txSerializer->serialize($tx);
-//            $txId = $tx->getTxId();
-//            foreach ($valueChange as $walletId => $change) {
-//                // note: used to be when save/activate were in same step.
-//                echo "createTx:: $walletId: {$txId->getHex()} value change: $change\n";
-//                if (!$this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_REJECT, $isCoinbase, $blockHashHex, $blockHeight)) {
-//                    throw new \RuntimeException("failed to create tx");
-//                }
-//                // need to update now because tx is stored as rejected until activated (in block accept codepath)
-//            }
-//
-//            // save the full transaction if wallets are interested in it
-//            $this->db->saveRawTx($txId, $txBin);
-//        }
-    }
-
+    /**
+     * apply block loads the block from disk and applies it's effect
+     * to the utxo set
+     * @param int $height
+     * @param BufferInterface $blockHash
+     * @throws \BitWasp\Buffertools\Exceptions\ParserOutOfRange
+     */
     public function applyBlock(int $height, BufferInterface $blockHash)
     {
-        $block = BlockFactory::fromBuffer(new Buffer($this->db->getRawBlock($blockHash)));
+        $raw = $this->db->getRawBlock($blockHash);
+        if (!$raw) {
+            throw new \RuntimeException("no raw data for block");
+        }
+        $block = $this->blockSerializer->fromParser(new Parser(new Buffer($raw)));
         foreach ($block->getTransactions() as $tx) {
-            /** @var DbWalletTx $tx */
-            $txId = $tx->getTxId();
             $isCoinbase = $tx->isCoinbase();
-            $this->applyConfirmedTx($height, $blockHash, $txId, $isCoinbase, $tx);
+            $this->applyConfirmedTx($height, $blockHash, $isCoinbase, $tx);
         }
     }
 
-    // called in Activate step
-    public function applyConfirmedTx(int $height, BufferInterface $blockHash, BufferInterface $txId, bool $coinbase, TransactionInterface $tx)
+    /**
+     * mark txins spent, create new txouts, create tx record for every effected wallet
+     * @param int $height
+     * @param BufferInterface $blockHash
+     * @param BufferInterface $txId
+     * @param bool $coinbase
+     * @param TransactionInterface $tx
+     * @throws \BitWasp\Bitcoin\Exceptions\InvalidHashLengthException
+     */
+    public function applyConfirmedTx(int $height, BufferInterface $blockHash, bool $coinbase, TransactionInterface $tx)
     {
+        $txId = null;
         $ins = $tx->getInputs();
         $nIn = count($ins);
         $valueChange = [];
@@ -201,9 +160,16 @@ class BlockProcessor
                 $dbWallet = $wallet->getDbWallet();
                 if (($script = $wallet->getScriptStorage()->searchScript($txOut->getScript()))) {
                     echo "wallet({$dbWallet->getId()}).newUtxo {$txId->getHex()} {$iOut} {$txOut->getValue()}\n";
+                    if (null === $txId) {
+                        $txId = $tx->getTxId();
+                    }
                     $this->utxoSet->createUtxo($dbWallet, $script, new OutPoint($txId, $iOut), $txOut);
                 }
             }
+        }
+
+        if (null === $txId) {
+            $txId = $tx->getTxId();
         }
 
         foreach ($valueChange as $walletId => $change) {
@@ -213,6 +179,10 @@ class BlockProcessor
         }
     }
 
+    /**
+     * load block and undo it's effects on the utxo set
+     * @param BufferInterface $blockHash
+     */
     public function undoBlock(BufferInterface $blockHash)
     {
         $walletIds = [];
@@ -227,6 +197,12 @@ class BlockProcessor
         }
     }
 
+    /**
+     * deletes tx utxos, marks inputs unspent, and marks tx rejected
+     * @param BufferInterface $txId
+     * @param bool $isCoinbase
+     * @param array $walletIds
+     */
     public function undoConfirmedTx(BufferInterface $txId, bool $isCoinbase, array $walletIds)
     {
         if (!$isCoinbase) {

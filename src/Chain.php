@@ -262,6 +262,7 @@ class Chain
 
     public function acceptHeader(DBInterface $db, BufferInterface $hash, BlockHeaderInterface $header, DbHeader &$headerIndex = null): bool
     {
+        // Check if header was already processed.
         $headerIndex = $db->getHeader($hash);
         if ($headerIndex) {
             if (($headerIndex->getStatus() & DbHeader::HEADER_VALID) == 0) {
@@ -270,6 +271,7 @@ class Chain
             return true;
         }
 
+        // Check state of previous header.
         $prevIndex = $db->getHeader($header->getPrevBlock());
         if ($prevIndex) {
             if (($prevIndex->getStatus() & DbHeader::HEADER_VALID) == 0) {
@@ -316,7 +318,7 @@ class Chain
                     throw new \RuntimeException("failed to find prevblock");
                 }
                 // need for prevBlock, and arguably status too
-                $lastCommonHash = $p->getHeader()->getPrevBlock();
+                $lastCommonHash = $p->getPrevBlock();
                 $lastCommonHeight--;
             }
 
