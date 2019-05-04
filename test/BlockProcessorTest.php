@@ -87,7 +87,7 @@ class BlockProcessorTest extends DbTestCase
     private function loadRawUtxo(int $walletId, OutPointInterface $outPoint): ?DbUtxo
     {
         $query = $this->sessionDb->getPdo()->query("select * from utxo where walletId = ? and txid = ? AND vout = ?");
-        if (!$query->execute([$walletId, $outPoint->getTxId()->getHex(), $outPoint->getVout()])) {
+        if (!$query->execute([$walletId, $outPoint->getTxId()->getBinary(), $outPoint->getVout()])) {
             throw new \RuntimeException("cannot load expected utxo {$outPoint->getTxId()->getHex()} {$outPoint->getVout()}");
         }
         $obj = $query->fetchObject(DbUtxo::class);

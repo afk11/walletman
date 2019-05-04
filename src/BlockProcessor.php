@@ -94,7 +94,6 @@ class BlockProcessor
         foreach ($rawBlock->getTransactions() as $tx) {
             $this->applyConfirmedTx($height, $blockHash, $tx);
         }
-        echo "apply block took " . (microtime(true) - $s).PHP_EOL;
     }
 
     /**
@@ -165,13 +164,14 @@ class BlockProcessor
             }
         }
 
-        if (null === $txId) {
-            $txId = $tx->getTxId();
-        }
-
-        foreach ($valueChange as $walletId => $change) {
-            if (!$this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_CONFIRMED, $isCoinbase, $blockHash->getHex(), $height)) {
-                throw new \RuntimeException("failed to update tx status");
+        if (count($valueChange) > 0) {
+            if (null === $txId) {
+                $txId = $tx->getTxId();
+            }
+            foreach ($valueChange as $walletId => $change) {
+                if (!$this->db->createTx($walletId, $txId, $change, DbWalletTx::STATUS_CONFIRMED, $isCoinbase, $blockHash->getHex(), $height)) {
+                    throw new \RuntimeException("failed to update tx status");
+                }
             }
         }
     }

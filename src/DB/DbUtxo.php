@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BitWasp\Wallet\DB;
 
+use BitWasp\Bitcoin\Script\Script;
 use BitWasp\Bitcoin\Script\ScriptFactory;
 use BitWasp\Bitcoin\Transaction\OutPoint;
 use BitWasp\Bitcoin\Transaction\OutPointInterface;
@@ -62,12 +63,12 @@ class DbUtxo
 
     public function getTxOut(): TransactionOutputInterface
     {
-        return new TransactionOutput((int) $this->value, ScriptFactory::fromHex($this->scriptPubKey));
+        return new TransactionOutput((int) $this->value, new Script(new Buffer($this->scriptPubKey)));
     }
 
     public function getDbScript(DBInterface $db): DbScript
     {
-        $script = $db->loadScriptByScriptPubKey((int) $this->walletId, ScriptFactory::fromHex($this->scriptPubKey));
+        $script = $db->loadScriptByScriptPubKey((int) $this->walletId, new Script(new Buffer($this->scriptPubKey)));
         if ($script === null) {
             throw new \RuntimeException("DbScript not in database");
         }
@@ -76,7 +77,7 @@ class DbUtxo
 
     public function getOutPoint(): OutPointInterface
     {
-        return new OutPoint(Buffer::hex($this->txid), (int) $this->vout);
+        return new OutPoint(new Buffer($this->txid), (int) $this->vout);
     }
 
     public function isSpent(): bool
@@ -86,7 +87,7 @@ class DbUtxo
     public function getSpendOutPoint(): ?OutPointInterface
     {
         if ($this->spentTxid != null && $this->spentIdx !== null) {
-            return new OutPoint(Buffer::hex($this->spentTxid), (int) $this->spentIdx);
+            return new OutPoint(new Buffer($this->spentTxid), (int) $this->spentIdx);
         }
         return null;
     }

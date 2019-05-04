@@ -265,7 +265,7 @@ class DBTest extends DbTestCase
         $this->sessionDb->createUtxo($walletId, 1, $outpointReceive, $txoutReceive);
 
         // first utxo is SPENT, spend utxo exists
-        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getHex(), 0);
+        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getBinary(), 0);
         $this->assertInstanceOf(DbUtxo::class, $getUtxo);
         $this->assertEquals($walletId, $getUtxo->getWalletId());
         $this->assertEquals($txoutReceive->getValue(), $getUtxo->getValue());
@@ -286,7 +286,7 @@ class DBTest extends DbTestCase
         $this->assertTrue($this->sessionDb->createTx($walletId, $txidReceive, $valueChange, DbWalletTx::STATUS_CONFIRMED, false, null, null));
 
         $this->sessionDb->createUtxo($walletId, 1, $outpointReceive, $txoutReceive);
-        $this->assertInstanceOf(DbUtxo::class, $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getHex(), 0));
+        $this->assertInstanceOf(DbUtxo::class, $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getBinary(), 0));
 
         $this->sessionDb->deleteUtxo($walletId, $txidReceive, 0);
         $this->assertFalse($this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getHex(), 0));
@@ -308,7 +308,7 @@ class DBTest extends DbTestCase
         $this->sessionDb->markUtxoSpent($walletId, $outpointReceive, $txidSpend, 0);
         $this->assertNull($this->sessionDb->searchUnspentUtxo($walletId, $outpointReceive));
 
-        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getHex(), $outpointReceive->getVout());
+        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getBinary(), $outpointReceive->getVout());
         $this->assertInstanceOf(DbUtxo::class, $getUtxo);
         /** @var DbUtxo $getUtxo */
         $this->assertInstanceOf(OutPointInterface::class, $getUtxo->getSpendOutPoint());
@@ -336,7 +336,7 @@ class DBTest extends DbTestCase
         $this->sessionDb->createUtxo($walletId, $scriptId, $outpointReceive, $txoutReceive);
 
         // check it exists
-        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getHex(), 0);
+        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getBinary(), 0);
         $this->assertInstanceOf(DbUtxo::class, $getUtxo);
 
         // create spend tx, delete prev utxo, create newer one
@@ -345,7 +345,7 @@ class DBTest extends DbTestCase
         $this->sessionDb->createUtxo($walletId, $scriptId, $outpointSpend, $txoutSpend);
 
         // first utxo is SPENT, spend utxo exists
-        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getHex(), 0);
+        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidReceive->getBinary(), 0);
         $this->assertInstanceOf(DbUtxo::class, $getUtxo);
         /** @var DbUtxo $getUtxo */
         $this->assertNotNull($getUtxo->getSpendOutPoint());
@@ -357,7 +357,7 @@ class DBTest extends DbTestCase
         $this->assertNull($getUtxo);
 
         // check it's status now
-        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidSpend->getHex(), 0);
+        $getUtxo = $this->loadWalletUtxo($this->sessionDb, $walletId, $txidSpend->getBinary(), 0);
         $this->assertInstanceOf(DbUtxo::class, $getUtxo);
 
         $this->sessionDb->unspendTxUtxos($txidSpend, [$walletId]);

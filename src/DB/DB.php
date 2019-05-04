@@ -111,9 +111,9 @@ class DB implements DBInterface
             `id`	INTEGER PRIMARY KEY AUTOINCREMENT,
             `walletId`     INTEGER NOT NULL,
             `scriptId`     INTEGER,
-            `txid`         TEXT NOT NULL,
+            `txid`         VARCHAR(32) NOT NULL,
             `vout`         INTEGER NOT NULL,
-            `spentTxid`    TEXT,
+            `spentTxid`    VARCHAR(32),
             `spentIdx`     INTEGER,
             `value`        INTEGER NOT NULL,
             `scriptPubKey` TEXT NOT NULL
@@ -478,8 +478,8 @@ class DB implements DBInterface
         $sql = sprintf("UPDATE utxo SET spentTxid = ?, spentIdx = ? WHERE walletId = ? and txid = ? and vout = ?");
         $stmt = $this->pdo->prepare($sql);
         if (!$stmt->execute([
-            $spendTxid->getHex(), $spendIdx, $walletId,
-            $utxoOutPoint->getTxId()->getHex(), $utxoOutPoint->getVout(),
+            $spendTxid->getBinary(), $spendIdx, $walletId,
+            $utxoOutPoint->getTxId()->getBinary(), $utxoOutPoint->getVout(),
         ])) {
             throw new \RuntimeException("Failed to update utxos with spend");
         }
@@ -493,7 +493,7 @@ class DB implements DBInterface
         // todo: index on spentTxid?
         $stmt = $this->pdo->query("UPDATE utxo SET spentTxid = NULL, spentIdx = NULL WHERE spentTxid = ? and walletId IN (" . implode(",", $walletIds) . ")");
         return $stmt->execute([
-            $txId->getHex(),
+            $txId->getBinary(),
         ]);
     }
 
@@ -507,7 +507,7 @@ class DB implements DBInterface
             $this->findWalletsWithUtxoStmt = $this->pdo->prepare("SELECT walletId, scriptId, txid, vout, spentTxid, spentIdx, value, scriptPubKey from utxo where txid = ? and vout = ? and spentTxid IS NULL");
         }
         if (!$this->findWalletsWithUtxoStmt->execute([
-            $outPoint->getTxId()->getHex(),
+            $outPoint->getTxId()->getBinary(),
             $outPoint->getVout(),
         ])) {
             throw new \RuntimeException("failed to search utxos");
@@ -527,8 +527,8 @@ class DB implements DBInterface
 
         if (!$this->createUtxoStmt->execute([
             $walletId, $dbScriptId,
-            $outPoint->getTxId()->getHex(), $outPoint->getVout(),
-            $txOut->getValue(), $txOut->getScript()->getHex(),
+            $outPoint->getTxId()->getBinary(), $outPoint->getVout(),
+            $txOut->getValue(), $txOut->getScript()->getBinary(),
         ])) {
             throw new \RuntimeException("failed to create utxo");
         }
@@ -540,7 +540,7 @@ class DB implements DBInterface
         }
 
         if (!$this->deleteUtxoStmt->execute([
-            $walletId, $txId->getHex(), $vout,
+            $walletId, $txId->getBinary(), $vout,
         ])) {
             throw new \RuntimeException("failed to delete utxo");
         }
@@ -550,7 +550,7 @@ class DB implements DBInterface
         if (null === $this->searchUnspentUtxoStmt) {
             $this->searchUnspentUtxoStmt = $this->pdo->prepare("SELECT * from utxo where walletId = ? and txid = ? and vout = ? and spentTxid IS NULL");
         }
-        if (!$this->searchUnspentUtxoStmt->execute([$walletId, $outPoint->getTxId()->getHex(), $outPoint->getVout()])) {
+        if (!$this->searchUnspentUtxoStmt->execute([$walletId, $outPoint->getTxId()->getBinary(), $outPoint->getVout()])) {
             throw new \RuntimeException("Failed to query utxo");
         }
         if ($utxo = $this->searchUnspentUtxoStmt->fetchObject(DbUtxo::class)) {
@@ -620,7 +620,7 @@ class DB implements DBInterface
     {
         $stmt = $this->pdo->query("DELETE FROM utxo WHERE txid = ? and walletId IN (" . implode(",", $walletIds) . ")");
         if (!$stmt->execute([
-            $txId->getHex(),
+            $txId->getBinary(),
         ])) {
             throw new \RuntimeException("failed to delete utxos");
         }

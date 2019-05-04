@@ -426,12 +426,9 @@ class Chain
     public function updateChain(DBInterface $db, BlockProcessor $blockProcessor, DbHeader $bestBlock, BlockInterface $rawblock)
     {
         if ($bestBlock->getPrevBlock()->equals($this->getBestBlock()->getHash())) {
-            echo "shortcut\n";
             if (!$this->connectTip($blockProcessor, $bestBlock, $rawblock)) {
-                echo "err\n";
                 throw new \RuntimeException("failed to connect tip");
             }
-            echo "ok\n";
             return;
         }
 
@@ -474,30 +471,21 @@ class Chain
             $rawBlock = $block->getBuffer();
         }
         try {
-            $accStart = microtime(true);
             $headerIndex = null;
             if (!$this->acceptBlock($db, $hash, $block, $headerIndex)) {
                 return false;
             }
-            echo "accept took ".(microtime(true)-$accStart).PHP_EOL;
             /** @var DbHeader $headerIndex */
-            $saveStart = microtime(true);
             $blockProcessor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $rawBlock);
-            echo "save took ".(microtime(true)-$saveStart).PHP_EOL;
             if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
-                $updateStart = microtime(true);
                 $this->updateChain($db, $blockProcessor, $headerIndex, $block);
-                echo "updateChain took ".(microtime(true)-$updateStart).PHP_EOL;
             }
-            $commitStart = microtime(true);
             $db->getPdo()->commit();
-            echo "commit: ".(microtime(true)-$commitStart).PHP_EOL;
+
             $index = $headerIndex;
             $margin = 200;
             if ($index->getHeight() > $margin) {
-                $delStart = microtime(true);
                 $db->deleteRawBlock(new Buffer($this->blocks[$index->getHeight()-$margin]));
-                echo "deleteRawBlock: ".(microtime(true)-$delStart).PHP_EOL;
             }
             return true;
         } catch (\Exception $e) {
