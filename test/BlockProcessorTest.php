@@ -442,6 +442,12 @@ class BlockProcessorTest extends DbTestCase
         $this->assertEquals(0, $spentUtxo->getSpendOutPoint()->getVout());
     }
 
+    /**
+     * nice test - checks utxo attributes and tx.valueChange
+     * between several dependent transactions in a block
+     * @throws \BitWasp\Bitcoin\Exceptions\InvalidNetworkParameter
+     * @throws \BitWasp\Bitcoin\Exceptions\RandomBytesFailure
+     */
     public function testMultiplePaymentsInBlock()
     {
         $lines = explode("\n", file_get_contents(__DIR__ . "/sql/test_wallet.sql"));
@@ -520,8 +526,6 @@ class BlockProcessorTest extends DbTestCase
             ->get()
         ;
 
-        echo "change1: $change1\n";
-
         $fee2 = 350;
         $change2 = $change1 - $sendAmount2 - $fee2;
         $spend2 = (new TxBuilder())
@@ -529,7 +533,6 @@ class BlockProcessorTest extends DbTestCase
             ->output($change2, $changeScript2)
             ->output($sendAmount2, $wallet2Script2)
             ->get();
-        echo "change2: $change2\n";
 
         $fee3 = 290;
         $change3 = $change2 - $sendAmount3 - $fee3;
@@ -538,7 +541,6 @@ class BlockProcessorTest extends DbTestCase
             ->output($sendAmount3, $walletScript2)
             ->output($change3, $changeScript2)
             ->get();
-        echo "change3: $change3\n";
 
         $blockTxs = [$spend1, $spend2, $spend3];
         $block3 = BlockMaker::makeBlock($this->sessionChainParams, $block2->getHeader(), $cbScript, ...$blockTxs);
@@ -550,17 +552,13 @@ class BlockProcessorTest extends DbTestCase
 
         $wallet1Txs = [];
         $gettxs = $this->sessionDb->getTransactions($walletId1);
-        echo "wallet1\n";
         while ($tx = $gettxs->fetchObject(DbWalletTx::class)) {
             $wallet1Txs[$tx->getTxId()->getHex()] = $tx;
-            echo "{$tx->getTxId()->getHex()} {$tx->getValueChange()}\n";
         }
         $wallet2Txs = [];
-        echo "wlalet2\n";
         $gettxs = $this->sessionDb->getTransactions($walletId2);
         while ($tx = $gettxs->fetchObject(DbWalletTx::class)) {
             $wallet2Txs[$tx->getTxId()->getHex()] = $tx;
-            echo "{$tx->getTxId()->getHex()} {$tx->getValueChange()}\n";
         }
 
         $this->assertArrayHasKey($spend1->getTxId()->getHex(), $wallet1Txs, "should have tx in list 1 {$spend1->getTxId()->getHex()}");
@@ -570,52 +568,87 @@ class BlockProcessorTest extends DbTestCase
         $this->assertArrayHasKey($spend1->getTxId()->getHex(), $wallet2Txs, "should have tx in list 2 {$spend1->getTxId()->getHex()}");
         $this->assertArrayHasKey($spend2->getTxId()->getHex(), $wallet2Txs, "should have tx in list 2 {$spend2->getTxId()->getHex()}");
 
-        // cb1 utxo spent by spend1 idx 0
+        // CB1:
+        //  * utxo spent by spend1 idx 0
         $cb1Utxo = $this->loadRawUtxo($walletId1, $cbTx1->makeOutPoint(0));
         $this->assertTrue($cb1Utxo->isSpent());
         $this->assertEquals($spend1->getTxId()->getHex(), $cb1Utxo->getSpendOutPoint()->getTxId()->getHex());
         $this->assertEquals(0, $cb1Utxo->getSpendOutPoint()->getVout());
 
-        // cb2 utxo spent by spend1 idx 1
+        //  * tx value out is correct
+        $dbCbTx1 = $this->sessionDb->getTransaction($walletId1, $cbTx1->getTxId());
+        $this->assertEquals($cbTx1->getValueOut(), $dbCbTx1->getValueChange());
+
+        // CB2
+        //  * wallet 1 spent it in spend1
         $cb2Utxo = $this->loadRawUtxo($walletId1, $cbTx2->makeOutPoint(0));
         $this->assertTrue($cb2Utxo->isSpent());
         $this->assertEquals($spend1->getTxId()->getHex(), $cb2Utxo->getSpendOutPoint()->getTxId()->getHex());
         $this->assertEquals(1, $cb2Utxo->getSpendOutPoint()->getVout());
 
-        // spend1 vout 0: wallet2 received this, unspent
+        //  * tx value out is correct
+        $dbCbTx2 = $this->sessionDb->getTransaction($walletId1, $cbTx2->getTxId());
+        $this->assertEquals($cbTx2->getValueOut(), $dbCbTx2->getValueChange());
+
+        // Spend1
+        // * spend1 vout 0:
+        //   * wallet2 received this, unspent
         $spendUtxo = $this->loadRawUtxo($walletId2, $spend1->makeOutPoint(0));
         $this->assertFalse($spendUtxo->isSpent());
-
-        // spend1 vout0: wallet1 has no reason to track this
+        //   * wallet1 has no reason to track this
         $this->assertNull($this->loadRawUtxo($walletId1, $spend1->makeOutPoint(0)));
 
-        // spend1 vout 1 spent by spend2 idx 1
+        // * spend1 vout 1:
+        //   * wallet 1 spent it in spend 2
         $spendUtxo = $this->loadRawUtxo($walletId1, $spend1->makeOutPoint(1));
         $this->assertTrue($spendUtxo->isSpent());
         $this->assertEquals($spend2->getTxId()->getHex(), $spendUtxo->getSpendOutPoint()->getTxId()->getHex());
         $this->assertEquals(0, $spendUtxo->getSpendOutPoint()->getVout());
 
-        // spend1 vout 1: wallet2 received this, unspent
+        // * tx value out
+        $dbSpend1 = $this->sessionDb->getTransaction($walletId1, $spend1->getTxId());
+        $this->assertEquals(-$fee-$sendAmount1, $dbSpend1->getValueChange());
+        $dbSpend1 = $this->sessionDb->getTransaction($walletId2, $spend1->getTxId());
+        $this->assertEquals($sendAmount1, $dbSpend1->getValueChange());
+
+        // Spend2:
+        // * spend2 vout 1:
+        //   * wallet 2 received this, unspent
         $spendUtxo = $this->loadRawUtxo($walletId2, $spend2->makeOutPoint(1));
         $this->assertFalse($spendUtxo->isSpent());
-
-        // spend2 vout 1 went outside our wallet, ignored
+        //   * wallet 1 has no reason to track this
         $this->assertNull($this->loadRawUtxo($walletId1, $spend2->makeOutPoint(1)));
 
-        // spend2 vout 0 spent by spend3 idx 0
+        // * spend2 vout 0:
+        //   * wallet 1 spent it in spend3
         $spendUtxo = $this->loadRawUtxo($walletId1, $spend2->makeOutPoint(0));
         $this->assertTrue($spendUtxo->isSpent());
         $this->assertEquals($spend3->getTxId()->getHex(), $spendUtxo->getSpendOutPoint()->getTxId()->getHex());
         $this->assertEquals(0, $spendUtxo->getSpendOutPoint()->getVout());
 
-        // spend3 vout 0 sent to normal address, unspent
+        // * tx value out
+        $dbSpend2 = $this->sessionDb->getTransaction($walletId1, $spend2->getTxId());
+        $this->assertEquals(-$fee2-$sendAmount2, $dbSpend2->getValueChange());
+        $dbSpend2 = $this->sessionDb->getTransaction($walletId2, $spend2->getTxId());
+        $this->assertEquals($sendAmount2, $dbSpend2->getValueChange());
+
+        // Spend3:
+        //  * spend3 vout 0:
+        //    * wallet1 received it, unspent
         $spendUtxo = $this->loadRawUtxo($walletId1, $spend3->makeOutPoint(0));
         $this->assertFalse($spendUtxo->isSpent());
-
-        // spend3 vout 1 sent to change address, unspent
-        $spendUtxo = $this->loadRawUtxo($walletId1, $spend3->makeOutPoint(0));
+        //    * wallet1 received it, unspent
+        $spendUtxo = $this->loadRawUtxo($walletId1, $spend3->makeOutPoint(1));
         $this->assertFalse($spendUtxo->isSpent());
 
+        // * tx value out
+        $dbSpend3 = $this->sessionDb->getTransaction($walletId1, $spend3->getTxId());
+        $this->assertEquals(-$fee3, $dbSpend3->getValueChange());
+
+        // wallet2 not interested in spend3
+        $this->assertNull($this->sessionDb->getTransaction($walletId2, $spend3->getTxId()));
+
+        // verify wallet confirmed balance, sum(tx.valueChange):
         $this->assertEquals($sendAmount3 + $change3, $wallet1->getConfirmedBalance());
         $this->assertEquals($sendAmount1 + $sendAmount2, $wallet2->getConfirmedBalance());
     }

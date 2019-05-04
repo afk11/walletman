@@ -322,4 +322,8 @@ class DBDecorator implements DBInterface
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
+    public function getTransaction(int $walletId, BufferInterface $txId): ?DbWalletTx
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
 }

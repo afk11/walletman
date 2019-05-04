@@ -39,6 +39,7 @@ class DB implements DBInterface
     private $getWalletUtxosStmt;
     private $createTxStmt;
     private $updateTxStatusStmt;
+    private $getTransactionStmt;
     private $getConfirmedBalanceStmt;
     private $createUtxoStmt;
     private $deleteUtxoStmt;
@@ -741,6 +742,21 @@ class DB implements DBInterface
         ]);
         if (!($tx = $stmt->fetchColumn(0))) {
             throw new \RuntimeException("failed to find raw Tx?");
+        }
+        return $tx;
+    }
+
+    public function getTransaction(int $walletId, BufferInterface $txId): ?DbWalletTx
+    {
+        if (null === $this->getTransactionStmt) {
+            $this->getTransactionStmt = $this->pdo->prepare("select * from tx where walletId = ? and txid = ?");
+        }
+        $this->getTransactionStmt->execute([
+            $walletId, $txId->getHex(),
+        ]);
+        $tx = $this->getTransactionStmt->fetchObject(DbWalletTx::class);
+        if (!$tx) {
+            return null;
         }
         return $tx;
     }

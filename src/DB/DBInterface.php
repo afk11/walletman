@@ -129,6 +129,7 @@ interface DBInterface
     public function getConfirmedBalance(int $walletId): int;
 
     public function getTransactions(int $walletId, bool $includeRejected = false): \PDOStatement;
+    public function getTransaction(int $walletId, BufferInterface $txId): ?DbWalletTx;
     public function saveRawBlock(BufferInterface $blockHash, BufferInterface $blockData): bool;
     public function getRawBlock(BufferInterface $blockHash): ?string;
     public function deleteRawBlock(BufferInterface $blockHash): bool;
