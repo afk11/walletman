@@ -297,6 +297,10 @@ class DBDecorator implements DBInterface
     {
         return $this->call(__FUNCTION__, func_get_args());
     }
+    public function getRawBlock(BufferInterface $blockHash): string
+    {
+        return $this->call(__FUNCTION__, func_get_args());
+    }
     public function deleteRawBlock(BufferInterface $blockHash): bool
     {
         return $this->call(__FUNCTION__, func_get_args());

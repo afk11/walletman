@@ -140,26 +140,17 @@ class BlockProcessorTest extends DbTestCase
 
         // accept & saveblock
         $this->assertTrue($chain->acceptBlock($this->sessionDb, $block1aHash, $block1a));
-        $processor->saveBlock(1, $block1aHash, $block1a);
+        $processor->saveBlock(1, $block1aHash, $block1a->getBuffer());
 
-        // check: one wallet received 1 transaction, despite two being in the block:
-        $this->assertEquals(1, $this->getTransactionCount());
-        $this->assertEquals(1, $this->getWalletTransactionCount(10001, true));
-        $this->assertEquals(0, $this->getUtxoCount());
+        // apply block effects on db
+        $processor->applyBlock(1, $block1aHash);
 
-        // check transaction: rejected, details otherwise correct
+        // check transaction: status now CONFIRMED
         $tx = $this->loadTransaction(10001, $cbTx1->getTxId());
-        $this->assertEquals(DbWalletTx::STATUS_REJECT, $tx->getStatus());
         $this->assertEquals(5000000000, $tx->getValueChange());
         $this->assertEquals(10001, $tx->getWalletId());
         $this->assertEquals(1, $tx->getConfirmedHeight());
         $this->assertEquals($block1aHash->getHex(), $tx->getConfirmedHash()->getHex());
-
-        // apply block effects on db
-        $processor->applyBlock($block1aHash);
-
-        // check transaction: status now CONFIRMED
-        $tx = $this->loadTransaction(10001, $cbTx1->getTxId());
         $this->assertEquals(DbWalletTx::STATUS_CONFIRMED, $tx->getStatus());
 
         // check utxos: only one in database, assigned to wallet
@@ -200,33 +191,29 @@ class BlockProcessorTest extends DbTestCase
 
         // accept & saveblock
         $this->assertTrue($chain->acceptBlock($this->sessionDb, $block2aHash, $block2a));
-        $processor->saveBlock(2, $block2aHash, $block2a);
-
-        // check: now two transaction in wallet
-        $this->assertEquals(2, $this->getTransactionCount());
-        $this->assertEquals(2, $this->getWalletTransactionCount(10001, true));
-        $this->assertEquals(1, $this->getUtxoCount());
+        $processor->saveBlock(2, $block2aHash, $block2a->getBuffer());
 
         // check utxos: only 1 for tx1, unspent until 'applyBlock'
         $utxos = $this->sessionDb->getUnspentWalletUtxos($walletId);
         $this->assertCount(1, $utxos);
         $this->assertNull($utxos[0]->getSpendOutPoint());
 
-        // check transaction2: rejected, details otherwise correct
-        $tx2 = $this->loadTransaction($walletId, $spendBlock1CB->getTxId());
-        $this->assertFalse($tx2->isCoinbase());
-        $this->assertEquals(DbWalletTx::STATUS_REJECT, $tx2->getStatus());
-        $this->assertEquals((-($cbTx1->getValueOut())+$amountChange), $tx2->getValueChange());
-        $this->assertEquals($walletId, $tx2->getWalletId());
-        $this->assertEquals(2, $tx2->getConfirmedHeight());
-        $this->assertEquals($block2aHash->getHex(), $tx2->getConfirmedHash()->getHex());
-
         // apply block effects on db
-        $processor->applyBlock($block2aHash);
+        $processor->applyBlock(2, $block2aHash);
+        $this->assertEquals(2, $this->getTransactionCount());
+        $this->assertEquals(2, $this->getWalletTransactionCount(10001, true));
 
         // check transaction1: status unchanged (confirmed)
         $tx = $this->loadTransaction($walletId, $cbTx1->getTxId());
         $this->assertEquals(DbWalletTx::STATUS_CONFIRMED, $tx->getStatus());
+
+        // check transaction2: rejected, details otherwise correct
+        $tx2 = $this->loadTransaction($walletId, $spendBlock1CB->getTxId());
+        $this->assertFalse($tx2->isCoinbase());
+        $this->assertEquals((-($cbTx1->getValueOut())+$amountChange), $tx2->getValueChange());
+        $this->assertEquals($walletId, $tx2->getWalletId());
+        $this->assertEquals(2, $tx2->getConfirmedHeight());
+        $this->assertEquals($block2aHash->getHex(), $tx2->getConfirmedHash()->getHex());
 
         // check utxos: only unspent output in db, the new one
         $this->assertEquals(1, $this->getUtxoCount());
@@ -358,7 +345,7 @@ class BlockProcessorTest extends DbTestCase
 
         // accept & saveblock
         $this->assertTrue($chain->acceptBlock($this->sessionDb, $block1Hash, $block1, $header1));
-        $processor->saveBlock(1, $block1Hash, $block1);
+        $processor->saveBlock(1, $block1Hash, $block1->getBuffer());
         $chain->updateChain($this->sessionDb, $processor, $header1);
 
         // check transaction: status now CONFIRMED
@@ -629,6 +616,6 @@ class BlockProcessorTest extends DbTestCase
         $spendUtxo = $this->loadRawUtxo($walletId1, $spend3->makeOutPoint(0));
         $this->assertFalse($spendUtxo->isSpent());
 
-        // tx value_change is broken because it's calculated in process
+        $this->assertEquals($sendAmount3 + $change3, $wallet1->getConfirmedBalance());
     }
 }

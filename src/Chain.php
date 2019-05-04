@@ -387,7 +387,6 @@ class Chain
             return true;
         }
 
-        $db->saveRawBlock($hash, $block->getBuffer());
         $db->setBlockReceived($hash);
 
         return true;
@@ -412,7 +411,7 @@ class Chain
             throw new \RuntimeException("Failed to connect block - block doesn't point to prev!");
         }
         /** @var DbHeader $bestBlock */
-        $blockProcessor->applyBlock($blockIdx->getHash());
+        $blockProcessor->applyBlock($blockIdx->getHeight(), $blockIdx->getHash());
         $this->blocks[$blockIdx->getHeight()] = $blockIdx->getHash()->getBinary();
         $this->bestBlockIndex = $blockIdx;
         return true;
@@ -451,17 +450,20 @@ class Chain
         }
     }
 
-    public function processNewBlock(DBInterface $db, BlockProcessor $blockProcessor, BufferInterface $hash, BlockInterface $block, DbHeader &$index = null): bool
+    public function processNewBlock(DBInterface $db, BlockProcessor $blockProcessor, BufferInterface $hash, BlockInterface $block, BufferInterface $rawBlock = null, DbHeader &$index = null): bool
     {
         $db->getPdo()->beginTransaction();
         $prevTip = $this->getBestBlock();
+        if (null === $rawBlock) {
+            $rawBlock = $block->getBuffer();
+        }
         try {
             $headerIndex = null;
             if (!$this->acceptBlock($db, $hash, $block, $headerIndex)) {
                 return false;
             }
             /** @var DbHeader $headerIndex */
-            $blockProcessor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $block);
+            $blockProcessor->saveBlock($headerIndex->getHeight(), $headerIndex->getHash(), $rawBlock);
             if (gmp_cmp($headerIndex->getWork(), $prevTip->getWork()) > 0) {
                 $this->updateChain($db, $blockProcessor, $headerIndex);
             }

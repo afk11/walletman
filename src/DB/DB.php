@@ -731,4 +731,17 @@ class DB implements DBInterface
         }
         return $tx;
     }
+
+    public function getRawBlock(BufferInterface $blockHash): string
+    {
+        // todo prepared statement
+        $stmt = $this->pdo->prepare("select block from rawBlock where hash = ?");
+        $stmt->execute([
+            $blockHash->getHex(),
+        ]);
+        if (!($tx = $stmt->fetchColumn(0))) {
+            throw new \RuntimeException("failed to find raw Tx?");
+        }
+        return $tx;
+    }
 }
