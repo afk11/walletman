@@ -8,7 +8,6 @@ use BitWasp\Bitcoin\Network\NetworkInterface;
 use BitWasp\Bitcoin\Networking\Factory;
 use BitWasp\Bitcoin\Networking\Ip\Ipv4;
 use BitWasp\Bitcoin\Networking\Message;
-use BitWasp\Bitcoin\Networking\Messages\Addr;
 use BitWasp\Bitcoin\Networking\Messages\GetData;
 use BitWasp\Bitcoin\Networking\Peer\ConnectionParams;
 use BitWasp\Bitcoin\Networking\Peer\Peer;

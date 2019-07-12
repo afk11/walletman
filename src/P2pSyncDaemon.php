@@ -498,15 +498,15 @@ class P2pSyncDaemon
                 });
 
                 $peer->on(Message::BLOCK, function (Peer $peer, Block $blockMsg) use ($loop, $peerInfo) {
-                    $beforeDeserialize = microtime(true);
-                    $block = $this->blockSerializer->parse($blockMsg->getBlock());
+                    $rawBlock = $blockMsg->getBlock();
 
+                    $beforeDeserialize = microtime(true);
+                    $block = $this->blockSerializer->parse($rawBlock);
                     $this->blockDeserializeTime += microtime(true)-$beforeDeserialize;
-                    $this->blockDeserializeBytes += $blockMsg->getBlock()->getSize();
+                    $this->blockDeserializeBytes += $rawBlock->getSize();
                     $this->blockDeserializeNTx += count($block->getTransactions());
 
-                    $header = $block->getHeader();
-                    $hash = $header->getHash();
+                    $hash = $block->getHeader()->getHash();
                     if (!array_key_exists($hash->getBinary(), $this->blocksInFlight)) {
                         throw new \RuntimeException("missing block request {$hash->getHex()}");
                     }
@@ -514,7 +514,7 @@ class P2pSyncDaemon
 
                     $processStart = microtime(true);
                     $headerIndex = null;
-                    if (!$this->chain->processNewBlock($this->db, $this->processor, $hash, $block, $blockMsg->getBlock(), $headerIndex)) {
+                    if (!$this->chain->processNewBlock($this->db, $this->processor, $hash, $block, $rawBlock, $headerIndex)) {
                         throw new \RuntimeException("failed to process block");
                     }
                     /** @var DbHeader $headerIndex */
@@ -539,7 +539,7 @@ class P2pSyncDaemon
                         $processPct = number_format($processTime / $totalTime*100, 2);
 
                         $windowNumBlocks = $this->perBlockDebug ? 1 : $this->blockStatsWindow;
-                        $avgPerBlock = number_format($totalTime / $windowNumBlocks, 2);
+                        $avgPerBlock = number_format($totalTime / $windowNumBlocks, 3);
 
                         $this->logger->info("processed $windowNumBlocks blocks, ntx: {$this->blockDeserializeNTx}, $deserBytes MB): height {$headerIndex->getHeight()} hash {$hash->getHex()} | deserialize {$deserTime}s {$deserPct}% | downloadtime {$downloadTime}s {$downloadPct}% | processtime {$processTime}s {$processPct}% | total {$windowTime}s, avg {$avgPerBlock}s");
                         if (null !== $this->blockStatsFileHandle) {
@@ -668,9 +668,9 @@ class P2pSyncDaemon
             // otherwise, send when we have batch/2 or batch items
 //            $nearTip = count($this->blocksInFlight) + count($this->toDownload) < $this->batchSize;
   //          if ($nearTip || count($this->toDownload) % ($this->batchSize/2) === 0) {
-                foreach ($this->toDownload as $inv) {
-                    $this->blocksInFlight[$inv->getHash()->getBinary()] = 1;
-                }
+        foreach ($this->toDownload as $inv) {
+            $this->blocksInFlight[$inv->getHash()->getBinary()] = 1;
+        }
                 $peer->getdata($this->toDownload);
                 $this->toDownload = [];
     //        }

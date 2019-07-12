@@ -77,12 +77,12 @@ class BlockProcessor
      * to the utxo set
      * @param int $height
      * @param BufferInterface $blockHash
+     * @param BlockInterface|null $rawBlock
      * @throws \BitWasp\Bitcoin\Exceptions\InvalidHashLengthException
      * @throws \BitWasp\Buffertools\Exceptions\ParserOutOfRange
      */
     public function applyBlock(int $height, BufferInterface $blockHash, BlockInterface & $rawBlock = null)
     {
-        $s = microtime(true);
         if (null === $rawBlock) {
             $raw = $this->db->getRawBlock($blockHash);
             if (!$raw) {
